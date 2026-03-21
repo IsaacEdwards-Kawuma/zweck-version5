@@ -1,0 +1,22 @@
+================================================================================
+RENDER — STATIC SITE (this folder = Root Directory "client")
+================================================================================
+
+Build Command MUST be exactly (no Prisma — schema is only under server/):
+
+    npm install && npm run build
+
+Publish directory:  dist
+
+If your build command ends with "&& npx prisma migrate deploy", DELETE that part.
+That command is ONLY for the API service (Root Directory "server").
+
+================================================================================
+
+If Root Directory is the REPO ROOT (not "client"), use instead:
+
+    npm install && npm run build:client
+
+(from root package.json — builds only the client workspace)
+
+================================================================================
