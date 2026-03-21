@@ -29,4 +29,14 @@ B) If Root Directory = "client" (advanced)
 NEVER append:  && npx prisma migrate deploy
 That belongs ONLY to the API service (Root Directory "server").
 
+--------------------------------------------------------------------------------
+C) If you use a Web Service (Node) instead of Static Site — Root Directory "client"
+
+    Build Command:  npm install && npm run build
+    Start Command:  npm start
+
+    (package.json "start" serves ./dist with `serve`. Render sets PORT automatically.)
+
+    Prefer Static Site (CDN) when possible — no start command needed.
+
 ================================================================================
