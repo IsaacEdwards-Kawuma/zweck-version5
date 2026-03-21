@@ -1,47 +1,74 @@
 /**
- * Vercel Edge proxy: browser calls same-origin https://…/api/* → this forwards to Render.
- * Set RENDER_API_URL in Vercel (e.g. https://your-api.onrender.com) — no /api suffix.
- * Avoids mixed content (HTTPS page → http://localhost) and CORS from the browser to Render.
+ * Vercel Node serverless proxy: same-origin https://…/api/* → Render.
+ * Set RENDER_API_URL (e.g. https://your-api.onrender.com) — no /api suffix.
+ * Node runtime (not Edge) so POST + JSON bodies forward reliably (avoids 405 on static HTML).
  */
-export const config = { runtime: "edge" };
 
-export default async function handler(request) {
-  const url = new URL(request.url);
-  if (!url.pathname.startsWith("/api")) {
-    return new Response("Not found", { status: 404 });
+async function getBodyBuffer(req) {
+  if (req.method === "GET" || req.method === "HEAD") return undefined;
+  // Vercel often pre-parses JSON into req.body — stream may be empty if we only read chunks
+  if (req.body !== undefined && req.body !== null) {
+    if (Buffer.isBuffer(req.body)) return req.body.length ? req.body : undefined;
+    if (typeof req.body === "string") return Buffer.from(req.body);
+    if (typeof req.body === "object") return Buffer.from(JSON.stringify(req.body));
+  }
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  const buf = Buffer.concat(chunks);
+  return buf.length ? buf : undefined;
+}
+
+export default async function handler(req, res) {
+  if (!req.url?.startsWith("/api")) {
+    res.status(404).send("Not found");
+    return;
   }
 
   const base = process.env.RENDER_API_URL?.replace(/\/$/, "");
   if (!base) {
-    return new Response(
-      JSON.stringify({
-        error: true,
-        message:
-          "RENDER_API_URL is not set on Vercel. Add it under Project → Settings → Environment Variables: your Render base URL, e.g. https://your-service.onrender.com (no trailing slash)."
-      }),
-      { status: 500, headers: { "content-type": "application/json; charset=utf-8" } }
-    );
+    res.status(500).json({
+      error: true,
+      message:
+        "RENDER_API_URL is not set on Vercel. Project → Settings → Environment Variables → e.g. https://your-service.onrender.com (no trailing slash)."
+    });
+    return;
   }
 
+  const proto = req.headers["x-forwarded-proto"] || "https";
+  const host = req.headers.host || "localhost";
+  const url = new URL(req.url, `${proto}://${host}`);
   const target = `${base}${url.pathname}${url.search}`;
-  const headers = new Headers(request.headers);
-  headers.delete("host");
-  headers.delete("connection");
 
-  const init = {
-    method: request.method,
-    headers,
-    redirect: "manual"
-  };
-  if (request.method !== "GET" && request.method !== "HEAD") {
-    init.body = request.body;
-    init.duplex = "half";
+  const headers = new Headers();
+  for (const [key, value] of Object.entries(req.headers)) {
+    const lower = key.toLowerCase();
+    if (lower === "host" || lower === "connection") continue;
+    if (value === undefined) continue;
+    if (Array.isArray(value)) {
+      for (const v of value) headers.append(key, v);
+    } else {
+      headers.set(key, value);
+    }
   }
 
-  const r = await fetch(target, init);
-  return new Response(r.body, {
-    status: r.status,
-    statusText: r.statusText,
-    headers: r.headers
+  const bodyBuf = await getBodyBuffer(req);
+
+  const r = await fetch(target, {
+    method: req.method,
+    headers,
+    body: bodyBuf
   });
+
+  res.status(r.status);
+  r.headers.forEach((value, key) => {
+    const lower = key.toLowerCase();
+    if (lower === "transfer-encoding") return;
+    res.setHeader(key, value);
+  });
+  const buf = Buffer.from(await r.arrayBuffer());
+  res.end(buf);
 }
+
+export const config = {
+  maxDuration: 30
+};

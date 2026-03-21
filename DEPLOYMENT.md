@@ -66,6 +66,10 @@ Example: `https://zweckos-api.onrender.com`
 
 **SPA routing:** Vercel must serve `index.html` for paths like `/login` (client-side routing). The repo includes `client/vercel.json` with a rewrite for that. If you still see 404 on `/login`, confirm **Root Directory** is `client` so this file is used.
 
+**405 on `POST /api/...`:** Usually means the request hit the static SPA (`index.html`) instead of `client/api/[...path].js`. Fix: **Root Directory** must be **`client`** (so `api/` is deployed). The proxy uses the **Node.js** runtime, not Edge. Ensure **`RENDER_API_URL`** is set on Vercel and redeploy.
+
+**Render Static Site (client on Render):** Production installs skip `devDependencies`, so **`vite: not found`** happens if Vite only lived in devDependencies. This repo lists **Vite**, **@vitejs/plugin-react**, **Tailwind**, and **PostCSS** under **`dependencies`** in `client/package.json`. From the **repo root**, run `npm install` and commit **`package-lock.json`** so workspace installs stay consistent.
+
 ### CORS
 
 The API only allows:
