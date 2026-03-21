@@ -1,0 +1,100 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Use Neon, local Postgres, or any Postgres. Neon: append ?sslmode=require to DATABASE_URL.
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Director {
+  id          Int       @id @default(autoincrement())
+  name        String
+  initials    String    @db.VarChar(3)
+  email       String    @unique
+  joinedRound Int       @default(1)
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+
+  transactions Transaction[]
+  user         User?
+}
+
+model User {
+  id         Int       @id @default(autoincrement())
+  email      String    @unique
+  password   String
+  role       Role      @default(DIRECTOR)
+  directorId Int?      @unique
+  director   Director? @relation(fields: [directorId], references: [id])
+  createdAt  DateTime  @default(now())
+}
+
+enum Role {
+  ADMIN
+  DIRECTOR
+}
+
+model Transaction {
+  id          Int       @id @default(autoincrement())
+  type        TxType
+  date        DateTime
+  amount      Float
+  description String?
+  directorId  Int?
+  director    Director? @relation(fields: [directorId], references: [id])
+  createdBy   Int
+  createdAt   DateTime  @default(now())
+}
+
+enum TxType {
+  CONTRIBUTION
+  SIDE_FUND
+  MMF_DEPLOY
+  MMF_RETURN
+  YPA_INVEST
+  REGISTRATION
+  TX_CHARGE
+  LEGAL
+  PENALTY
+  LOAN_IN
+  OTHER_OUT
+}
+
+model MMFEntry {
+  id           Int      @id @default(autoincrement())
+  directorId   Int
+  month        String
+  principal    Float
+  interest     Float
+  interestRate Float
+  accountType  String
+  notes        String?
+  createdAt    DateTime @default(now())
+}
+
+model CirculationRound {
+  id              Int      @id @default(autoincrement())
+  round           Int
+  position        Int
+  startDate       DateTime
+  endDate         DateTime
+  recipientId     Int
+  approved        Boolean  @default(false)
+  amountPerMember Float
+  totalCollected  Float?
+  notes           String?
+}
+
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  action     String
+  entityType String
+  entityId   Int?
+  before     Json?
+  after      Json?
+  createdAt  DateTime @default(now())
+}
+

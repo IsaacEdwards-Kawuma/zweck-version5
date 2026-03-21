@@ -1,0 +1,18 @@
+# Render Blueprint — deploy the API only (use Neon for Postgres, Vercel for the client).
+# https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: zweckos-api
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install && npm run build && npx prisma migrate deploy
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+    # Set these in the Render dashboard (or link to Neon / secrets):
+    # DATABASE_URL — Neon connection string (?sslmode=require)
+    # JWT_SECRET — strong random string
+    # ALLOWED_ORIGINS — https://your-app.vercel.app
+    # Optional: ALLOW_VERCEL_PREVIEWS=true for preview deployments
