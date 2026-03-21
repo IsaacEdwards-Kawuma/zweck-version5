@@ -4,7 +4,7 @@ import jwt from "jsonwebtoken";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { apiError } from "../lib/http.js";
-import { requireAuth, type AuthUser } from "../middleware/auth.js";
+import { isAuthDisabled, requireAuth, type AuthUser } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 
 const router = Router();
@@ -137,8 +137,17 @@ router.get("/me", requireAuth, async (req, res) => {
     where: { id: req.user!.id },
     select: { id: true, email: true, role: true, directorId: true, createdAt: true }
   });
-  if (!user) return res.status(404).json(apiError("User not found"));
-  return res.json(user);
+  if (user) return res.json(user);
+  if (isAuthDisabled() && req.user) {
+    return res.json({
+      id: req.user.id,
+      email: req.user.email,
+      role: req.user.role,
+      directorId: req.user.directorId,
+      createdAt: new Date().toISOString()
+    });
+  }
+  return res.status(404).json(apiError("User not found"));
 });
 
 export default router;

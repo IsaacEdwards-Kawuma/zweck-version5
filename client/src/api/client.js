@@ -1,5 +1,7 @@
 import axios from "axios";
 
+const authDisabled = import.meta.env.VITE_AUTH_DISABLED === "true";
+
 /**
  * Production on Vercel: use same-origin `/api` (Edge proxy → Render). Set RENDER_API_URL on Vercel.
  * Dev: Vite proxies `/api` → http://localhost:3001 (see vite.config.js).
@@ -30,7 +32,7 @@ api.interceptors.response.use(
   (res) => res,
   (err) => {
     const status = err?.response?.status;
-    if (status === 401) {
+    if (status === 401 && !authDisabled) {
       localStorage.removeItem("zweck_token");
       if (!window.location.pathname.startsWith("/login")) window.location.replace("/login");
     }

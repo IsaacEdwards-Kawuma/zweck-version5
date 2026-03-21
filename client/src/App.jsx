@@ -14,6 +14,8 @@ import CirculationRounds from "./pages/CirculationRounds";
 import Reports from "./pages/Reports";
 import Users from "./pages/Users";
 
+const authDisabled = import.meta.env.VITE_AUTH_DISABLED === "true";
+
 export default function App() {
   const token = localStorage.getItem("zweck_token");
 
@@ -37,7 +39,10 @@ export default function App() {
         </Route>
       </Route>
 
-      <Route path="*" element={<Navigate to={token ? "/" : "/login"} replace />} />
+      <Route
+        path="*"
+        element={<Navigate to={authDisabled || token ? "/" : "/login"} replace />}
+      />
     </Routes>
   );
 }

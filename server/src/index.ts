@@ -2,7 +2,9 @@ import "dotenv/config";
 import cors from "cors";
 import express from "express";
 
-if (!process.env.JWT_SECRET?.trim()) {
+if (process.env.AUTH_DISABLED?.trim() && ["true", "1", "yes"].includes(process.env.AUTH_DISABLED.trim().toLowerCase())) {
+  console.warn("[zweck] AUTH_DISABLED is set — JWT checks are bypassed. Do not use in production.");
+} else if (!process.env.JWT_SECRET?.trim()) {
   console.warn(
     "[zweck] JWT_SECRET is missing — /api/auth/login and /api/auth/register will fail until you set it in server/.env"
   );
