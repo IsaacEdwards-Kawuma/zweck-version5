@@ -1,8 +1,24 @@
-# Render — Web Service settings for ZweckOS API
+# Render — Web Service & Static Site (ZweckOS)
+
+## Static Site (React / Vite frontend)
+
+Use **Static Site** (or **Web Service** with static hosting) **only** if you host the client on Render instead of Vercel.
+
+| Field | Value |
+|--------|--------|
+| **Root Directory** | `client` |
+| **Build Command** | `npm install && npm run build` |
+| **Publish Directory** | `dist` |
+
+**Do not** append `npx prisma migrate deploy` — that command is for the **API** only. Prisma’s schema lives under `server/prisma`, not `client/`. Running Prisma after the Vite build in `client/` causes: *Could not find Prisma Schema*.
+
+---
+
+## Web Service (API) — Express + Prisma
 
 Use these when you create a **Web Service** (or Blueprint) on [Render](https://render.com).
 
-## Connect
+### Connect
 
 | Field | Value |
 |--------|--------|
