@@ -1,7 +1,13 @@
 import "dotenv/config";
 import cors from "cors";
 import express from "express";
-import { buildCorsOptions } from "./lib/cors.js";
+
+if (!process.env.JWT_SECRET?.trim()) {
+  console.warn(
+    "[zweck] JWT_SECRET is missing — /api/auth/login and /api/auth/register will fail until you set it in server/.env"
+  );
+}
+import { buildCorsOptions, isOriginAllowed } from "./lib/cors.js";
 import { apiError } from "./lib/http.js";
 import { requireAuth } from "./middleware/auth.js";
 import authRoutes from "./routes/auth.js";
@@ -36,8 +42,21 @@ app.use("/api/users", usersRoutes);
 
 app.use((_req, res) => res.status(404).json(apiError("Not found")));
 
-app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+app.use((err: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  if (err instanceof Error && err.message === "Not allowed by CORS") {
+    console.warn("[cors] blocked origin:", req.headers.origin);
+    if (res.headersSent) return;
+    return res.status(403).json(apiError("Forbidden"));
+  }
+
+  // So the browser can read JSON on 500s (e.g. missing JWT_SECRET) instead of masking as CORS failure
+  const origin = req.headers.origin;
+  if (typeof origin === "string" && isOriginAllowed(origin) && !res.headersSent) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+  }
   console.error(err);
+  if (res.headersSent) return;
   return res.status(500).json(apiError("Internal server error"));
 });
 
