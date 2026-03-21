@@ -62,6 +62,8 @@ Example: `https://zweckos-api.onrender.com/api`
 
 5. Deploy. Open the Vercel URL and use **First Admin Setup** or login.
 
+**SPA routing:** Vercel must serve `index.html` for paths like `/login` (client-side routing). The repo includes `client/vercel.json` with a rewrite for that. If you still see 404 on `/login`, confirm **Root Directory** is `client` so this file is used.
+
 ### CORS
 
 The API only allows:
