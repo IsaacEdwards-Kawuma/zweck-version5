@@ -1,0 +1,28 @@
+# =============================================================================
+# RENDER — Environment variables (copy into Render dashboard)
+# =============================================================================
+#
+# HOW TO USE:
+# 1. Replace every REPLACE_... or YOUR_... value below with your real values.
+# 2. In Render: your Web Service → Environment → Environment Variables.
+# 3. Add each variable (Key = left of =, Value = right of =, no quotes needed in UI
+#    unless the value has spaces — Render usually accepts paste as-is).
+#
+# Some Render UIs have "Add from .env" or bulk paste — you can paste the block
+# below (only the KEY=value lines, no # comments) if your plan supports it.
+#
+# =============================================================================
+
+NODE_ENV=production
+
+DATABASE_URL=REPLACE_WITH_YOUR_NEON_CONNECTION_STRING
+
+JWT_SECRET=REPLACE_WITH_OPENSSL_RAND_HEX_32
+
+ALLOWED_ORIGINS=REPLACE_WITH_YOUR_VERCEL_URL
+
+# Optional — set to true if you use Vercel preview URLs (*.vercel.app)
+ALLOW_VERCEL_PREVIEWS=false
+
+# Optional — same as ALLOWED_ORIGINS if you only use one frontend URL
+# CLIENT_ORIGIN=REPLACE_WITH_YOUR_VERCEL_URL

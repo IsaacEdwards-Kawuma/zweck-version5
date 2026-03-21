@@ -1,11 +1,11 @@
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 import { prisma } from "../lib/prisma.js";
 import { apiError } from "../lib/http.js";
 import { requireRole } from "../middleware/auth.js";
 
 const router = Router();
 
-router.get("/", requireRole("ADMIN"), async (_req, res) => {
+router.get("/", requireRole("ADMIN"), async (_req: Request, res: Response) => {
   const users = await prisma.user.findMany({
     orderBy: { createdAt: "asc" },
     select: {
@@ -22,7 +22,7 @@ router.get("/", requireRole("ADMIN"), async (_req, res) => {
   return res.json(users);
 });
 
-router.get("/:id", requireRole("ADMIN"), async (req, res) => {
+router.get("/:id", requireRole("ADMIN"), async (req: Request, res: Response) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) return res.status(400).json(apiError("Invalid id"));
   const user = await prisma.user.findUnique({

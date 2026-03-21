@@ -68,7 +68,9 @@ npm run db:studio
 
 ### Deploy (Neon + Render + Vercel)
 
-See **[DEPLOYMENT.md](./DEPLOYMENT.md)** for hosting the database on **Neon**, the API on **Render**, and the client on **Vercel**.
+- **[DEPLOYMENT.md](./DEPLOYMENT.md)** — full flow (Neon, Render, Vercel).
+- **[RENDER_SETTINGS.md](./RENDER_SETTINGS.md)** — Render dashboard fields and env var list.
+- **`server/.env.render.example`** — variables to paste into Render (and mirror in `server/.env` for local prod tests only).
 
 Production DB migrations (after changing schema locally):
 
