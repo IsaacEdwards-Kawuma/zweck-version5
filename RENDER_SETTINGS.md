@@ -6,11 +6,13 @@ Use **Static Site** (or **Web Service** with static hosting) **only** if you hos
 
 | Field | Value |
 |--------|--------|
-| **Root Directory** | `client` |
-| **Build Command** | `npm install && npm run build` |
-| **Publish Directory** | `dist` |
+| **Root Directory** | *(empty — repo root)* |
+| **Build Command** | `npm install && sh render-build.sh` |
+| **Publish Directory** | `client/dist` |
 
-**Do not** append `npx prisma migrate deploy` — that command is for the **API** only. Prisma’s schema lives under `server/prisma`, not `client/`. Running Prisma after the Vite build in `client/` causes: *Could not find Prisma Schema*.
+The repo includes **`render-build.sh` at the repository root** — it only runs Vite in `client/`. **Do not** append `npx prisma migrate deploy` (API only). If you set **Root Directory** to `client` instead, use publish directory **`dist`**.
+
+**If you see `cannot open render-build.sh`:** you were building from repo root but only had `client/render-build.sh` — pull latest and use the **root** `render-build.sh`, or set **Root Directory** to **`client`**.
 
 ---
 

@@ -1,22 +1,32 @@
 ================================================================================
-RENDER — STATIC SITE (this folder = Root Directory "client")
+RENDER — STATIC SITE
 ================================================================================
 
-Build Command MUST be exactly (no Prisma — schema is only under server/):
+A) RECOMMENDED — Root Directory = EMPTY (repo root). Matches render.yaml + root render-build.sh
 
-    npm install && npm run build
+    Build Command:
+        npm install && sh render-build.sh
 
-Publish directory:  dist
+    Publish directory:
+        client/dist
 
-If your build command ends with "&& npx prisma migrate deploy", DELETE that part.
-That command is ONLY for the API service (Root Directory "server").
+    (Uses ./render-build.sh at the repo root — it cd's into client/ and runs Vite only.)
 
-================================================================================
+--------------------------------------------------------------------------------
 
-If Root Directory is the REPO ROOT (not "client"), use instead:
+B) If Root Directory = "client" (advanced)
 
-    npm install && npm run build:client
+    Build Command:
+        npm install && sh render-build.sh
 
-(from root package.json — builds only the client workspace)
+    Publish directory:
+        dist
+
+    (Uses ./client/render-build.sh — the same filename under client/.)
+
+--------------------------------------------------------------------------------
+
+NEVER append:  && npx prisma migrate deploy
+That belongs ONLY to the API service (Root Directory "server").
 
 ================================================================================

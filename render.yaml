@@ -17,10 +17,10 @@ services:
     # ALLOWED_ORIGINS — https://your-app.vercel.app
     # Optional: ALLOW_VERCEL_PREVIEWS=true for preview deployments
 
-  # Static frontend (only if you host the Vite app on Render). Do NOT add prisma migrate here.
+  # Static frontend — build from repo root (leave Root Directory empty in dashboard).
+  # Do NOT add prisma migrate here (schema is under server/ only).
   - type: web
     name: zweckos-client
     runtime: static
-    rootDir: client
-    buildCommand: npm install && npm run build
-    staticPublishPath: ./dist
+    buildCommand: npm install && sh render-build.sh
+    staticPublishPath: ./client/dist

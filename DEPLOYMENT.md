@@ -70,9 +70,9 @@ Example: `https://zweckos-api.onrender.com`
 
 **Render Static Site (client on Render):** Production installs skip `devDependencies`, so **`vite: not found`** happens if Vite only lived in devDependencies. This repo lists **Vite**, **@vitejs/plugin-react**, **Tailwind**, and **PostCSS** under **`dependencies`** in `client/package.json`. From the **repo root**, run `npm install` and commit **`package-lock.json`** so workspace installs stay consistent.
 
-**Build command for Static Site:** use **`npm install && npm run build`** only (publish **`dist`**). **Do not** add **`npx prisma migrate deploy`** — that belongs to the **API** service (`server/`). Prisma has no schema under `client/`; adding migrate to the client build causes *Could not find Prisma Schema*. Copy-paste reminder: **`client/RENDER_STATIC_SITE_BUILD.txt`**.
+**Build command for Static Site:** **`npm install && sh render-build.sh`** — use the **`render-build.sh` at the repository root** (it `cd`s into `client/` and runs Vite). **Publish directory:** **`client/dist`**. Leave **Root Directory** **empty** (repo root) so the root script is found. **Do not** append **`npx prisma migrate deploy`**. See **`client/RENDER_STATIC_SITE_BUILD.txt`**.
 
-If the **Root Directory** is the **repo root** (not `client`), use **`npm install && npm run build:client`** instead.
+If **Root Directory** is **`client`**, publish **`dist`** and the **`client/render-build.sh`** script runs instead (same build command line).
 
 ### CORS
 
