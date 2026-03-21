@@ -24,10 +24,11 @@ JWT_SECRET="replace-this-with-a-strong-secret"
 PORT=3001
 ```
 
-- `client/.env`
+- `client/.env` (optional — defaults to `/api`; Vite proxies to `http://localhost:3001`)
 
 ```env
-VITE_API_URL="http://localhost:3001/api"
+# leave unset for local dev, or set to call Render over HTTPS from your machine:
+# VITE_API_URL="https://your-api.onrender.com/api"
 ```
 
 2. Install dependencies (from repo root).

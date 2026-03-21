@@ -59,7 +59,8 @@ Local copies go in `server/.env` (gitignored) — see `server/.env.example`.
 
 - **API URL:** `https://<your-service-name>.onrender.com`
 - **Health check:** `GET https://<your-service-name>.onrender.com/api/health` → `{"ok":true}`
-- **Vercel `VITE_API_URL`:** `https://<your-service-name>.onrender.com/api` (must end with `/api`)
+- **Vercel `RENDER_API_URL`:** `https://<your-service-name>.onrender.com` (no `/api` — used by the Edge proxy in `client/api/`)
+- **Optional Vercel `VITE_API_URL`:** `https://<your-service-name>.onrender.com/api` only if you skip the proxy and call the API directly from the browser
 
 ## Blueprint file
 

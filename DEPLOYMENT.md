@@ -56,9 +56,11 @@ This guide runs **PostgreSQL on Neon**, the **Express API on Render**, and the *
 
 | Variable | Value |
 |----------|--------|
-| `VITE_API_URL` | `https://YOUR-RENDER-HOST/api` (no trailing slash after `/api`) |
+| `RENDER_API_URL` | `https://YOUR-RENDER-HOST` — Render **base URL only** (no `/api` suffix). Proxies `https://your-app.vercel.app/api/*` → Render via `client/api/[...path].js`. |
 
-Example: `https://zweckos-api.onrender.com/api`
+Example: `https://zweckos-api.onrender.com`
+
+**Optional:** `VITE_API_URL=https://YOUR-RENDER-HOST/api` to call Render **directly** (HTTPS) instead of the proxy. Remove `VITE_API_URL` from Vercel if it still points at `http://localhost:3001/api`.
 
 5. Deploy. Open the Vercel URL and use **First Admin Setup** or login.
 
@@ -91,13 +93,14 @@ PORT=3001
 ALLOWED_ORIGINS="http://localhost:5173"
 ```
 
-**`client/.env`**
+**`client/.env`** (optional locally)
 
 ```env
-VITE_API_URL="http://localhost:3001/api"
+# Default: same-origin /api → Vite proxies to localhost:3001
+# VITE_API_URL=https://your-api.onrender.com/api
 ```
 
-For production builds, only `VITE_API_URL` on Vercel matters.
+On **Vercel**, set **`RENDER_API_URL`** (see section 3). You do not need `VITE_API_URL` unless you want the browser to hit Render directly.
 
 ## 6. Docker Postgres (optional, local only)
 
