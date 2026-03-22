@@ -7,6 +7,11 @@ export default defineConfig({
   build: {
     chunkSizeWarningLimit: 900
   },
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    include: ['src/**/*.{test,spec}.{js,jsx}']
+  },
   server: {
     proxy: {
       '/api': {

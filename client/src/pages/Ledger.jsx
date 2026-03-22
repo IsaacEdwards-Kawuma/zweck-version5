@@ -138,23 +138,39 @@ export default function Ledger() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:flex-row md:items-end md:justify-between">
+      <div className="ui-surface flex flex-col gap-3 rounded-xl p-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <div className="text-lg font-semibold text-slate-900">Transaction Ledger</div>
-          <div className="text-sm text-slate-600">Newest first. Use filters to narrow down results.</div>
+          <div className="text-lg font-semibold ui-page-heading">Transaction Ledger</div>
+          <div className="text-sm ui-body-text">Newest first. Use filters to narrow down results.</div>
         </div>
         <div className="flex flex-wrap items-end gap-2">
           <div>
-            <div className="text-xs font-medium text-slate-700">From</div>
-            <input className="mt-1 rounded-lg border-slate-300" type="date" value={from} onChange={(e) => { setFrom(e.target.value); resetPage(); }} />
+            <div className="text-xs font-medium text-slate-700 dark:text-slate-300">From</div>
+            <input
+              className="ui-input mt-1"
+              type="date"
+              value={from}
+              onChange={(e) => {
+                setFrom(e.target.value);
+                resetPage();
+              }}
+            />
           </div>
           <div>
-            <div className="text-xs font-medium text-slate-700">To</div>
-            <input className="mt-1 rounded-lg border-slate-300" type="date" value={to} onChange={(e) => { setTo(e.target.value); resetPage(); }} />
+            <div className="text-xs font-medium text-slate-700 dark:text-slate-300">To</div>
+            <input
+              className="ui-input mt-1"
+              type="date"
+              value={to}
+              onChange={(e) => {
+                setTo(e.target.value);
+                resetPage();
+              }}
+            />
           </div>
           <div>
-            <div className="text-xs font-medium text-slate-700">Type</div>
-            <select className="mt-1 rounded-lg border-slate-300" value={type} onChange={(e) => { setType(e.target.value); resetPage(); }}>
+            <div className="text-xs font-medium text-slate-700 dark:text-slate-300">Type</div>
+            <select className="ui-input mt-1" value={type} onChange={(e) => { setType(e.target.value); resetPage(); }}>
               <option value="">All</option>
               <option value="CONTRIBUTION">CONTRIBUTION</option>
               <option value="SIDE_FUND">SIDE_FUND</option>
@@ -170,8 +186,15 @@ export default function Ledger() {
             </select>
           </div>
           <div>
-            <div className="text-xs font-medium text-slate-700">Director</div>
-            <select className="mt-1 rounded-lg border-slate-300" value={directorId} onChange={(e) => { setDirectorId(e.target.value); resetPage(); }}>
+            <div className="text-xs font-medium text-slate-700 dark:text-slate-300">Director</div>
+            <select
+              className="ui-input mt-1"
+              value={directorId}
+              onChange={(e) => {
+                setDirectorId(e.target.value);
+                resetPage();
+              }}
+            >
               <option value="">All</option>
               {(qDirs.data || []).map((d) => (
                 <option key={d.id} value={d.id}>
@@ -180,19 +203,15 @@ export default function Ledger() {
               ))}
             </select>
           </div>
-          <button
-            type="button"
-            onClick={exportCsv}
-            className="mt-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-          >
+          <button type="button" onClick={exportCsv} className="ui-btn-outline-xs mt-2 font-semibold">
             Export CSV
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3 text-xs text-slate-700 md:grid-cols-4">
+      <div className="ui-stat-strip grid grid-cols-1 gap-3 rounded-xl p-3 text-xs text-slate-700 dark:text-slate-200 md:grid-cols-4">
         <div>
-          <div className="uppercase tracking-wide text-[10px] text-slate-500">Total amount</div>
+          <div className="uppercase tracking-wide text-[10px] ui-page-muted">Total amount</div>
           <div className="mt-0.5 font-semibold">{eur(stats.total)}</div>
         </div>
         <div>
@@ -200,40 +219,36 @@ export default function Ledger() {
           <div className="mt-0.5 font-semibold">{stats.count}</div>
         </div>
         <div>
-          <div className="uppercase tracking-wide text-[10px] text-slate-500">Average</div>
+          <div className="uppercase tracking-wide text-[10px] ui-page-muted">Average</div>
           <div className="mt-0.5 font-semibold">
             {stats.count ? eur(stats.avg) : "—"}
           </div>
         </div>
         <div>
-          <div className="uppercase tracking-wide text-[10px] text-slate-500">
-            Bank running balance (in view)
-          </div>
+          <div className="uppercase tracking-wide text-[10px] ui-page-muted">Bank running balance (in view)</div>
           <div className="mt-0.5 font-semibold">
             {eur(stats.runningBank[stats.runningBank.length - 1]?.value || 0)}
           </div>
         </div>
       </div>
 
-      {mDel.error ? <ErrorBanner error={mDel.error} /> : null}
-
       <TransactionTable rows={rows} showDelete onDelete={(id) => mDel.mutate(id)} isDeleting={mDel.isPending} role={me?.role} />
 
       <div className="flex items-center justify-between text-sm">
-        <div className="text-slate-600">
-          Page <span className="font-medium text-slate-900">{clampedPage}</span> of{" "}
-          <span className="font-medium text-slate-900">{totalPages}</span> ({all.length} rows)
+        <div className="ui-body-text">
+          Page <span className="font-medium ui-page-heading">{clampedPage}</span> of{" "}
+          <span className="font-medium ui-page-heading">{totalPages}</span> ({all.length} rows)
         </div>
         <div className="flex gap-2">
           <button
-            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
+            className="ui-btn-outline disabled:opacity-50"
             disabled={clampedPage <= 1}
             onClick={() => setPage((p) => Math.max(1, p - 1))}
           >
             Prev
           </button>
           <button
-            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
+            className="ui-btn-outline disabled:opacity-50"
             disabled={clampedPage >= totalPages}
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
           >

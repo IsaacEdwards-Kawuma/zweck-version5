@@ -79,3 +79,31 @@ Production DB migrations (after changing schema locally):
 npm run db:deploy
 ```
 
+### Quality checks (from repo root)
+
+```bash
+npm run lint
+npm run test
+npm run build
+npm run test:e2e
+```
+
+GitHub Actions runs lint, unit tests, and build on push/PR (see `.github/workflows/ci.yml`).
+
+### Accounts & security
+
+- **Password reset**: UI **Forgot password?** on the login screen. The API sends email when **SMTP** is configured (`SMTP_HOST`, etc. in `server/.env`). Without SMTP, the server logs the reset link to stdout (development). Set **`PUBLIC_APP_URL`** (or **`CLIENT_ORIGIN`**) so links point at your Vercel app in production.
+- **Audit log** (admins): API `GET /api/audit`, UI **Audit** in the top bar next to **Users**.
+- **Director profile photos** default to local disk (`server/uploads/`). For production without a persistent disk, configure **S3-compatible** storage — see `server/.env.example` and [DEPLOYMENT.md](./DEPLOYMENT.md).
+
+### API documentation & monitoring
+
+- **OpenAPI**: Interactive docs at **`/api/docs`** on the API host (e.g. `https://your-api.onrender.com/api/docs`). Raw spec: **`GET /api/openapi.json`**.
+- **Sentry** (optional): set **`SENTRY_DSN`** on the server and **`VITE_SENTRY_DSN`** on the client build (Vercel) to capture errors in production.
+
+### Operations
+
+- **Logs**: JSON logs to stdout (`pino`); set `LOG_LEVEL` if needed.
+- **Rate limits**: login and general API limits are configurable via env (see `server/.env.example`).
+- **Database backups**: use Neon (or your host) scheduled backups; test restores periodically.
+

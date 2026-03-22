@@ -19,23 +19,10 @@ export function usePortfolio() {
   return useQuery({ queryKey: ["portfolio"], queryFn: portfolio });
 }
 
-export function useRecentTransactions() {
+/** Single fetch for dashboard analytics + recent activity (avoids duplicate /transactions calls). */
+export function useTransactionsList() {
   return useQuery({
-    queryKey: ["transactions", "recent7"],
-    queryFn: async () => {
-      const all = await listTransactions();
-      return all.slice(0, 7);
-    }
+    queryKey: ["transactions", "dashboard"],
+    queryFn: () => listTransactions()
   });
 }
-
-export function useTransactionsCount() {
-  return useQuery({
-    queryKey: ["transactions", "count"],
-    queryFn: async () => {
-      const all = await listTransactions();
-      return all.length;
-    }
-  });
-}
-

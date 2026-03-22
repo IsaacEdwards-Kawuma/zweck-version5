@@ -1,13 +1,45 @@
+import { createHash, randomBytes } from "node:crypto";
 import { Router } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { apiError } from "../lib/http.js";
+import { sendPasswordResetEmail } from "../lib/email.js";
+import { getPublicAppUrl } from "../lib/publicAppUrl.js";
+import { logger } from "../lib/logger.js";
 import { isAuthDisabled, requireAuth, type AuthUser } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 
 const router = Router();
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: Number(process.env.RATE_LIMIT_LOGIN_MAX || 30),
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) => {
+    res.status(429).json(apiError("Too many login attempts. Try again later."));
+  }
+});
+
+const forgotPasswordLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: Number(process.env.RATE_LIMIT_FORGOT_PASSWORD_MAX || 5),
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) => {
+    res.status(429).json(apiError("Too many password reset requests. Try again later."));
+  }
+});
+
+function hashResetToken(raw: string): string {
+  return createHash("sha256").update(raw, "utf8").digest("hex");
+}
+
+const FORGOT_PASSWORD_MESSAGE =
+  "If an account exists for that email, we sent password reset instructions.";
 
 function getSecret(): string {
   const secret = process.env.JWT_SECRET;
@@ -22,6 +54,7 @@ function signToken(user: { id: number; email: string; role: "ADMIN" | "DIRECTOR"
 
 router.post(
   "/login",
+  loginLimiter,
   validateBody(
     z.object({
       email: z.string().email(),
@@ -38,6 +71,82 @@ router.post(
 
     const token = signToken({ id: user.id, email: user.email, role: user.role, directorId: user.directorId ?? null });
     return res.json({ token });
+  }
+);
+
+router.post(
+  "/forgot-password",
+  forgotPasswordLimiter,
+  validateBody(z.object({ email: z.string().email() })),
+  async (req, res) => {
+    const email = (req.body as { email: string }).email.toLowerCase().trim();
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) return res.json({ ok: true, message: FORGOT_PASSWORD_MESSAGE });
+
+    await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
+
+    const raw = randomBytes(32).toString("hex");
+    const tokenHash = hashResetToken(raw);
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+    await prisma.passwordResetToken.create({
+      data: { userId: user.id, tokenHash, expiresAt }
+    });
+
+    const base = getPublicAppUrl();
+    if (!base) {
+      logger.warn("[auth] PUBLIC_APP_URL / CLIENT_ORIGIN not set — using localhost for reset link");
+    }
+    const resetUrl = `${base || "http://localhost:5173"}/reset-password?token=${encodeURIComponent(raw)}`;
+
+    try {
+      await sendPasswordResetEmail(user.email, resetUrl);
+    } catch (e) {
+      logger.error(e);
+      return res.status(500).json(apiError("Could not send email. Try again later."));
+    }
+
+    return res.json({ ok: true, message: FORGOT_PASSWORD_MESSAGE });
+  }
+);
+
+router.post(
+  "/reset-password",
+  loginLimiter,
+  validateBody(
+    z.object({
+      token: z.string().min(32),
+      password: z.string().min(8).max(200)
+    })
+  ),
+  async (req, res) => {
+    const { token, password } = req.body as { token: string; password: string };
+    const tokenHash = hashResetToken(token);
+    const row = await prisma.passwordResetToken.findUnique({
+      where: { tokenHash },
+      include: { user: true }
+    });
+    if (!row || row.expiresAt < new Date()) {
+      return res.status(400).json(apiError("Invalid or expired reset link"));
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    await prisma.$transaction([
+      prisma.user.update({ where: { id: row.userId }, data: { password: passwordHash } }),
+      prisma.passwordResetToken.deleteMany({ where: { userId: row.userId } })
+    ]);
+
+    await prisma.auditLog.create({
+      data: {
+        userId: row.userId,
+        action: "PASSWORD_RESET",
+        entityType: "User",
+        entityId: row.userId,
+        after: { email: row.user.email }
+      }
+    });
+
+    return res.json({ ok: true, message: "Password updated. You can sign in now." });
   }
 );
 

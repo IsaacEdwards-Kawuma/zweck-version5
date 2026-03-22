@@ -34,7 +34,10 @@ api.interceptors.response.use(
     const status = err?.response?.status;
     if (status === 401 && !authDisabled) {
       localStorage.removeItem("zweck_token");
-      if (!window.location.pathname.startsWith("/login")) window.location.replace("/login");
+      const p = window.location.pathname;
+      if (!p.startsWith("/login") && !p.startsWith("/forgot-password") && !p.startsWith("/reset-password")) {
+        window.location.replace("/login");
+      }
     }
     return Promise.reject(err);
   }

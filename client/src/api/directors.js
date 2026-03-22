@@ -25,3 +25,15 @@ export async function deleteDirector(id) {
   return data;
 }
 
+export async function uploadDirectorAvatar(id, file) {
+  const fd = new FormData();
+  fd.append("file", file);
+  const { data } = await api.post(`/directors/${id}/avatar`, fd);
+  return data;
+}
+
+export async function deleteDirectorAvatar(id) {
+  const { data } = await api.delete(`/directors/${id}/avatar`);
+  return data;
+}
+

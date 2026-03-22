@@ -13,12 +13,15 @@ model Director {
   name        String
   initials    String    @db.VarChar(3)
   email       String    @unique
+  avatarUrl   String?
   joinedRound Int       @default(1)
   active      Boolean   @default(true)
   createdAt   DateTime  @default(now())
 
   transactions Transaction[]
   user         User?
+  assignedTasks ProjectTask[]
+  ledProjects   Project[]     @relation("ProjectLeader")
 }
 
 model User {
@@ -29,11 +32,103 @@ model User {
   directorId Int?      @unique
   director   Director? @relation(fields: [directorId], references: [id])
   createdAt  DateTime  @default(now())
+
+  projectsCreated Project[]     @relation("ProjectCreator")
+  tasksCreated    ProjectTask[] @relation("TaskCreator")
+  passwordResetTokens PasswordResetToken[]
+}
+
+model PasswordResetToken {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique @db.VarChar(64)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 enum Role {
   ADMIN
   DIRECTOR
+}
+
+enum ProjectStatus {
+  PLANNING
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum ProjectPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  REVIEW
+  DONE
+  BLOCKED
+}
+
+enum ProjectKind {
+  GENERAL
+  MMF
+  YPA
+}
+
+model Project {
+  id          Int             @id @default(autoincrement())
+  code        String          @unique @db.VarChar(40)
+  name        String
+  description String?
+  status      ProjectStatus   @default(PLANNING)
+  priority    ProjectPriority @default(MEDIUM)
+  projectKind ProjectKind     @default(GENERAL)
+  startDate   DateTime?
+  endDate     DateTime?
+  budget      Float?
+  budgetSpent Float?
+  budgetCurrency String         @default("EUR")
+  leaderDirectorId Int?
+  leaderDirector   Director?   @relation("ProjectLeader", fields: [leaderDirectorId], references: [id])
+  contactName   String?
+  contactEmail  String?
+  contactPhone  String?
+  createdById Int
+  creator     User            @relation("ProjectCreator", fields: [createdById], references: [id])
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  tasks     ProjectTask[]
+  mmfEntries MMFEntry[]
+}
+
+model ProjectTask {
+  id                 Int             @id @default(autoincrement())
+  projectId          Int
+  project            Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title              String
+  description        String?
+  status             TaskStatus      @default(TODO)
+  priority           ProjectPriority @default(MEDIUM)
+  dueDate            DateTime?
+  assigneeDirectorId Int?
+  assignee           Director?       @relation(fields: [assigneeDirectorId], references: [id])
+  sortOrder          Int             @default(0)
+  estimatedCost      Float?
+  actualCost         Float?
+  completedAt        DateTime?
+  createdById        Int
+  creator            User            @relation("TaskCreator", fields: [createdById], references: [id])
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
 }
 
 model Transaction {
@@ -65,6 +160,8 @@ enum TxType {
 model MMFEntry {
   id           Int      @id @default(autoincrement())
   directorId   Int
+  projectId    Int?
+  project      Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
   month        String
   principal    Float
   interest     Float

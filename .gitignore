@@ -19,3 +19,10 @@ pnpm-debug.log*
 # prisma
 server/prisma/dev.db
 
+# uploaded profile photos (local dev)
+server/uploads/
+
+# Playwright
+client/test-results/
+client/playwright-report/
+

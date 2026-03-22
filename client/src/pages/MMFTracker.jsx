@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Loading from "../components/Loading";
 import ErrorBanner from "../components/ErrorBanner";
 import { useMMF } from "../hooks/useMMF";
 import { listDirectors } from "../api/directors";
+import { listProjects } from "../api/projects";
 import { createMMF } from "../api/mmf";
 import { ugx } from "../lib/format";
 import {
@@ -18,8 +20,12 @@ import {
 
 export default function MMFTracker() {
   const qc = useQueryClient();
-  const q = useMMF();
+  const [mmfProjectId, setMmfProjectId] = useState("");
+  const q = useMMF(mmfProjectId === "" ? undefined : Number(mmfProjectId));
   const qDirs = useQuery({ queryKey: ["directors"], queryFn: listDirectors });
+  const qProjects = useQuery({ queryKey: ["projects"], queryFn: listProjects });
+
+  const mmfProjects = (qProjects.data || []).filter((p) => p.projectKind === "MMF");
 
   const [directorId, setDirectorId] = useState("");
   const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
@@ -40,6 +46,7 @@ export default function MMFTracker() {
       setInterestRate("");
       setNotes("");
       await qc.invalidateQueries({ queryKey: ["mmf"] });
+      await qc.invalidateQueries({ queryKey: ["projects"] });
     }
   });
 
@@ -83,17 +90,56 @@ export default function MMFTracker() {
       .map(([month, interest]) => ({ month, interest }));
   }, [filtered]);
 
-  if (q.isLoading) return <Loading label="Loading MMF tracker..." />;
+  if (q.isLoading || qProjects.isLoading) return <Loading label="Loading MMF tracker..." />;
   if (q.error) return <ErrorBanner error={q.error} />;
 
   return (
     <div className="space-y-4">
+      <div className="rounded-xl border border-sky-200 bg-sky-50/80 p-3 text-sm text-sky-950">
+        <div className="font-medium">Link to an MMF program project</div>
+        <div className="mt-2 flex flex-wrap items-end gap-3">
+          <div>
+            <div className="text-[10px] font-medium uppercase tracking-wide text-sky-800">MMF project</div>
+            <select
+              className="ui-input mt-1 border-sky-300 dark:border-sky-700"
+              value={mmfProjectId}
+              onChange={(e) => setMmfProjectId(e.target.value)}
+            >
+              <option value="">All entries (no project filter)</option>
+              {mmfProjects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.code} — {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          {mmfProjectId ? (
+            <Link
+              className="text-sm font-medium text-sky-800 underline"
+              to={`/project/${mmfProjectId}`}
+            >
+              Open project budget & tasks
+            </Link>
+          ) : (
+            <span className="text-xs text-sky-800">
+              Create an MMF project under{" "}
+              <Link className="font-medium underline" to="/projects">
+                All projects
+              </Link>{" "}
+              to tag entries and track budgets.
+            </span>
+          )}
+        </div>
+      </div>
+
       <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
         <div>
           <div className="text-lg font-semibold text-slate-900">MMF Tracker</div>
-          <div className="text-sm text-slate-600">Historical UGX entries (separate from transactions).</div>
+          <div className="text-sm text-slate-600">
+            Historical UGX entries. Optionally link new rows to an MMF project for budgeting.
+          </div>
         </div>
-        <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm">
+        <div className="rounded-lg ui-surface px-3 py-2 text-sm">
           Running total profit: <span className="font-semibold">{ugx(totalProfit)}</span>
         </div>
       </div>
@@ -143,13 +189,12 @@ export default function MMFTracker() {
         </div>
       </div>
 
-      {mCreate.error ? <ErrorBanner error={mCreate.error} /> : null}
-
       <form
         onSubmit={(e) => {
           e.preventDefault();
           mCreate.mutate({
             directorId: Number(directorId),
+            projectId: mmfProjectId ? Number(mmfProjectId) : null,
             month,
             principal: Number(principal || 0),
             interest: Number(interest || 0),
@@ -158,7 +203,7 @@ export default function MMFTracker() {
             notes: notes || undefined
           });
         }}
-        className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+        className="space-y-3 rounded-xl ui-surface p-4"
       >
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <div>
@@ -206,7 +251,7 @@ export default function MMFTracker() {
       </form>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="ui-table-wrap">
         <table className="min-w-full text-left text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-600">
             <tr>
@@ -241,7 +286,7 @@ export default function MMFTracker() {
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+          <div className="rounded-xl ui-surface p-3">
             <div className="text-sm font-semibold text-slate-900">
               Totals by director (filtered)
             </div>
@@ -280,7 +325,7 @@ export default function MMFTracker() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+          <div className="rounded-xl ui-surface p-3">
             <div className="text-sm font-semibold text-slate-900">
               Monthly interest (filtered)
             </div>

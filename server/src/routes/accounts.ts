@@ -16,7 +16,10 @@ router.get("/director/:id", async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) return res.status(400).json(apiError("Invalid director id"));
 
-  const director = await prisma.director.findUnique({ where: { id }, select: { id: true, name: true, initials: true, email: true } });
+  const director = await prisma.director.findUnique({
+    where: { id },
+    select: { id: true, name: true, initials: true, email: true, avatarUrl: true }
+  });
   if (!director) return res.status(404).json(apiError("Director not found"));
 
   const txs = await prisma.transaction.findMany({
@@ -37,7 +40,7 @@ router.get("/director/:id", async (req, res) => {
 router.get("/directors/all", async (_req, res) => {
   const directors = await prisma.director.findMany({
     orderBy: { createdAt: "asc" },
-    select: { id: true, name: true, initials: true, email: true, active: true }
+    select: { id: true, name: true, initials: true, email: true, active: true, avatarUrl: true, joinedRound: true, createdAt: true }
   });
 
   const txs = await prisma.transaction.findMany({

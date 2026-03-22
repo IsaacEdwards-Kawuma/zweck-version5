@@ -1,17 +1,35 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Loading from "../components/Loading";
 import ErrorBanner from "../components/ErrorBanner";
+import MetricCard from "../components/MetricCard";
 import DirectorCard from "../components/DirectorCard";
 import { useDirectorsAll } from "../hooks/useDashboard";
 import { createDirector, updateDirector, deleteDirector } from "../api/directors";
+import { downloadDirectorsCsv } from "../lib/directorsExport";
+import { eur, eurCompact } from "../lib/format";
+import { useDarkClass } from "../lib/useDarkClass";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip
+} from "recharts";
 
 export default function Directors() {
   const { me } = useOutletContext() || {};
   const nav = useNavigate();
+  const dark = useDarkClass();
+  const gridStroke = dark ? "#475569" : "#e2e8f0";
   const q = useDirectorsAll();
   const qc = useQueryClient();
+
+  const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState("total");
 
   const [form, setForm] = useState({
     name: "",
@@ -54,27 +72,128 @@ export default function Directors() {
     }
   });
 
+  const directors = useMemo(() => q.data ?? [], [q.data]);
+
+  const filtered = useMemo(() => {
+    let list = directors;
+    const qv = search.trim().toLowerCase();
+    if (qv) {
+      list = list.filter(
+        (d) =>
+          d.name.toLowerCase().includes(qv) ||
+          d.email.toLowerCase().includes(qv) ||
+          (d.initials || "").toLowerCase().includes(qv)
+      );
+    }
+    const sorted = [...list];
+    if (sortBy === "name") sorted.sort((a, b) => a.name.localeCompare(b.name));
+    else if (sortBy === "total") sorted.sort((a, b) => (b.total || 0) - (a.total || 0));
+    else if (sortBy === "round") sorted.sort((a, b) => (a.joinedRound || 0) - (b.joinedRound || 0));
+    return sorted;
+  }, [directors, search, sortBy]);
+
+  const stats = useMemo(() => {
+    const active = directors.filter((d) => d.active).length;
+    const sum = directors.reduce((s, d) => s + (d.total || 0), 0);
+    return { count: directors.length, active, sum };
+  }, [directors]);
+
+  const chartData = useMemo(() => {
+    return filtered.slice(0, 14).map((d) => ({
+      name: d.name.length > 16 ? `${d.name.slice(0, 14)}…` : d.name,
+      total: d.total || 0
+    }));
+  }, [filtered]);
+
+  const maxTotal = Math.max(0, ...directors.map((d) => d.total || 0));
+
   if (q.isLoading) return <Loading label="Loading directors..." />;
   if (q.error) return <ErrorBanner error={q.error} />;
 
-  const directors = q.data || [];
-  const maxTotal = Math.max(0, ...directors.map((d) => d.total || 0));
-
   return (
-    <div className="space-y-4">
-      <div>
-        <div className="text-lg font-semibold text-slate-900">Director Accounts</div>
-        <div className="text-sm text-slate-600">Capital + side fund totals per director.</div>
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="text-lg font-semibold ui-page-heading">Director Accounts</div>
+          <div className="text-sm text-slate-600">Capital + side fund totals per director. Search, sort, compare, export.</div>
+        </div>
+        {directors.length > 0 ? (
+          <button
+            type="button"
+            className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-sm font-medium text-brand-900 hover:bg-brand-100"
+            onClick={() => downloadDirectorsCsv(filtered)}
+          >
+            Export CSV (visible)
+          </button>
+        ) : null}
       </div>
 
-      {me?.role === "ADMIN" && (
-        <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="text-sm font-semibold text-slate-900">
-            {editingId ? "Edit director" : "Add director"}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <MetricCard label="Directors" value={String(stats.count)} sub="In roster" />
+        <MetricCard label="Active" value={String(stats.active)} sub="Marked active" />
+        <MetricCard label="Combined total" value={eur(stats.sum)} sub="Capital + side fund" />
+      </div>
+
+      <div className="rounded-xl ui-surface p-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="min-w-[200px] flex-1">
+            <label className="text-xs font-medium text-slate-600 dark:text-slate-400" htmlFor="dir-search">
+              Search
+            </label>
+            <input
+              id="dir-search"
+              className="ui-input mt-1 w-full px-3 py-2"
+              placeholder="Name, email, initials…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
           </div>
-          {(mCreate.error || mUpdate.error || mDelete.error) && (
-            <ErrorBanner error={mCreate.error || mUpdate.error || mDelete.error} />
-          )}
+          <div>
+            <label className="text-xs font-medium text-slate-600 dark:text-slate-400" htmlFor="dir-sort">
+              Sort by
+            </label>
+            <select id="dir-sort" className="ui-input mt-1 px-3 py-2"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+            >
+              <option value="total">Total (high → low)</option>
+              <option value="name">Name (A–Z)</option>
+              <option value="round">Joined round (low → high)</option>
+            </select>
+          </div>
+          {search ? (
+            <button type="button" className="ui-btn-outline py-2 text-slate-700" onClick={() => setSearch("")}>
+              Clear search
+            </button>
+          ) : null}
+        </div>
+        <p className="mt-2 text-xs ui-page-muted">
+          Showing {filtered.length} of {directors.length} directors
+          {search.trim() ? " (filtered)" : ""}.
+        </p>
+      </div>
+
+      {chartData.length > 0 ? (
+        <div className="rounded-2xl ui-surface p-4">
+          <div className="text-sm font-semibold ui-page-heading">Totals in current list (top 14)</div>
+          <p className="text-xs ui-page-muted">Quick comparison of capital + side fund by director.</p>
+          <div className="mt-3 h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData} margin={{ left: 4, right: 8, bottom: 40 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridStroke} />
+                <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-25} textAnchor="end" height={52} interval={0} />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => eurCompact(v)} />
+                <RechartsTooltip formatter={(v) => eur(v)} />
+                <Bar dataKey="total" fill="#2563eb" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      ) : null}
+
+      {me?.role === "ADMIN" && (
+        <div className="space-y-3 rounded-xl ui-surface p-4">
+          <div className="text-sm font-semibold ui-page-heading">{editingId ? "Edit director" : "Add director"}</div>
           <form
             className="grid grid-cols-1 gap-3 md:grid-cols-4"
             onSubmit={(e) => {
@@ -148,7 +267,7 @@ export default function Directors() {
               {editingId && (
                 <button
                   type="button"
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  className="ui-btn-outline-xs font-medium"
                   onClick={() => {
                     setEditingId(null);
                     setForm({ name: "", initials: "", email: "", joinedRound: "", active: true });
@@ -169,13 +288,13 @@ export default function Directors() {
       )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {directors.map((d) => (
+        {filtered.map((d) => (
           <div key={d.id} className="space-y-2">
             <DirectorCard director={d} maxTotal={maxTotal} onClick={() => nav(`/directors/${d.id}`)} />
             {me?.role === "ADMIN" && (
               <div className="flex gap-2 text-xs">
                 <button
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  className="ui-btn-outline-xs font-medium py-1"
                   onClick={() => {
                     setEditingId(d.id);
                     setForm({
@@ -193,7 +312,11 @@ export default function Directors() {
                   className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-50"
                   disabled={mDelete.isPending}
                   onClick={() => {
-                    if (window.confirm(`Delete director "${d.name}"? This is only allowed if they have no transactions.`)) {
+                    if (
+                      window.confirm(
+                        `Delete director "${d.name}"? This is only allowed if they have no transactions.`
+                      )
+                    ) {
                       mDelete.mutate(d.id);
                     }
                   }}
@@ -205,12 +328,15 @@ export default function Directors() {
           </div>
         ))}
         {directors.length === 0 ? (
-          <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600 shadow-sm">
+          <div className="rounded-xl ui-surface p-4 text-sm ui-body-text">
             No directors yet. Create directors (admin) and start posting contributions.
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            No directors match your search. Clear the search box to see everyone.
           </div>
         ) : null}
       </div>
     </div>
   );
 }
-

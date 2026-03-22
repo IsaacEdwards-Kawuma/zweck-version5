@@ -51,7 +51,14 @@ router.get("/", async (req, res) => {
       date: t.date,
       amount: t.amount,
       description: t.description,
-      director: t.director ? { id: t.director.id, name: t.director.name, initials: t.director.initials } : null,
+      director: t.director
+        ? {
+            id: t.director.id,
+            name: t.director.name,
+            initials: t.director.initials,
+            avatarUrl: t.director.avatarUrl
+          }
+        : null,
       debitAccount: map.debit,
       creditAccount: map.credit,
       createdBy: t.createdBy,

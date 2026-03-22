@@ -5,7 +5,9 @@ import { deriveBalances } from "../lib/derive.js";
 const router = Router();
 
 router.get("/", async (_req, res) => {
-  const txs = await prisma.transaction.findMany({ select: { type: true, amount: true } });
+  const txs = await prisma.transaction.findMany({
+    select: { type: true, amount: true, directorId: true }
+  });
   const balances = deriveBalances(txs);
 
   const bank = balances.bank;
@@ -14,11 +16,70 @@ router.get("/", async (_req, res) => {
   const totalAssets = bank + mmf + ypa;
   const mmfReturns = -balances.mmf_income;
 
+  const directors = await prisma.director.findMany({
+    orderBy: { name: "asc" },
+    select: {
+      id: true,
+      name: true,
+      initials: true,
+      email: true,
+      avatarUrl: true,
+      joinedRound: true,
+      active: true,
+      createdAt: true
+    }
+  });
+
+  const totals = new Map<number, { capital: number; sideFund: number }>();
+  for (const d of directors) totals.set(d.id, { capital: 0, sideFund: 0 });
+  for (const t of txs) {
+    if (!t.directorId || (t.type !== "CONTRIBUTION" && t.type !== "SIDE_FUND")) continue;
+    const cur = totals.get(t.directorId) ?? { capital: 0, sideFund: 0 };
+    if (t.type === "CONTRIBUTION") cur.capital += t.amount;
+    if (t.type === "SIDE_FUND") cur.sideFund += t.amount;
+    totals.set(t.directorId, cur);
+  }
+
+  let totalEquity = 0;
+  let totalCapital = 0;
+  for (const d of directors) {
+    const row = totals.get(d.id) ?? { capital: 0, sideFund: 0 };
+    totalEquity += row.capital + row.sideFund;
+    totalCapital += row.capital;
+  }
+
+  const memberRows = directors.map((d) => {
+    const row = totals.get(d.id) ?? { capital: 0, sideFund: 0 };
+    const capital = row.capital;
+    const sideFund = row.sideFund;
+    const memberTotal = capital + sideFund;
+    return {
+      ...d,
+      capital,
+      sideFund,
+      total: memberTotal,
+      equityShare: totalEquity > 0 ? memberTotal / totalEquity : 0,
+      capitalShare: totalCapital > 0 ? capital / totalCapital : 0
+    };
+  });
+
+  memberRows.sort((a, b) => b.total - a.total);
+
   return res.json({
     assets: { bank, mmf, ypa },
     mmfReturns,
     totalAssets,
-    percent: totalAssets > 0 ? { bank: bank / totalAssets, mmf: mmf / totalAssets, ypa: ypa / totalAssets } : { bank: 0, mmf: 0, ypa: 0 }
+    percent:
+      totalAssets > 0
+        ? { bank: bank / totalAssets, mmf: mmf / totalAssets, ypa: ypa / totalAssets }
+        : { bank: 0, mmf: 0, ypa: 0 },
+    members: {
+      totalEquity,
+      totalCapital,
+      count: directors.length,
+      activeCount: directors.filter((d) => d.active).length,
+      directors: memberRows
+    }
   });
 });
 

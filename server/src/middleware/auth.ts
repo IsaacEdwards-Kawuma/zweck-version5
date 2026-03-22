@@ -69,3 +69,16 @@ export function requireRole(role: AuthUser["role"]) {
   };
 }
 
+/** Admins, or directors editing their own profile (same `directorId` as `:id`). */
+export function requireAdminOrDirectorSelf(paramName: string = "id") {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (!req.user) return res.status(401).json(apiError("Unauthorized"));
+    if (req.user.role === "ADMIN") return next();
+    const raw = req.params[paramName];
+    const id = Number(raw);
+    if (!Number.isFinite(id)) return res.status(400).json(apiError("Invalid director id"));
+    if (req.user.role === "DIRECTOR" && req.user.directorId === id) return next();
+    return res.status(403).json(apiError("Forbidden"));
+  };
+}
+

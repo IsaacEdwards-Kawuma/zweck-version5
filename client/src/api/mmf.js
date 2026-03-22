@@ -1,7 +1,9 @@
 import api from "./client";
 
-export async function listMMF() {
-  const { data } = await api.get("/mmf");
+export async function listMMF(projectId) {
+  const { data } = await api.get("/mmf", {
+    params: projectId != null && projectId !== "" ? { projectId } : undefined
+  });
   return data;
 }
 

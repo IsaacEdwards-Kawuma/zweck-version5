@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import ErrorBanner from "../components/ErrorBanner";
 import { login, register } from "../api/auth";
 
 export default function Login() {
   const nav = useNavigate();
+  const location = useLocation();
   const [mode, setMode] = useState("login"); // login | bootstrap
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -27,11 +28,17 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-brand-50/50 to-accent-50/60 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
       <div className="mx-auto flex min-h-screen w-full max-w-md items-center px-4">
-        <div className="w-full rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="text-lg font-semibold text-slate-900">ZweckOS</div>
-          <div className="mt-1 text-sm text-slate-600">
+        <div className="ui-surface w-full overflow-hidden rounded-2xl border border-brand-100/80 p-6 shadow-lg shadow-brand-900/10 ring-1 ring-brand-100/50 dark:border-slate-600 dark:shadow-black/30 dark:ring-slate-600/80">
+          <div className="h-1 w-full -mx-6 -mt-6 mb-5 bg-gradient-to-r from-brand-500 via-brand-400 to-accent-500" aria-hidden />
+          <div className="text-lg font-semibold text-brand-900 dark:text-brand-200">ZweckOS</div>
+          {location.state?.resetOk ? (
+            <div className="mt-2 rounded-lg bg-accent-50 px-3 py-2 text-sm text-accent-900 ring-1 ring-accent-200/80 dark:bg-accent-950/50 dark:text-accent-200 dark:ring-accent-800/60">
+              Password updated. You can sign in now.
+            </div>
+          ) : null}
+          <div className="mt-1 text-sm ui-body-text">
             {mode === "login" ? "Sign in to continue." : "First-time setup: create the first admin user."}
           </div>
 
@@ -41,7 +48,9 @@ export default function Login() {
               onClick={() => setMode("login")}
               className={[
                 "rounded-lg px-3 py-1.5 text-sm font-medium",
-                mode === "login" ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-700"
+                mode === "login"
+                  ? "bg-brand-600 text-white"
+                  : "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200"
               ].join(" ")}
             >
               Login
@@ -51,7 +60,9 @@ export default function Login() {
               onClick={() => setMode("bootstrap")}
               className={[
                 "rounded-lg px-3 py-1.5 text-sm font-medium",
-                mode === "bootstrap" ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-700"
+                mode === "bootstrap"
+                  ? "bg-brand-600 text-white"
+                  : "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200"
               ].join(" ")}
             >
               First Admin Setup
@@ -61,9 +72,9 @@ export default function Login() {
           <form className="mt-5 space-y-3" onSubmit={onSubmit}>
             {err ? <ErrorBanner error={err} /> : null}
             <div>
-              <label className="text-xs font-medium text-slate-700">Email</label>
+              <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Email</label>
               <input
-                className="mt-1 w-full rounded-lg border-slate-300"
+                className="ui-input mt-1 w-full"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 type="email"
@@ -71,9 +82,9 @@ export default function Login() {
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-slate-700">Password</label>
+              <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Password</label>
               <input
-                className="mt-1 w-full rounded-lg border-slate-300"
+                className="ui-input mt-1 w-full"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 type="password"
@@ -81,7 +92,7 @@ export default function Login() {
                 required
               />
               {mode === "bootstrap" ? (
-                <div className="mt-1 text-xs text-slate-500">Minimum 8 characters.</div>
+                <div className="mt-1 text-xs ui-page-muted">Minimum 8 characters.</div>
               ) : null}
             </div>
             <button
@@ -90,9 +101,16 @@ export default function Login() {
             >
               {loading ? "Please wait..." : mode === "login" ? "Login" : "Create Admin"}
             </button>
+            {mode === "login" ? (
+              <div className="text-center">
+                <Link className="text-sm font-medium text-brand-700 hover:text-brand-800" to="/forgot-password">
+                  Forgot password?
+                </Link>
+              </div>
+            ) : null}
           </form>
 
-          <div className="mt-4 text-xs text-slate-500">
+          <div className="mt-4 text-xs ui-page-muted">
             Note: after the first admin exists, creating users/directors must be done by an admin via the API.
           </div>
         </div>

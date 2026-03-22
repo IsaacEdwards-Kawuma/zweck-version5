@@ -99,6 +99,10 @@ DATABASE_URL="postgresql://...neon...?sslmode=require"
 JWT_SECRET="..."
 PORT=3001
 ALLOWED_ORIGINS="http://localhost:5173"
+# Password reset links in emails (production): your Vercel app URL
+# PUBLIC_APP_URL=https://your-app.vercel.app
+# SMTP_HOST=... SMTP_PORT=587 SMTP_USER=... SMTP_PASS=... SMTP_FROM="ZweckOS <noreply@...>"
+# SENTRY_DSN=https://...@sentry.io/...
 ```
 
 **`client/.env`** (optional locally)
@@ -106,10 +110,26 @@ ALLOWED_ORIGINS="http://localhost:5173"
 ```env
 # Default: same-origin /api → Vite proxies to localhost:3001
 # VITE_API_URL=https://your-api.onrender.com/api
+# VITE_SENTRY_DSN=...   # optional; same pattern on Vercel for client error reporting
 ```
 
 On **Vercel**, set **`RENDER_API_URL`** (see section 3). You do not need `VITE_API_URL` unless you want the browser to hit Render directly.
 
-## 6. Docker Postgres (optional, local only)
+**API docs:** `https://YOUR-RENDER-HOST/api/docs` (OpenAPI UI). **Health:** `GET /api/health`.
+
+## 6. Director avatars (production)
+
+The API stores uploaded images either on **local disk** (`server/uploads/`) or in **S3-compatible** object storage.
+
+- **Render (default disk)**: the filesystem is often **ephemeral** — avatars can disappear on redeploy. Either attach a **persistent disk** and mount it so `server/uploads` (or `process.cwd()/uploads`) survives, **or** use object storage.
+- **S3 / Cloudflare R2 / MinIO**: set `S3_BUCKET`, `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and **`S3_PUBLIC_BASE_URL`** to the HTTPS base where objects are publicly readable (bucket website URL, R2 public URL, or CloudFront). For R2/MinIO, set `S3_ENDPOINT` as well. See `server/.env.example`.
+
+`GET /api/health` returns `"avatarStorage": "s3"` or `"local"` so you can verify which mode is active.
+
+## 7. Database backups
+
+Enable **automatic backups** in Neon (or your Postgres provider). Periodically verify you can restore a backup to a scratch database. The app does not replace provider-level backup/restore.
+
+## 8. Docker Postgres (optional, local only)
 
 `docker-compose.yml` in the repo is for **local** PostgreSQL; production DB is Neon.

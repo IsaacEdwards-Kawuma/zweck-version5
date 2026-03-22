@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useOutletContext } from "react-router-dom";
+import DirectorAvatar from "../components/DirectorAvatar";
 import ErrorBanner from "../components/ErrorBanner";
 import { postTransaction, deleteTransaction, updateTransaction, listTransactions } from "../api/transactions";
 import { listDirectors } from "../api/directors";
@@ -100,6 +101,12 @@ export default function PostTransaction() {
     };
   }, [amount, map]);
 
+  const selectedDirector = useMemo(() => {
+    if (!needsDirector || !directorId) return null;
+    const id = Number(directorId);
+    return (qDirs.data || []).find((d) => d.id === id) || null;
+  }, [needsDirector, directorId, qDirs.data]);
+
   function onSubmit(e) {
     e.preventDefault();
     setSuccess(null);
@@ -132,14 +139,11 @@ export default function PostTransaction() {
         <div className="text-sm text-slate-600">All balances will be derived from the transactions table.</div>
       </div>
 
-      {mPost.error || mUpdate.error || mDelete.error ? (
-        <ErrorBanner error={mPost.error || mUpdate.error || mDelete.error} />
-      ) : null}
       {success ? (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{success}</div>
       ) : null}
 
-      <form onSubmit={onSubmit} className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <form onSubmit={onSubmit} className="space-y-4 rounded-xl ui-surface p-4">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div>
             <label className="text-xs font-medium text-slate-700">Type</label>
@@ -155,19 +159,22 @@ export default function PostTransaction() {
           {needsDirector ? (
             <div>
               <label className="text-xs font-medium text-slate-700">Director</label>
-              <select
-                className="mt-1 w-full rounded-lg border-slate-300"
-                value={directorId}
-                onChange={(e) => setDirectorId(e.target.value)}
-                required
-              >
-                <option value="">Select director...</option>
-                {(qDirs.data || []).map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
+              <div className="mt-1 flex items-center gap-2">
+                {selectedDirector ? <DirectorAvatar director={selectedDirector} size="sm" /> : null}
+                <select
+                  className="min-w-0 flex-1 rounded-lg border-slate-300"
+                  value={directorId}
+                  onChange={(e) => setDirectorId(e.target.value)}
+                  required
+                >
+                  <option value="">Select director...</option>
+                  {(qDirs.data || []).map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
               {qDirs.error ? <div className="mt-1 text-xs text-rose-700">Failed to load directors.</div> : null}
             </div>
           ) : null}
@@ -212,7 +219,7 @@ export default function PostTransaction() {
           {editingId && (
             <button
               type="button"
-              className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              className="ui-btn-outline px-4 py-2 font-medium text-slate-700"
               onClick={() => {
                 setEditingId(null);
                 setSuccess(null);
@@ -247,7 +254,7 @@ export default function PostTransaction() {
         ) : qRecent.error ? (
           <ErrorBanner error={qRecent.error} />
         ) : (
-          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white text-sm shadow-sm">
+          <div className="overflow-x-auto rounded-xl ui-surface text-sm">
             <table className="min-w-full text-left">
               <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-600">
                 <tr>
@@ -275,7 +282,7 @@ export default function PostTransaction() {
                       <div className="flex gap-2">
                         <button
                           type="button"
-                          className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                          className="ui-btn-outline-xs font-medium text-slate-700"
                           onClick={() => {
                             setEditingId(t.id);
                             setType(t.type);

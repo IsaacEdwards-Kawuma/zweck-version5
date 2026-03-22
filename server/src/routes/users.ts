@@ -15,7 +15,7 @@ router.get("/", requireRole("ADMIN"), async (_req: Request, res: Response) => {
       directorId: true,
       createdAt: true,
       director: {
-        select: { id: true, name: true, initials: true }
+        select: { id: true, name: true, initials: true, avatarUrl: true }
       }
     }
   });
@@ -33,7 +33,7 @@ router.get("/:id", requireRole("ADMIN"), async (req: Request, res: Response) => 
       role: true,
       directorId: true,
       createdAt: true,
-      director: { select: { id: true, name: true, initials: true } }
+      director: { select: { id: true, name: true, initials: true, avatarUrl: true } }
     }
   });
   if (!user) return res.status(404).json(apiError("User not found"));

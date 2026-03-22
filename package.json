@@ -7,9 +7,14 @@
   ],
   "scripts": {
     "build:client": "npm run build --workspace=client",
+    "build:server": "npm run build --workspace=zweckos-server",
+    "build": "npm run build:server && npm run build:client",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "cd server && npm run dev",
     "dev:client": "cd client && npm run dev",
+    "lint": "npm run lint --workspace=zweckos-server && npm run lint --workspace=client",
+    "test": "npm run test --workspace=zweckos-server && npm run test --workspace=client",
+    "test:e2e": "npm run test:e2e --workspace=client",
     "db:migrate": "cd server && npx prisma migrate dev",
     "db:deploy": "cd server && npx prisma migrate deploy",
     "db:studio": "cd server && npx prisma studio"

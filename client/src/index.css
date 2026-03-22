@@ -9,6 +9,109 @@ body,
 }
 
 body {
-  @apply bg-slate-50 text-slate-900;
+  @apply min-h-full bg-gradient-to-br from-slate-50 via-brand-50/35 to-accent-50/50 text-slate-900;
 }
 
+html.dark body {
+  @apply bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100;
+}
+
+/* Shared surfaces & controls — use with rounded-* / padding as needed */
+@layer components {
+  .ui-surface {
+    @apply border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800/90;
+  }
+
+  .ui-surface-inset {
+    @apply rounded-xl border border-slate-200 bg-white/95 text-slate-900 backdrop-blur dark:border-slate-600 dark:bg-slate-900/95 dark:text-slate-100;
+  }
+
+  .ui-table-wrap {
+    @apply overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800/90;
+  }
+
+  .ui-table-head {
+    @apply border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-600 dark:border-slate-600 dark:bg-slate-900/80 dark:text-slate-400;
+  }
+
+  .ui-table-divide {
+    @apply divide-y divide-slate-200 dark:divide-slate-600/80;
+  }
+
+  .ui-table-row-hover {
+    @apply hover:bg-slate-50 dark:hover:bg-slate-700/40;
+  }
+
+  .ui-btn-outline {
+    @apply rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700;
+  }
+
+  .ui-btn-outline-xs {
+    @apply rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700;
+  }
+
+  .ui-input {
+    @apply rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100;
+  }
+
+  .ui-page-heading {
+    @apply text-slate-900 dark:text-slate-100;
+  }
+
+  .ui-page-muted {
+    @apply text-slate-500 dark:text-slate-400;
+  }
+
+  .ui-body-text {
+    @apply text-slate-600 dark:text-slate-300;
+  }
+
+  .ui-stat-strip {
+    @apply border border-slate-100 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/60;
+  }
+}
+
+/* ─── Print: in-app (browser print / Ctrl+P) ─── */
+@media print {
+  @page {
+    margin: 12mm 14mm;
+    size: A4;
+  }
+
+  body {
+    background: white !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  #root {
+    height: auto !important;
+  }
+
+  /* Cards: crisp borders, no heavy shadows */
+  .rounded-2xl,
+  .rounded-xl,
+  .rounded-lg {
+    box-shadow: none !important;
+  }
+
+  /* Tables: clearer grid for reports / ledger */
+  table {
+    border-collapse: collapse;
+  }
+
+  thead {
+    break-inside: avoid;
+    break-after: avoid;
+  }
+
+  tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Optional: soften chart areas (often print poorly) */
+  .recharts-wrapper {
+    break-inside: avoid;
+  }
+}
