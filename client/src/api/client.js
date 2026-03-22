@@ -13,6 +13,30 @@ function normalizeRemoteApiBase(url) {
   return u;
 }
 
+/** Render API host (e.g. zweck-version5.onrender.com). */
+function isRenderHost(hostname) {
+  return hostname === "onrender.com" || hostname.endsWith(".onrender.com");
+}
+
+/**
+ * If VITE_API_URL points at Render but the page is on another origin (e.g. Vercel), calling Render
+ * directly hits CORS unless ALLOWED_ORIGINS is perfect. Prefer same-origin `/api` + RENDER_API_URL proxy.
+ * Set VITE_API_DIRECT=true only if you intentionally call Render from the browser with CORS configured.
+ */
+function shouldPreferSameOriginProxy(envUrl) {
+  if (import.meta.env.DEV) return false;
+  if (import.meta.env.VITE_API_DIRECT === "true") return false;
+  if (!envUrl || !/^https:\/\//i.test(envUrl)) return false;
+  try {
+    const host = new URL(normalizeRemoteApiBase(envUrl)).hostname;
+    if (!isRenderHost(host)) return false;
+    if (typeof window === "undefined") return false;
+    return window.location.hostname !== host;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Production on Vercel: use same-origin `/api` (serverless proxy → Render). Set RENDER_API_URL on Vercel.
  * Dev: Vite proxies `/api` → http://localhost:3001 (see vite.config.js).
@@ -28,6 +52,7 @@ function resolveApiBaseURL() {
     return env;
   }
   if (env && /^https:\/\//i.test(env) && !/localhost|127\.0\.0\.1/i.test(env)) {
+    if (shouldPreferSameOriginProxy(env)) return "/api";
     return normalizeRemoteApiBase(env);
   }
   return "/api";
