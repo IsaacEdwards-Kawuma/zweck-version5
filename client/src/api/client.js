@@ -3,17 +3,32 @@ import axios from "axios";
 const authDisabled = import.meta.env.VITE_AUTH_DISABLED === "true";
 
 /**
- * Production on Vercel: use same-origin `/api` (Edge proxy → Render). Set RENDER_API_URL on Vercel.
+ * Ensures calls hit `/api/...` on the host. Render’s app mounts routes under `/api`.
+ * Common mistake: `VITE_API_URL=https://xxx.onrender.com` → requests go to `/auth/login` (404).
+ * This normalizes to `https://xxx.onrender.com/api`.
+ */
+function normalizeRemoteApiBase(url) {
+  let u = url.replace(/\/+$/, "");
+  if (!u.endsWith("/api")) u = `${u}/api`;
+  return u;
+}
+
+/**
+ * Production on Vercel: use same-origin `/api` (serverless proxy → Render). Set RENDER_API_URL on Vercel.
  * Dev: Vite proxies `/api` → http://localhost:3001 (see vite.config.js).
- * Optional: VITE_API_URL=https://your-render.onrender.com/api to call Render directly (HTTPS only).
+ * Optional: VITE_API_URL=https://your-render.onrender.com (with or without /api — we normalize).
  */
 function resolveApiBaseURL() {
   const env = import.meta.env.VITE_API_URL?.trim();
   if (import.meta.env.DEV) {
-    return env || "/api";
+    if (!env) return "/api";
+    if (/^https:\/\//i.test(env) && !/localhost|127\.0\.0\.1/i.test(env)) {
+      return normalizeRemoteApiBase(env);
+    }
+    return env;
   }
   if (env && /^https:\/\//i.test(env) && !/localhost|127\.0\.0\.1/i.test(env)) {
-    return env;
+    return normalizeRemoteApiBase(env);
   }
   return "/api";
 }

@@ -25,7 +25,13 @@ export function getApiErrorMessage(err, fallback = "Something went wrong.") {
 
   const status = root.response.status;
   if (status === 403) return "You do not have permission to do that.";
-  if (status === 404) return "The requested resource was not found.";
+  if (status === 404) {
+    if (typeof data?.message === "string" && data.message.trim()) return data.message;
+    return (
+      "Not found (404). Check the API URL: VITE_API_URL should be your Render host (https://…onrender.com); " +
+        "/api is added automatically. On Vercel use RENDER_API_URL without /api."
+    );
+  }
   if (status === 409) return data?.message || "This action conflicts with existing data.";
   if (status >= 500) return "The server had a problem. Try again later.";
 

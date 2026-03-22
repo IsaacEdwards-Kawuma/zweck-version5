@@ -24,7 +24,8 @@ export default async function handler(req, res) {
     return;
   }
 
-  const base = process.env.RENDER_API_URL?.replace(/\/$/, "");
+  // Accept either https://host or https://host/api (strip trailing /api to avoid /api/api/... on upstream)
+  const base = process.env.RENDER_API_URL?.replace(/\/$/, "").replace(/\/api$/i, "");
   if (!base) {
     res.status(500).json({
       error: true,
