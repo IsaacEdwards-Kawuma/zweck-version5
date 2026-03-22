@@ -1,9 +1,10 @@
 /**
- * Vercel Node serverless proxy: same-origin https://…/api/* → Render.
+ * Vercel Node serverless proxy (repo root): same-origin https://…/api/* → Render.
+ * Use when the Vercel project root is the repository root (not `client/`).
  * Set RENDER_API_URL (e.g. https://your-api.onrender.com) — no /api suffix.
- * Node runtime (not Edge) so POST + JSON bodies forward reliably (avoids 405 on static HTML).
+ * Node runtime so POST + JSON bodies forward reliably.
  *
- * Some Vercel builds pass req.url without the full /api prefix for catch-all routes — we rebuild it.
+ * For Root Directory = `client`, use `client/api/[...path].js` instead.
  */
 
 async function getBodyBuffer(req) {
