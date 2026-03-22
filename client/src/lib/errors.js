@@ -64,6 +64,15 @@ export function getApiErrorMessage(err, fallback = "Something went wrong.") {
     if (m404) return m404;
     return FALLBACK_404_VERCEL + axiosRequestLabel(root);
   }
+  if (status === 405) {
+    const m405 = messageFromResponseData(data);
+    if (m405) return m405;
+    return (
+      "Method not allowed (405). POST /api was likely served as static HTML (SPA rewrite). " +
+        "The Vercel config must not rewrite /api to index.html — use /((?!api/).*) → /index.html. " +
+        "Root Directory must be client so client/api/ is deployed."
+    ) + axiosRequestLabel(root);
+  }
   if (status === 409) return messageFromResponseData(data) || "This action conflicts with existing data.";
   if (status >= 500) return "The server had a problem. Try again later.";
 
