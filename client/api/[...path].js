@@ -87,23 +87,33 @@ export default async function handler(req, res) {
 
   const bodyBuf = await getBodyBuffer(req);
 
-  const r = await fetch(target, {
-    method: req.method,
-    headers,
-    body: bodyBuf
-  });
+  try {
+    const r = await fetch(target, {
+      method: req.method,
+      headers,
+      body: bodyBuf
+    });
 
-  res.status(r.status);
-  r.headers.forEach((value, key) => {
-    const lower = key.toLowerCase();
-    if (lower === "transfer-encoding") return;
-    res.setHeader(key, value);
-  });
-  const buf = Buffer.from(await r.arrayBuffer());
-  res.end(buf);
+    res.status(r.status);
+    r.headers.forEach((value, key) => {
+      const lower = key.toLowerCase();
+      if (lower === "transfer-encoding") return;
+      res.setHeader(key, value);
+    });
+    const buf = Buffer.from(await r.arrayBuffer());
+    res.end(buf);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Proxy request failed";
+    res.status(502).json({
+      error: true,
+      message: "API proxy could not reach Render backend.",
+      detail: message,
+      target
+    });
+  }
 }
 
 export const config = {
   runtime: "nodejs",
-  maxDuration: 30
+  maxDuration: 60
 };
