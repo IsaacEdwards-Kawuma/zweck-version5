@@ -6,7 +6,7 @@ import { login, register } from "../api/auth";
 export default function Login() {
   const nav = useNavigate();
   const location = useLocation();
-  const [mode, setMode] = useState("login"); // login | bootstrap
+  const [mode, setMode] = useState(() => (location.pathname === "/signup" ? "bootstrap" : "login")); // login | bootstrap
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
