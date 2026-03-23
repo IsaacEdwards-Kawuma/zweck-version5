@@ -67,6 +67,12 @@ export default async function handler(req, res) {
   const url = new URL(fullUrl, `${proto}://${host}`);
   const target = `${base}${normalizeRenderApiPath(url.pathname)}${url.search}`;
 
+  // Debug: helps confirm what path we forwarded to Render.
+  // Safe for temporary use; remove once fixed.
+  res.setHeader("x-proxied-fullurl", fullUrl);
+  res.setHeader("x-proxied-pathname", url.pathname);
+  res.setHeader("x-proxied-to", target);
+
   const headers = new Headers();
   for (const [key, value] of Object.entries(req.headers)) {
     const lower = key.toLowerCase();
