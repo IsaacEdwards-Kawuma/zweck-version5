@@ -58,8 +58,26 @@ function resolveApiBaseURL() {
   return "/api";
 }
 
+function safeJsonTransform(data, headers) {
+  if (typeof data !== "string") return data;
+  const raw = data.trim();
+  if (!raw) return data;
+  const contentType = String(headers?.["content-type"] || headers?.["Content-Type"] || "").toLowerCase();
+  if (!contentType.includes("application/json")) return data;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return data;
+  }
+}
+
 const api = axios.create({
-  baseURL: resolveApiBaseURL()
+  baseURL: resolveApiBaseURL(),
+  transitional: {
+    silentJSONParsing: true,
+    forcedJSONParsing: false
+  },
+  transformResponse: [safeJsonTransform]
 });
 
 function isLikelyJsonParseError(err) {
