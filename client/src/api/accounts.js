@@ -6,7 +6,9 @@ export async function balances() {
 }
 
 export async function directorsAll() {
-  const { data } = await api.get("/accounts/directors/all");
+  // Render/Vercel proxy sometimes struggles with 3+ path segments under `/api`.
+  // Use the server alias `/accounts/directors` (2 segments after `/api`).
+  const { data } = await api.get("/accounts/directors");
   return data;
 }
 

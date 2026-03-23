@@ -66,6 +66,38 @@ router.get("/directors/all", async (_req, res) => {
   return res.json(out);
 });
 
+// Alias used by Vercel deployments where multi-segment `/api/...` proxying can fail.
+// The dashboard calls `/api/accounts/directors` (2 segments after `/api`) instead of
+// `/api/accounts/directors/all` (3 segments after `/api`).
+router.get("/directors", async (_req, res) => {
+  const directors = await prisma.director.findMany({
+    orderBy: { createdAt: "asc" },
+    select: { id: true, name: true, initials: true, email: true, active: true, avatarUrl: true, joinedRound: true, createdAt: true }
+  });
+
+  const txs = await prisma.transaction.findMany({
+    where: { directorId: { not: null }, type: { in: ["CONTRIBUTION", "SIDE_FUND"] } },
+    select: { directorId: true, type: true, amount: true }
+  });
+
+  const totals = new Map<number, { capital: number; sideFund: number }>();
+  for (const d of directors) totals.set(d.id, { capital: 0, sideFund: 0 });
+  for (const t of txs) {
+    if (!t.directorId) continue;
+    const cur = totals.get(t.directorId) ?? { capital: 0, sideFund: 0 };
+    if (t.type === "CONTRIBUTION") cur.capital += t.amount;
+    if (t.type === "SIDE_FUND") cur.sideFund += t.amount;
+    totals.set(t.directorId, cur);
+  }
+
+  const out = directors.map((d) => {
+    const t = totals.get(d.id) ?? { capital: 0, sideFund: 0 };
+    return { ...d, capital: t.capital, sideFund: t.sideFund, total: t.capital + t.sideFund };
+  });
+
+  return res.json(out);
+});
+
 router.get("/summary", async (_req, res) => {
   const txs = await prisma.transaction.findMany({ select: { type: true, amount: true } });
   const balances = deriveBalances(txs);
