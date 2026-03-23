@@ -9,11 +9,19 @@ function isLoopbackBrowserOrigin(origin: string): boolean {
   );
 }
 
+function normalizeOrigin(origin: string): string {
+  // Some deployments configure ALLOWED_ORIGINS with a trailing slash.
+  // Browser Origin never includes a trailing slash, so normalize to prevent false mismatches.
+  return origin.trim().replace(/\/$/, "");
+}
+
 /**
  * Shared origin check (used by CORS middleware + error handler so 500s still expose CORS headers).
  */
 export function isOriginAllowed(origin: string | undefined): boolean {
   if (!origin) return true;
+
+  const originNorm = normalizeOrigin(origin);
 
   // Local dev: allow any origin so Vite, LAN IPs, IPv6 ::1, etc. all work without env tuning.
   if (process.env.NODE_ENV !== "production") {
@@ -21,24 +29,28 @@ export function isOriginAllowed(origin: string | undefined): boolean {
   }
 
   // Production-like runs on the same machine (e.g. NODE_ENV=production in server/.env): still allow loopback.
-  if (isLoopbackBrowserOrigin(origin)) {
+  if (isLoopbackBrowserOrigin(originNorm)) {
     return true;
   }
 
   const fromEnv: string[] = [];
   if (process.env.CLIENT_ORIGIN?.trim()) {
-    fromEnv.push(process.env.CLIENT_ORIGIN.trim());
+    fromEnv.push(normalizeOrigin(process.env.CLIENT_ORIGIN.trim()));
   }
   if (process.env.ALLOWED_ORIGINS?.trim()) {
     fromEnv.push(
-      ...process.env.ALLOWED_ORIGINS.split(",").map((s) => s.trim()).filter(Boolean)
+      ...process.env.ALLOWED_ORIGINS
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map(normalizeOrigin)
     );
   }
 
-  if (fromEnv.includes(origin)) return true;
+  if (fromEnv.includes(originNorm)) return true;
 
   if (process.env.ALLOW_VERCEL_PREVIEWS === "true") {
-    if (/^https:\/\/[a-zA-Z0-9-]+\.vercel\.app$/.test(origin)) {
+    if (/^https:\/\/[a-zA-Z0-9-]+\.vercel\.app$/.test(originNorm)) {
       return true;
     }
   }
