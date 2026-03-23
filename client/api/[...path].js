@@ -37,6 +37,14 @@ function resolveFullUrl(req) {
   return raw;
 }
 
+/**
+ * Prevent accidental double-prefix when reconstructing the path (e.g. /api/api/health).
+ * The Render service mounts everything under exactly one /api.
+ */
+function normalizeRenderApiPath(pathname) {
+  return pathname.replace(/^\/api(\/api)+/i, "/api");
+}
+
 export default async function handler(req, res) {
   const fullUrl = resolveFullUrl(req);
   if (!fullUrl.startsWith("/api")) {
@@ -57,7 +65,7 @@ export default async function handler(req, res) {
   const proto = req.headers["x-forwarded-proto"] || "https";
   const host = req.headers.host || "localhost";
   const url = new URL(fullUrl, `${proto}://${host}`);
-  const target = `${base}${url.pathname}${url.search}`;
+  const target = `${base}${normalizeRenderApiPath(url.pathname)}${url.search}`;
 
   const headers = new Headers();
   for (const [key, value] of Object.entries(req.headers)) {
