@@ -10,10 +10,24 @@ async function getBodyBuffer(req) {
     if (typeof req.body === "string") return Buffer.from(req.body);
     if (typeof req.body === "object") return Buffer.from(JSON.stringify(req.body));
   }
-  const chunks = [];
-  for await (const chunk of req) chunks.push(chunk);
-  const buf = Buffer.concat(chunks);
-  return buf.length ? buf : undefined;
+  // Some Vercel runtimes don't expose the request as an async-iterable stream.
+  // Fall back to classic 'data'/'end' events when needed.
+  if (req && typeof req[Symbol.asyncIterator] === "function") {
+    const chunks = [];
+    for await (const chunk of req) chunks.push(chunk);
+    const buf = Buffer.concat(chunks);
+    return buf.length ? buf : undefined;
+  }
+
+  return await new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on("data", (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+    req.on("end", () => {
+      const buf = Buffer.concat(chunks);
+      resolve(buf.length ? buf : undefined);
+    });
+    req.on("error", reject);
+  });
 }
 
 function buildForwardHeaders(req) {
