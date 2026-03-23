@@ -17,7 +17,7 @@ export default function Topbar() {
           className="rounded-lg border border-brand-200/80 bg-white px-3 py-1.5 text-sm font-medium text-brand-900 hover:bg-brand-50 dark:border-brand-500/40 dark:bg-slate-800 dark:text-brand-200 dark:hover:bg-slate-700"
           onClick={() => {
             localStorage.removeItem("zweck_token");
-            nav("/login");
+            nav("/");
           }}
         >
           Logout

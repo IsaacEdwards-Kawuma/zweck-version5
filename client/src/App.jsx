@@ -1,9 +1,6 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import Protected from "./components/Protected";
 import Layout from "./components/Layout";
-import Login from "./pages/Login";
-import ForgotPassword from "./pages/ForgotPassword";
-import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import PostTransaction from "./pages/PostTransaction";
 import Ledger from "./pages/Ledger";
@@ -25,10 +22,6 @@ import Settings from "./pages/Settings";
 export default function App() {
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/forgot-password" element={<ForgotPassword />} />
-      <Route path="/reset-password" element={<ResetPassword />} />
-
       <Route element={<Protected />}>
         <Route element={<Layout />}>
           <Route index element={<Dashboard />} />

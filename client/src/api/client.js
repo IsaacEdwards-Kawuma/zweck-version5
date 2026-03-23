@@ -1,7 +1,5 @@
 import axios from "axios";
 
-const authDisabled = import.meta.env.VITE_AUTH_DISABLED === "true";
-
 /**
  * Ensures calls hit `/api/...` on the host. Render’s app mounts routes under `/api`.
  * Common mistake: `VITE_API_URL=https://xxx.onrender.com` → requests go to `/auth/login` (404).
@@ -72,11 +70,10 @@ api.interceptors.response.use(
   (res) => res,
   (err) => {
     const status = err?.response?.status;
-    if (status === 401 && !authDisabled) {
+    if (status === 401) {
       localStorage.removeItem("zweck_token");
-      const p = window.location.pathname;
-      if (!p.startsWith("/login") && !p.startsWith("/forgot-password") && !p.startsWith("/reset-password")) {
-        window.location.replace("/login");
+      if (window.location.pathname !== "/") {
+        window.location.replace("/");
       }
     }
     return Promise.reject(err);
