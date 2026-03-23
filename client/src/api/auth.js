@@ -10,6 +10,11 @@ export async function register(payload) {
   return data;
 }
 
+export async function bootstrapStatus() {
+  const { data } = await api.get("/auth/bootstrap-status");
+  return data;
+}
+
 export async function me() {
   const { data } = await api.get("/auth/me");
   return data;

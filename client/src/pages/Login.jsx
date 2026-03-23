@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import ErrorBanner from "../components/ErrorBanner";
-import { login, register } from "../api/auth";
+import { bootstrapStatus, login, register } from "../api/auth";
 
 export default function Login() {
   const nav = useNavigate();
@@ -11,6 +11,26 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState(null);
+  const [bootstrapOpen, setBootstrapOpen] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const data = await bootstrapStatus();
+        if (!active) return;
+        setBootstrapOpen(Boolean(data?.bootstrapOpen));
+        if (!data?.bootstrapOpen && mode === "bootstrap") {
+          setMode("login");
+        }
+      } catch {
+        // If status lookup fails, keep the existing default behavior.
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [mode]);
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -21,7 +41,16 @@ export default function Login() {
       localStorage.setItem("zweck_token", data.token);
       nav("/");
     } catch (e2) {
-      setErr(e2);
+      if (mode === "bootstrap" && e2?.response?.status === 401) {
+        setMode("login");
+        setErr(
+          new Error(
+            "First-admin setup is already closed because a user exists. Please sign in with an existing admin account."
+          )
+        );
+      } else {
+        setErr(e2);
+      }
     } finally {
       setLoading(false);
     }
@@ -41,6 +70,11 @@ export default function Login() {
           <div className="mt-1 text-sm ui-body-text">
             {mode === "login" ? "Sign in to continue." : "First-time setup: create the first admin user."}
           </div>
+          {!bootstrapOpen ? (
+            <div className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-amber-200/80">
+              First-admin setup is closed (an account already exists). Use Login.
+            </div>
+          ) : null}
 
           <div className="mt-4 flex gap-2">
             <button
@@ -58,11 +92,13 @@ export default function Login() {
             <button
               type="button"
               onClick={() => setMode("bootstrap")}
+              disabled={!bootstrapOpen}
               className={[
                 "rounded-lg px-3 py-1.5 text-sm font-medium",
                 mode === "bootstrap"
                   ? "bg-brand-600 text-white"
-                  : "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200"
+                  : "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200",
+                !bootstrapOpen ? "cursor-not-allowed opacity-50" : ""
               ].join(" ")}
             >
               First Admin Setup

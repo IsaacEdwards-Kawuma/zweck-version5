@@ -165,6 +165,14 @@ const registerBody = z.object({
     .optional()
 });
 
+router.get("/bootstrap-status", async (_req, res) => {
+  const usersCount = await prisma.user.count();
+  return res.json({
+    usersCount,
+    bootstrapOpen: usersCount === 0
+  });
+});
+
 router.post("/register", validateBody(registerBody), async (req, res) => {
   const parsed = req.body as z.infer<typeof registerBody>;
 
