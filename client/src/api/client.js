@@ -62,6 +62,12 @@ const api = axios.create({
   baseURL: resolveApiBaseURL()
 });
 
+function isLikelyJsonParseError(err) {
+  if (!err) return false;
+  const message = String(err.message || "");
+  return /JSON\.parse|Unexpected end of JSON input|unexpected end of data/i.test(message);
+}
+
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("zweck_token");
   if (token) config.headers.Authorization = `Bearer ${token}`;
@@ -71,6 +77,15 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (err) => {
+    if (isLikelyJsonParseError(err)) {
+      return Promise.reject(
+        new Error(
+          "The server returned an empty/invalid response. This is usually a proxy or CORS issue. " +
+            "If using Vercel, check RENDER_API_URL and try direct API mode temporarily."
+        )
+      );
+    }
+
     const status = err?.response?.status;
     if (status === 401) {
       localStorage.removeItem("zweck_token");
