@@ -178,23 +178,10 @@ router.post("/register", validateBody(registerBody), async (req, res) => {
 
   const usersCount = await prisma.user.count();
   const bootstrap = usersCount === 0;
-
-  if (!bootstrap) {
-    // admin-only once the first user exists
-    const header = req.headers.authorization;
-    if (!header?.startsWith("Bearer ")) return res.status(401).json(apiError("Unauthorized"));
-    const token = header.slice("Bearer ".length).trim();
-    try {
-      const payload = jwt.verify(token, getSecret()) as AuthUser;
-      if (payload.role !== "ADMIN") return res.status(403).json(apiError("Forbidden"));
-      return handleRegister(parsed, false, payload.id, res);
-    } catch {
-      return res.status(401).json(apiError("Unauthorized"));
-    }
-  }
-
-  // bootstrap path: allow creating the very first ADMIN user (no seed; user triggers it)
-  return handleRegister(parsed, true, null, res);
+  // Public signup:
+  // - first account becomes ADMIN
+  // - all subsequent signups become DIRECTOR
+  return handleRegister(parsed, bootstrap, null, res);
 });
 
 async function handleRegister(
@@ -210,8 +197,7 @@ async function handleRegister(
 
   const passwordHash = await bcrypt.hash(body.password, 12);
 
-  const role: "ADMIN" | "DIRECTOR" =
-    bootstrap ? "ADMIN" : body.role ?? (body.director ? "DIRECTOR" : "ADMIN");
+  const role: "ADMIN" | "DIRECTOR" = bootstrap ? "ADMIN" : "DIRECTOR";
 
   let directorId: number | null = null;
   if (body.director) {

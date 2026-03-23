@@ -1,36 +1,20 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import ErrorBanner from "../components/ErrorBanner";
-import { bootstrapStatus, login, register } from "../api/auth";
+import { login, register } from "../api/auth";
 
 export default function Login() {
   const nav = useNavigate();
   const location = useLocation();
-  const [mode, setMode] = useState(() => (location.pathname === "/signup" ? "bootstrap" : "login")); // login | bootstrap
+  const [mode, setMode] = useState(() => (location.pathname === "/signup" ? "signup" : "login")); // login | signup
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState(null);
-  const [bootstrapOpen, setBootstrapOpen] = useState(true);
-
   useEffect(() => {
-    let active = true;
-    void (async () => {
-      try {
-        const data = await bootstrapStatus();
-        if (!active) return;
-        setBootstrapOpen(Boolean(data?.bootstrapOpen));
-        if (!data?.bootstrapOpen && mode === "bootstrap") {
-          setMode("login");
-        }
-      } catch {
-        // If status lookup fails, keep the existing default behavior.
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, [mode]);
+    if (location.pathname === "/signup") setMode("signup");
+    if (location.pathname === "/login") setMode("login");
+  }, [location.pathname]);
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -41,16 +25,7 @@ export default function Login() {
       localStorage.setItem("zweck_token", data.token);
       nav("/");
     } catch (e2) {
-      if (mode === "bootstrap" && e2?.response?.status === 401) {
-        setMode("login");
-        setErr(
-          new Error(
-            "First-admin setup is already closed because a user exists. Please sign in with an existing admin account."
-          )
-        );
-      } else {
-        setErr(e2);
-      }
+      setErr(e2);
     } finally {
       setLoading(false);
     }
@@ -68,13 +43,8 @@ export default function Login() {
             </div>
           ) : null}
           <div className="mt-1 text-sm ui-body-text">
-            {mode === "login" ? "Sign in to continue." : "First-time setup: create the first admin user."}
+            {mode === "login" ? "Sign in to continue." : "Create a new account."}
           </div>
-          {!bootstrapOpen ? (
-            <div className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-amber-200/80">
-              First-admin setup is closed (an account already exists). Use Login.
-            </div>
-          ) : null}
 
           <div className="mt-4 flex gap-2">
             <button
@@ -91,17 +61,15 @@ export default function Login() {
             </button>
             <button
               type="button"
-              onClick={() => setMode("bootstrap")}
-              disabled={!bootstrapOpen}
+              onClick={() => setMode("signup")}
               className={[
                 "rounded-lg px-3 py-1.5 text-sm font-medium",
-                mode === "bootstrap"
+                mode === "signup"
                   ? "bg-brand-600 text-white"
-                  : "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200",
-                !bootstrapOpen ? "cursor-not-allowed opacity-50" : ""
+                  : "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200"
               ].join(" ")}
             >
-              First Admin Setup
+              Sign up
             </button>
           </div>
 
@@ -124,10 +92,10 @@ export default function Login() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 type="password"
-                minLength={mode === "bootstrap" ? 8 : 1}
+                minLength={mode === "signup" ? 8 : 1}
                 required
               />
-              {mode === "bootstrap" ? (
+              {mode === "signup" ? (
                 <div className="mt-1 text-xs ui-page-muted">Minimum 8 characters.</div>
               ) : null}
             </div>
@@ -135,7 +103,7 @@ export default function Login() {
               disabled={loading}
               className="w-full rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
             >
-              {loading ? "Please wait..." : mode === "login" ? "Login" : "Create Admin"}
+              {loading ? "Please wait..." : mode === "login" ? "Login" : "Create account"}
             </button>
             {mode === "login" ? (
               <div className="text-center">
@@ -147,7 +115,7 @@ export default function Login() {
           </form>
 
           <div className="mt-4 text-xs ui-page-muted">
-            Note: after the first admin exists, creating users/directors must be done by an admin via the API.
+            New signups create a user account; first account is promoted to admin automatically.
           </div>
         </div>
       </div>
