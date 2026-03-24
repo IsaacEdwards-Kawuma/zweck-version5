@@ -12,9 +12,25 @@ const links = [
   { to: "/settings", label: "Settings" }
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ mobileOpen, onClose }) {
   return (
-    <aside className="h-full w-64 shrink-0 border-r border-brand-100/80 bg-white/95 shadow-sm shadow-brand-900/5 print:hidden dark:border-slate-700 dark:bg-slate-900/95 dark:shadow-black/20">
+    <>
+      <button
+        type="button"
+        aria-label="Close navigation"
+        className={[
+          "fixed inset-0 z-30 bg-slate-900/45 transition-opacity lg:hidden",
+          mobileOpen ? "opacity-100" : "pointer-events-none opacity-0"
+        ].join(" ")}
+        onClick={onClose}
+      />
+      <aside
+        className={[
+          "fixed inset-y-0 left-0 z-40 h-full w-64 border-r border-brand-100/80 bg-white/95 shadow-sm shadow-brand-900/5 transition-transform print:hidden dark:border-slate-700 dark:bg-slate-900/95 dark:shadow-black/20",
+          mobileOpen ? "translate-x-0" : "-translate-x-full",
+          "lg:static lg:z-auto lg:translate-x-0"
+        ].join(" ")}
+      >
       <div className="bg-gradient-to-br from-brand-600 via-brand-500 to-accent-600 px-4 py-5 text-white shadow-md shadow-brand-900/20">
         <div className="text-lg font-semibold tracking-tight">ZweckOS</div>
         <div className="mt-0.5 text-xs font-medium text-white/85">Zweck Co. Ltd — Kampala</div>
@@ -25,6 +41,7 @@ export default function Sidebar() {
             key={l.to}
             to={l.to}
             end={l.to === "/"}
+            onClick={onClose}
             className={({ isActive }) =>
               [
                 "block rounded-lg border-l-[3px] px-3 py-2 text-sm font-medium transition-colors",
@@ -38,7 +55,8 @@ export default function Sidebar() {
           </NavLink>
         ))}
       </nav>
-    </aside>
+      </aside>
+    </>
   );
 }
 

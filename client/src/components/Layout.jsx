@@ -1,4 +1,5 @@
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 import { useMe } from "../hooks/useMe";
@@ -6,6 +7,12 @@ import { useMe } from "../hooks/useMe";
 export default function Layout() {
   const token = localStorage.getItem("zweck_token");
   const qMe = useMe(Boolean(token));
+  const location = useLocation();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [location.pathname]);
 
   return (
     <div className="flex h-screen w-full overflow-hidden">
@@ -15,13 +22,13 @@ export default function Layout() {
       >
         Skip to content
       </a>
-      <Sidebar />
+      <Sidebar mobileOpen={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar />
+        <Topbar onToggleNav={() => setMobileNavOpen((v) => !v)} />
         <main
           id="main-content"
           tabIndex={-1}
-          className="min-w-0 flex-1 overflow-y-auto bg-slate-50 p-6 outline-none print:bg-white print:p-8 dark:bg-slate-950/50"
+          className="min-w-0 flex-1 overflow-y-auto bg-slate-50 p-3 outline-none print:bg-white sm:p-4 md:p-6 print:p-8 dark:bg-slate-950/50"
         >
           <Outlet context={{ me: qMe.data }} />
         </main>
