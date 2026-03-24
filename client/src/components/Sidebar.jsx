@@ -1,4 +1,4 @@
-import { NavLink } from "react-router-dom";
+import { Link, NavLink } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import DirectorAvatar from "./DirectorAvatar";
 import { logout as logoutApi } from "../api/auth";
@@ -150,12 +150,19 @@ export default function Sidebar({ mobileOpen, onClose, me }) {
         ].join(" ")}
       >
       <div className="bg-gradient-to-br from-brand-600 via-brand-500 to-accent-600 px-4 py-5 text-white shadow-md shadow-brand-900/20">
-        <div className="flex items-center gap-3">
-          <img
-            src="/zweck-logo.png"
-            alt="Zweck logo"
-            className="h-12 w-auto shrink-0 rounded-lg bg-white/95 p-1 shadow-md transition-transform duration-300 hover:scale-105 sm:h-14 lg:h-16 lg:p-1.5"
-          />
+        <div className="flex flex-col items-start gap-2.5 text-left">
+          <Link
+            to="/about"
+            onClick={onClose}
+            title="About the company"
+            className="rounded-lg outline-none ring-offset-2 ring-offset-brand-600 transition-transform duration-300 hover:scale-105 focus-visible:ring-2 focus-visible:ring-white"
+          >
+            <img
+              src="/zweck-logo.png"
+              alt="Zweck logo — about the company"
+              className="h-12 w-auto shrink-0 rounded-lg bg-white/95 p-1 shadow-md sm:h-14 lg:h-16 lg:p-1.5"
+            />
+          </Link>
           <div>
             <div className="text-lg font-semibold tracking-tight">ZweckOS</div>
             <div className="mt-0.5 text-xs font-medium text-white/85">Zweck Co. Ltd — Kampala</div>

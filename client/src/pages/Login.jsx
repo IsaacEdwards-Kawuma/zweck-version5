@@ -62,7 +62,7 @@ export default function Login() {
       <div className="mx-auto flex min-h-screen w-full max-w-md items-center px-4">
         <div className="ui-surface w-full overflow-hidden rounded-2xl border border-brand-100/80 p-6 shadow-lg shadow-brand-900/10 ring-1 ring-brand-100/50 dark:border-slate-600 dark:shadow-black/30 dark:ring-slate-600/80">
           <div className="h-1 w-full -mx-6 -mt-6 mb-5 bg-gradient-to-r from-brand-500 via-brand-400 to-accent-500" aria-hidden />
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col items-center gap-3 text-center">
             <img
               src="/zweck-logo.png"
               alt="Zweck logo"

@@ -25,6 +25,7 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const Users = lazy(() => import("./pages/Users"));
 const AuditLog = lazy(() => import("./pages/AuditLog"));
 const Settings = lazy(() => import("./pages/Settings"));
+const AboutCompany = lazy(() => import("./pages/AboutCompany"));
 
 export default function App() {
   return (
@@ -44,6 +45,7 @@ export default function App() {
             <Route path="/users" element={<Users />} />
             <Route path="/audit" element={<AuditLog />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/about" element={<AboutCompany />} />
             <Route path="/post" element={<PostTransaction />} />
             <Route path="/ledger" element={<Ledger />} />
             <Route path="/reconciliation" element={<Reconciliation />} />
