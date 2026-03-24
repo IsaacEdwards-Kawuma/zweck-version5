@@ -150,8 +150,12 @@ export default function Sidebar({ mobileOpen, onClose, me }) {
         ].join(" ")}
       >
       <div className="bg-gradient-to-br from-brand-600 via-brand-500 to-accent-600 px-4 py-5 text-white shadow-md shadow-brand-900/20">
-        <div className="flex items-center gap-2">
-          <img src="/zweck-logo.png" alt="Zweck logo" className="h-8 w-auto rounded-md bg-white/90 p-1 shadow-sm transition-transform duration-300 hover:scale-105" />
+        <div className="flex items-center gap-3">
+          <img
+            src="/zweck-logo.png"
+            alt="Zweck logo"
+            className="h-12 w-auto shrink-0 rounded-lg bg-white/95 p-1 shadow-md transition-transform duration-300 hover:scale-105 sm:h-14 lg:h-16 lg:p-1.5"
+          />
           <div>
             <div className="text-lg font-semibold tracking-tight">ZweckOS</div>
             <div className="mt-0.5 text-xs font-medium text-white/85">Zweck Co. Ltd — Kampala</div>

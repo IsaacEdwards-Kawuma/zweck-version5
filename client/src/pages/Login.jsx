@@ -62,8 +62,12 @@ export default function Login() {
       <div className="mx-auto flex min-h-screen w-full max-w-md items-center px-4">
         <div className="ui-surface w-full overflow-hidden rounded-2xl border border-brand-100/80 p-6 shadow-lg shadow-brand-900/10 ring-1 ring-brand-100/50 dark:border-slate-600 dark:shadow-black/30 dark:ring-slate-600/80">
           <div className="h-1 w-full -mx-6 -mt-6 mb-5 bg-gradient-to-r from-brand-500 via-brand-400 to-accent-500" aria-hidden />
-          <div className="flex items-center gap-3">
-            <img src="/zweck-logo.png" alt="Zweck logo" className="h-10 w-auto rounded-lg bg-white p-1 ring-1 ring-brand-200" />
+          <div className="flex items-center gap-4">
+            <img
+              src="/zweck-logo.png"
+              alt="Zweck logo"
+              className="h-14 w-auto shrink-0 rounded-xl bg-white p-1.5 ring-2 ring-brand-200/80 shadow-sm dark:bg-slate-900/80 dark:ring-brand-500/40 sm:h-20 sm:p-2 lg:h-24"
+            />
             <div>
               <div className="text-lg font-semibold text-brand-900 dark:text-brand-200">ZweckOS</div>
               <div className="text-xs ui-page-muted">Zweck Tukula Co. Ltd</div>
