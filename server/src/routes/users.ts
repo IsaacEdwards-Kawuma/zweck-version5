@@ -46,6 +46,7 @@ function withEstimatedSessionDuration<T extends LoginEventLike>(rows: T[]) {
   const failedHistory = new Map<number, number[]>();
   for (let i = 0; i < enriched.length; i += 1) {
     const current = enriched[i];
+    if (!current) continue;
     if (!current.success) {
       const ts = new Date(current.createdAt).getTime();
       const prev = failedHistory.get(current.userId) || [];
@@ -65,6 +66,7 @@ function withEstimatedSessionDuration<T extends LoginEventLike>(rows: T[]) {
     const prevIdx = byUserLast.get(current.userId);
     if (prevIdx != null) {
       const prev = enriched[prevIdx];
+      if (!prev) continue;
       const prevTs = new Date(prev.createdAt).getTime();
       const curTs = new Date(current.createdAt).getTime();
       const deltaMs = Math.max(0, curTs - prevTs);
@@ -88,6 +90,7 @@ function withEstimatedSessionDuration<T extends LoginEventLike>(rows: T[]) {
     }
     if (prevIdx != null) {
       const prev = enriched[prevIdx];
+      if (!prev) continue;
       const prevTs = new Date(prev.createdAt).getTime();
       const curTs = new Date(current.createdAt).getTime();
       const ms = Math.max(0, curTs - prevTs);
@@ -104,6 +107,7 @@ function withEstimatedSessionDuration<T extends LoginEventLike>(rows: T[]) {
   const now = Date.now();
   for (const idx of byUserLast.values()) {
     const latest = enriched[idx];
+    if (!latest) continue;
     const ts = new Date(latest.createdAt).getTime();
     const ms = Math.max(0, now - ts);
     latest.sessionDurationMs = ms;
