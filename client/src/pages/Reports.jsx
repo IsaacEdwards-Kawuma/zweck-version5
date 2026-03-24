@@ -5,6 +5,7 @@ import ErrorBanner from "../components/ErrorBanner";
 import MetricCard from "../components/MetricCard";
 import PrintStatementHeader from "../components/PrintStatementHeader";
 import { listTransactions } from "../api/transactions";
+import { trackReportEvent } from "../api/reports";
 import { eur, eurCompact, fmtDate } from "../lib/format";
 import { TX_TYPE_LABELS } from "../lib/dashboardAnalytics";
 import { useDirectorsAll, useSummary } from "../hooks/useDashboard";
@@ -59,7 +60,19 @@ function escHtml(value) {
     .replace(/"/g, "&quot;");
 }
 
-function openPrintDocument(title, innerHtml) {
+const PRINT_COMPANY_NAME = "YOUR COMPANY NAME";
+const PRINT_COMPANY_LOCATION = "Your city, Your country";
+const PRINT_PREPARED_BY = "Director";
+const PRINT_AUTHORISED_BY = "Treasurer";
+
+function makeStatementRef(statementCode, mode, from, to) {
+  const today = new Date().toISOString().slice(0, 10).replaceAll("-", "");
+  const fromPart = (from || "ALL").replaceAll("-", "");
+  const toPart = (to || "ALL").replaceAll("-", "");
+  return `${statementCode}-${today}-${mode.toUpperCase()}-${fromPart}-${toPart}`;
+}
+
+function openPrintDocument(title, statementName, reportMeta, statementRef, innerHtml) {
   const w = window.open("", "_blank");
   if (!w) return;
   w.document.write(`<!doctype html>
@@ -69,26 +82,73 @@ function openPrintDocument(title, innerHtml) {
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>${escHtml(title)}</title>
     <style>
-      @page { size: A4; margin: 14mm; }
-      body { font-family: "Segoe UI", Arial, sans-serif; color: #0f172a; margin: 0; font-size: 12px; }
-      .wrap { max-width: 900px; margin: 0 auto; }
-      h1 { font-size: 22px; margin: 0; color: #0B3C6D; }
-      .meta { margin-top: 6px; color: #475569; font-size: 11px; }
-      .section { margin-top: 18px; }
-      .section h2 { font-size: 13px; margin: 0 0 8px; color: #0B3C6D; text-transform: uppercase; letter-spacing: .04em; }
+      @page { size: A4; margin: 12mm; }
+      body { font-family: "Segoe UI", Arial, sans-serif; color: #0f172a; margin: 0; font-size: 12px; background: #fff; }
+      .wrap { max-width: 980px; margin: 0 auto; padding: 2px 4px; }
+      .top { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; }
+      .brand h1 { margin: 0; font-size: 36px; letter-spacing: 0.02em; color: #0b2547; line-height: 1; font-weight: 800; }
+      .brand p { margin: 6px 0 0; color: #64748b; font-size: 12px; }
+      .title { text-align: right; }
+      .title h2 { margin: 0; font-size: 19px; color: #0b2547; letter-spacing: 0.02em; text-transform: uppercase; }
+      .title .meta { margin-top: 8px; color: #475569; font-size: 11px; }
+      .rule { height: 3px; margin: 14px 0 16px; background: #0b2547; border: 0; }
+      .summary { border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 10px; padding: 12px 14px; }
+      .summary .k { color: #475569; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+      .summary .v { margin-top: 4px; font-size: 13px; color: #0f172a; }
+      .section { margin-top: 16px; }
+      .section h3 { margin: 0 0 8px; color: #0b2547; font-size: 18px; font-weight: 700; }
       table { width: 100%; border-collapse: collapse; margin-top: 8px; }
       th, td { border: 1px solid #cbd5e1; padding: 7px 8px; }
-      th { background: #0B3C6D; color: #fff; text-align: left; }
+      th { background: #0b2547; color: #fff; text-align: left; }
       td.num, th.num { text-align: right; }
       tr.total td { font-weight: 700; background: #f8fafc; }
       .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
       .card { border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; }
       .card .k { font-size: 10px; color: #475569; text-transform: uppercase; letter-spacing: .05em; }
       .card .v { margin-top: 4px; font-size: 16px; font-weight: 700; color: #0f172a; }
+      .signatures { margin-top: 26px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+      .sig-title { font-size: 12px; color: #0f172a; margin-bottom: 34px; }
+      .sig-line { border-top: 1px solid #64748b; padding-top: 6px; color: #0f172a; font-size: 12px; }
+      .footer { margin-top: 14px; display: flex; justify-content: space-between; gap: 20px; color: #475569; font-size: 11px; }
+      @media print {
+        .signatures { break-inside: avoid; }
+      }
     </style>
   </head>
   <body>
-    <div class="wrap">${innerHtml}</div>
+    <div class="wrap">
+      <div class="top">
+        <div class="brand">
+          <h1>${escHtml(PRINT_COMPANY_NAME)}</h1>
+          <p>${escHtml(PRINT_COMPANY_LOCATION)}</p>
+        </div>
+        <div class="title">
+          <h2>${escHtml(statementName)}</h2>
+          <div class="meta">Ref: ${escHtml(statementRef)}</div>
+          <div class="meta">Generated: ${escHtml(new Date().toLocaleString())}</div>
+        </div>
+      </div>
+      <div class="rule"></div>
+      <div class="summary">
+        <div class="k">Report Period</div>
+        <div class="v">${escHtml(reportMeta)}</div>
+      </div>
+      ${innerHtml}
+      <div class="signatures">
+        <div>
+          <div class="sig-title">Prepared by:</div>
+          <div class="sig-line">${escHtml(PRINT_PREPARED_BY)}</div>
+        </div>
+        <div>
+          <div class="sig-title">Authorised by:</div>
+          <div class="sig-line">${escHtml(PRINT_AUTHORISED_BY)}</div>
+        </div>
+      </div>
+      <div class="footer">
+        <div>Prepared by: ZweckOS</div>
+        <div>Print / Save as PDF</div>
+      </div>
+    </div>
   </body>
 </html>`);
   w.document.close();
@@ -111,9 +171,27 @@ export default function Reports() {
 
   const rawTxs = useMemo(() => qTx.data ?? [], [qTx.data]);
   const txs = useMemo(() => filterByDateRange(rawTxs, from, to), [rawTxs, from, to]);
+  const previousRange = useMemo(() => {
+    if (!from || !to) return null;
+    const start = new Date(`${from}T00:00:00`);
+    const end = new Date(`${to}T00:00:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return null;
+    const days = Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
+    const prevEnd = new Date(start);
+    prevEnd.setDate(prevEnd.getDate() - 1);
+    const prevStart = new Date(prevEnd);
+    prevStart.setDate(prevStart.getDate() - (days - 1));
+    const fmt = (d) => d.toISOString().slice(0, 10);
+    return { from: fmt(prevStart), to: fmt(prevEnd) };
+  }, [from, to]);
+  const previousTxs = useMemo(
+    () => (previousRange ? filterByDateRange(rawTxs, previousRange.from, previousRange.to) : []),
+    [rawTxs, previousRange]
+  );
   const byMonth = useMemo(() => aggregateReportByMonth(txs), [txs]);
   const byType = useMemo(() => aggregateByTypeTotals(txs), [txs]);
   const kpis = useMemo(() => reportPeriodKpis(txs), [txs]);
+  const previousKpis = useMemo(() => reportPeriodKpis(previousTxs), [previousTxs]);
   const mix = useMemo(() => incomeExpenseMix(txs), [txs]);
   const profitLoss = useMemo(() => {
     const income = [];
@@ -147,6 +225,21 @@ export default function Reports() {
     const netChange = netOperating + netInvesting + netFinancing;
     return { operatingIn, operatingOut, netOperating, investingOut, netInvesting, financingIn, netFinancing, netChange };
   }, [txs]);
+  const cashOpeningClosing = useMemo(() => {
+    if (!from) return { opening: null, closing: null };
+    const priorTx = filterByDateRange(rawTxs, "", from).filter((t) => String(t.date).slice(0, 10) < from);
+    const movement = (arr) =>
+      arr.reduce((sum, t) => {
+        const amount = Number(t.amount) || 0;
+        if (OPERATING_INCOME_TYPES.has(t.type)) return sum + amount;
+        if (OPERATING_EXPENSE_TYPES.has(t.type)) return sum - amount;
+        if (INVESTING_OUTFLOW_TYPES.has(t.type)) return sum - amount;
+        if (FINANCING_INFLOW_TYPES.has(t.type)) return sum + amount;
+        return sum;
+      }, 0);
+    const opening = movement(priorTx);
+    return { opening, closing: opening + cashFlow.netChange };
+  }, [from, rawTxs, cashFlow.netChange]);
   const directorCapital = useMemo(() => {
     const rows = (qDirectors.data || []).map((d) => ({
       name: d.name,
@@ -187,14 +280,41 @@ export default function Reports() {
       ? `${from || "…"} → ${to || "…"}`
       : "All dates";
   const reportMeta = `${new Date().toLocaleString()} · ${rangeLabel} · EUR`;
+  const comparePct = (current, previous) => {
+    if (!Number.isFinite(current) || !Number.isFinite(previous)) return "—";
+    if (previous === 0) return current === 0 ? "0.0%" : "New";
+    const pct = ((current - previous) / Math.abs(previous)) * 100;
+    return `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`;
+  };
 
-  function printProfitLoss(mode) {
+  async function logReportEvent(action, statement, mode) {
+    try {
+      await trackReportEvent({
+        action,
+        statement,
+        mode,
+        rangeFrom: from || null,
+        rangeTo: to || null
+      });
+    } catch {
+      // non-blocking logging
+    }
+  }
+
+  async function printProfitLoss(mode) {
+    if (!txs.length) {
+      window.alert("No transactions in the selected range to print.");
+      return;
+    }
+    const statementRef = makeStatementRef("PL", mode, from, to);
     const rows =
       mode === "summary"
         ? `
       <tr><td>Total income</td><td class="num">${escHtml(eur(profitLoss.totalIncome))}</td></tr>
       <tr><td>Total expenses</td><td class="num">${escHtml(eur(profitLoss.totalExpenses))}</td></tr>
       <tr class="total"><td>Net profit / (loss)</td><td class="num">${escHtml(eur(profitLoss.net))}</td></tr>
+      <tr><td>Previous period net</td><td class="num">${escHtml(eur(previousKpis.net))}</td></tr>
+      <tr><td>Variance vs previous</td><td class="num">${escHtml(comparePct(profitLoss.net, previousKpis.net))}</td></tr>
     `
         : `
       ${profitLoss.income.map((r) => `<tr><td>Income: ${escHtml(r.label)}</td><td class="num">${escHtml(eur(r.amount))}</td></tr>`).join("")}
@@ -205,12 +325,16 @@ export default function Reports() {
     `;
     openPrintDocument(
       `Profit and Loss (${mode})`,
-      `<h1>Profit and Loss Statement</h1><div class="meta">${escHtml(reportMeta)}</div>
-       <div class="section"><table><thead><tr><th>Line Item</th><th class="num">Amount</th></tr></thead><tbody>${rows}</tbody></table></div>`
+      "Profit and Loss Statement",
+      reportMeta,
+      statementRef,
+      `<div class="section"><h3>Capital Position</h3><table><thead><tr><th>Line Item</th><th class="num">Amount</th></tr></thead><tbody>${rows}</tbody></table></div>`
     );
+    await logReportEvent("PRINT", "PROFIT_LOSS", mode);
   }
 
-  function printBalanceSheet(mode) {
+  async function printBalanceSheet(mode) {
+    const statementRef = makeStatementRef("BS", mode, from, to);
     const check = (qSummary.data?.assets ?? 0) - ((qSummary.data?.liabilities ?? 0) + (qSummary.data?.equity ?? 0));
     const body =
       mode === "summary"
@@ -228,19 +352,34 @@ export default function Reports() {
               <tr class="total"><td>Assets - (Liabilities + Equity)</td><td class="num">${escHtml(eur(check))}</td></tr>
             </tbody></table>
           </div>`;
-    openPrintDocument(`Balance Sheet (${mode})`, `<h1>Balance Sheet</h1><div class="meta">${escHtml(reportMeta)}</div>${body}`);
+    openPrintDocument(
+      `Balance Sheet (${mode})`,
+      "Balance Sheet",
+      reportMeta,
+      statementRef,
+      `<div class="section"><h3>Position Summary</h3>${body}</div>`
+    );
+    await logReportEvent("PRINT", "BALANCE_SHEET", mode);
   }
 
-  function printCashFlow(mode) {
+  async function printCashFlow(mode) {
+    if (!txs.length) {
+      window.alert("No transactions in the selected range to print.");
+      return;
+    }
+    const statementRef = makeStatementRef("CF", mode, from, to);
     const rows =
       mode === "summary"
         ? `
+          <tr><td>Opening cash balance</td><td class="num">${escHtml(cashOpeningClosing.opening == null ? "—" : eur(cashOpeningClosing.opening))}</td></tr>
           <tr><td>Net cash from operating</td><td class="num">${escHtml(eur(cashFlow.netOperating))}</td></tr>
           <tr><td>Net cash from investing</td><td class="num">${escHtml(eur(cashFlow.netInvesting))}</td></tr>
           <tr><td>Net cash from financing</td><td class="num">${escHtml(eur(cashFlow.netFinancing))}</td></tr>
           <tr class="total"><td>Net cash change</td><td class="num">${escHtml(eur(cashFlow.netChange))}</td></tr>
+          <tr><td>Closing cash balance</td><td class="num">${escHtml(cashOpeningClosing.closing == null ? "—" : eur(cashOpeningClosing.closing))}</td></tr>
         `
         : `
+          <tr><td>Opening cash balance</td><td class="num">${escHtml(cashOpeningClosing.opening == null ? "—" : eur(cashOpeningClosing.opening))}</td></tr>
           <tr><td>Operating inflows</td><td class="num">${escHtml(eur(cashFlow.operatingIn))}</td></tr>
           <tr><td>Operating outflows</td><td class="num">${escHtml(eur(cashFlow.operatingOut))}</td></tr>
           <tr><td>Net cash from operating</td><td class="num">${escHtml(eur(cashFlow.netOperating))}</td></tr>
@@ -249,15 +388,24 @@ export default function Reports() {
           <tr><td>Financing inflows</td><td class="num">${escHtml(eur(cashFlow.financingIn))}</td></tr>
           <tr><td>Net cash from financing</td><td class="num">${escHtml(eur(cashFlow.netFinancing))}</td></tr>
           <tr class="total"><td>Net cash change</td><td class="num">${escHtml(eur(cashFlow.netChange))}</td></tr>
+          <tr><td>Closing cash balance</td><td class="num">${escHtml(cashOpeningClosing.closing == null ? "—" : eur(cashOpeningClosing.closing))}</td></tr>
         `;
     openPrintDocument(
       `Cash Flow (${mode})`,
-      `<h1>Cash Flow Statement</h1><div class="meta">${escHtml(reportMeta)}</div>
-       <div class="section"><table><thead><tr><th>Line Item</th><th class="num">Amount</th></tr></thead><tbody>${rows}</tbody></table></div>`
+      "Cash Flow Statement",
+      reportMeta,
+      statementRef,
+      `<div class="section"><h3>Cash Movement</h3><table><thead><tr><th>Line Item</th><th class="num">Amount</th></tr></thead><tbody>${rows}</tbody></table></div>`
     );
+    await logReportEvent("PRINT", "CASH_FLOW", mode);
   }
 
-  function printDirectorCapital(mode) {
+  async function printDirectorCapital(mode) {
+    if (!directorCapital.rows.length) {
+      window.alert("No director capital data available to print.");
+      return;
+    }
+    const statementRef = makeStatementRef("DCS", mode, from, to);
     const rows =
       mode === "summary"
         ? `
@@ -269,16 +417,19 @@ export default function Reports() {
           ${directorCapital.rows
             .map(
               (r) =>
-                `<tr><td>${escHtml(r.name)}</td><td>${escHtml(r.email)}</td><td class="num">${escHtml(eur(r.capital))}</td><td class="num">${escHtml(eur(r.sideFund))}</td><td class="num">${escHtml(eur(r.total))}</td></tr>`
+                `<tr><td>${escHtml(r.name || "Unknown")}</td><td>${escHtml(r.email || "Not provided")}</td><td class="num">${escHtml(eur(r.capital))}</td><td class="num">${escHtml(eur(r.sideFund))}</td><td class="num">${escHtml(eur(r.total))}</td></tr>`
             )
             .join("")}
           <tr class="total"><td colspan="2">TOTAL</td><td class="num">${escHtml(eur(directorCapital.totalCapital))}</td><td class="num">${escHtml(eur(directorCapital.totalSideFund))}</td><td class="num">${escHtml(eur(directorCapital.totalStake))}</td></tr>
         `;
     openPrintDocument(
       `Director Capital (${mode})`,
-      `<h1>Director Capital Statement</h1><div class="meta">${escHtml(reportMeta)}</div>
-       <div class="section"><table><thead><tr><th>Director</th><th>Email</th><th class="num">Capital</th><th class="num">Side fund</th><th class="num">Total stake</th></tr></thead><tbody>${rows}</tbody></table></div>`
+      "Director Capital Statement",
+      reportMeta,
+      statementRef,
+      `<div class="section"><h3>Director Capital Register</h3><table><thead><tr><th>Director</th><th>Email</th><th class="num">Capital</th><th class="num">Side fund</th><th class="num">Total stake</th></tr></thead><tbody>${rows}</tbody></table></div>`
     );
+    await logReportEvent("PRINT", "DIRECTOR_CAPITAL", mode);
   }
 
   return (
@@ -298,7 +449,11 @@ export default function Reports() {
           <button
             type="button"
             className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-sm font-medium text-brand-900 hover:bg-brand-100 dark:border-brand-500/40 dark:bg-brand-950/50 dark:text-brand-200 dark:hover:bg-brand-900/60"
-            onClick={() => downloadTransactionsCsv(txs, "zweck-transactions-export.csv")}
+            onClick={async () => {
+              if (!txs.length) return window.alert("No transactions in the selected range to export.");
+              downloadTransactionsCsv(txs, "zweck-transactions-export.csv");
+              await logReportEvent("EXPORT_CSV", "TRANSACTIONS", "detailed");
+            }}
           >
             Export CSV
           </button>
@@ -357,7 +512,8 @@ export default function Reports() {
             <button
               type="button"
               className="ui-btn-outline-xs"
-              onClick={() =>
+              onClick={async () => {
+                if (!txs.length) return window.alert("No transactions in the selected range to export.");
                 downloadSimpleCsv(
                   "profit-loss-statement.csv",
                   ["Section", "Line item", "Amount"],
@@ -368,8 +524,9 @@ export default function Reports() {
                     ["Totals", "Total expenses", profitLoss.totalExpenses],
                     ["Totals", "Net profit/loss", profitLoss.net]
                   ]
-                )
-              }
+                );
+                await logReportEvent("EXPORT_CSV", "PROFIT_LOSS", "detailed");
+              }}
             >
               Export P&L CSV
             </button>
@@ -430,7 +587,7 @@ export default function Reports() {
             <button
               type="button"
               className="ui-btn-outline-xs"
-              onClick={() =>
+              onClick={async () => {
                 downloadSimpleCsv(
                   "balance-sheet.csv",
                   ["Section", "Amount"],
@@ -440,8 +597,9 @@ export default function Reports() {
                     ["Equity", qSummary.data?.equity ?? 0],
                     ["Assets = Liabilities + Equity (check)", (qSummary.data?.assets ?? 0) - ((qSummary.data?.liabilities ?? 0) + (qSummary.data?.equity ?? 0))]
                   ]
-                )
-              }
+                );
+                await logReportEvent("EXPORT_CSV", "BALANCE_SHEET", "detailed");
+              }}
             >
               Export Balance Sheet CSV
             </button>
@@ -473,7 +631,8 @@ export default function Reports() {
             <button
               type="button"
               className="ui-btn-outline-xs"
-              onClick={() =>
+              onClick={async () => {
+                if (!txs.length) return window.alert("No transactions in the selected range to export.");
                 downloadSimpleCsv(
                   "cash-flow-statement.csv",
                   ["Line", "Amount"],
@@ -487,8 +646,9 @@ export default function Reports() {
                     ["Net cash from financing", cashFlow.netFinancing],
                     ["Net change in cash", cashFlow.netChange]
                   ]
-                )
-              }
+                );
+                await logReportEvent("EXPORT_CSV", "CASH_FLOW", "detailed");
+              }}
             >
               Export Cash Flow CSV
             </button>
@@ -515,7 +675,8 @@ export default function Reports() {
             <button
               type="button"
               className="ui-btn-outline-xs"
-              onClick={() =>
+              onClick={async () => {
+                if (!directorCapital.rows.length) return window.alert("No director capital data to export.");
                 downloadSimpleCsv(
                   "director-capital-statement.csv",
                   ["Director", "Email", "Capital", "Side fund", "Total stake"],
@@ -523,8 +684,9 @@ export default function Reports() {
                     ...directorCapital.rows.map((r) => [r.name, r.email, r.capital, r.sideFund, r.total]),
                     ["TOTAL", "", directorCapital.totalCapital, directorCapital.totalSideFund, directorCapital.totalStake]
                   ]
-                )
-              }
+                );
+                await logReportEvent("EXPORT_CSV", "DIRECTOR_CAPITAL", "detailed");
+              }}
             >
               Export Director Capital CSV
             </button>

@@ -42,4 +42,14 @@ describe("createApp", () => {
     const res = await request(app).get("/api/reconciliation");
     expect(res.status).toBe(401);
   });
+
+  it("POST /api/reports/events without auth returns 401", async () => {
+    const app = createApp();
+    const res = await request(app).post("/api/reports/events").send({
+      action: "PRINT",
+      statement: "PROFIT_LOSS",
+      mode: "summary"
+    });
+    expect(res.status).toBe(401);
+  });
 });
