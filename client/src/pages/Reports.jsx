@@ -7,6 +7,7 @@ import PrintStatementHeader from "../components/PrintStatementHeader";
 import { listTransactions } from "../api/transactions";
 import { eur, eurCompact, fmtDate } from "../lib/format";
 import { TX_TYPE_LABELS } from "../lib/dashboardAnalytics";
+import { useDirectorsAll, useSummary } from "../hooks/useDashboard";
 import {
   filterByDateRange,
   aggregateReportByMonth,
@@ -33,6 +34,22 @@ import {
 } from "recharts";
 
 const PIE_COLORS = ["#22c55e", "#0ea5e9", "#a855f7", "#f97316", "#ec4899", "#64748b"];
+const OPERATING_EXPENSE_TYPES = new Set(["REGISTRATION", "TX_CHARGE", "LEGAL", "OTHER_OUT"]);
+const OPERATING_INCOME_TYPES = new Set(["PENALTY", "MMF_RETURN"]);
+const FINANCING_INFLOW_TYPES = new Set(["CONTRIBUTION", "SIDE_FUND", "LOAN_IN"]);
+const INVESTING_OUTFLOW_TYPES = new Set(["MMF_DEPLOY", "YPA_INVEST"]);
+
+function downloadSimpleCsv(filename, headers, rows) {
+  const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const csv = [headers.map(esc).join(","), ...rows.map((r) => r.map(esc).join(","))].join("\r\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export default function Reports() {
   const [from, setFrom] = useState("");
@@ -40,6 +57,8 @@ export default function Reports() {
   const dark = useDarkClass();
   const gridStroke = dark ? "#475569" : "#e2e8f0";
 
+  const qSummary = useSummary();
+  const qDirectors = useDirectorsAll();
   const qTx = useQuery({
     queryKey: ["transactions", "reports"],
     queryFn: () => listTransactions()
@@ -51,6 +70,51 @@ export default function Reports() {
   const byType = useMemo(() => aggregateByTypeTotals(txs), [txs]);
   const kpis = useMemo(() => reportPeriodKpis(txs), [txs]);
   const mix = useMemo(() => incomeExpenseMix(txs), [txs]);
+  const profitLoss = useMemo(() => {
+    const income = [];
+    const expenses = [];
+    for (const row of byType) {
+      if (OPERATING_INCOME_TYPES.has(row.type) || row.type === "LOAN_IN") {
+        income.push({ label: row.name, amount: row.total });
+      } else if (OPERATING_EXPENSE_TYPES.has(row.type)) {
+        expenses.push({ label: row.name, amount: row.total });
+      }
+    }
+    const totalIncome = income.reduce((s, r) => s + r.amount, 0);
+    const totalExpenses = expenses.reduce((s, r) => s + r.amount, 0);
+    return { income, expenses, totalIncome, totalExpenses, net: totalIncome - totalExpenses };
+  }, [byType]);
+  const cashFlow = useMemo(() => {
+    let operatingIn = 0;
+    let operatingOut = 0;
+    let investingOut = 0;
+    let financingIn = 0;
+    for (const t of txs) {
+      const amount = Number(t.amount) || 0;
+      if (OPERATING_INCOME_TYPES.has(t.type)) operatingIn += amount;
+      if (OPERATING_EXPENSE_TYPES.has(t.type)) operatingOut += amount;
+      if (INVESTING_OUTFLOW_TYPES.has(t.type)) investingOut += amount;
+      if (FINANCING_INFLOW_TYPES.has(t.type)) financingIn += amount;
+    }
+    const netOperating = operatingIn - operatingOut;
+    const netInvesting = -investingOut;
+    const netFinancing = financingIn;
+    const netChange = netOperating + netInvesting + netFinancing;
+    return { operatingIn, operatingOut, netOperating, investingOut, netInvesting, financingIn, netFinancing, netChange };
+  }, [txs]);
+  const directorCapital = useMemo(() => {
+    const rows = (qDirectors.data || []).map((d) => ({
+      name: d.name,
+      email: d.email,
+      capital: Number(d.capital || 0),
+      sideFund: Number(d.sideFund || 0),
+      total: Number(d.total || 0)
+    }));
+    const totalCapital = rows.reduce((s, r) => s + r.capital, 0);
+    const totalSideFund = rows.reduce((s, r) => s + r.sideFund, 0);
+    const totalStake = rows.reduce((s, r) => s + r.total, 0);
+    return { rows, totalCapital, totalSideFund, totalStake };
+  }, [qDirectors.data]);
   const top10 = useMemo(() => {
     return [...txs]
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
@@ -63,8 +127,10 @@ export default function Reports() {
     }));
   }, [byMonth]);
 
-  if (qTx.isLoading) return <Loading label="Loading reports..." />;
+  if (qTx.isLoading || qSummary.isLoading || qDirectors.isLoading) return <Loading label="Loading reports..." />;
   if (qTx.error) return <ErrorBanner error={qTx.error} />;
+  if (qSummary.error) return <ErrorBanner error={qSummary.error} />;
+  if (qDirectors.error) return <ErrorBanner error={qDirectors.error} />;
 
   function clearRange() {
     setFrom("");
@@ -138,6 +204,192 @@ export default function Reports() {
           sub={kpis.net >= 0 ? "Surplus" : "Deficit"}
         />
       </div>
+
+      <section className="ui-surface rounded-2xl p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="text-sm font-semibold ui-page-heading">Profit and Loss Statement</div>
+          <button
+            type="button"
+            className="ui-btn-outline-xs"
+            onClick={() =>
+              downloadSimpleCsv(
+                "profit-loss-statement.csv",
+                ["Section", "Line item", "Amount"],
+                [
+                  ...profitLoss.income.map((r) => ["Income", r.label, r.amount]),
+                  ...profitLoss.expenses.map((r) => ["Expenses", r.label, r.amount]),
+                  ["Totals", "Total income", profitLoss.totalIncome],
+                  ["Totals", "Total expenses", profitLoss.totalExpenses],
+                  ["Totals", "Net profit/loss", profitLoss.net]
+                ]
+              )
+            }
+          >
+            Export P&L CSV
+          </button>
+        </div>
+        <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Income</div>
+            <div className="space-y-1 text-sm">
+              {profitLoss.income.map((r) => (
+                <div key={r.label} className="flex items-center justify-between">
+                  <span>{r.label}</span>
+                  <span className="font-medium">{eur(r.amount)}</span>
+                </div>
+              ))}
+              <div className="flex items-center justify-between border-t border-slate-200 pt-2 font-semibold dark:border-slate-700">
+                <span>Total income</span>
+                <span>{eur(profitLoss.totalIncome)}</span>
+              </div>
+            </div>
+          </div>
+          <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Expenses</div>
+            <div className="space-y-1 text-sm">
+              {profitLoss.expenses.map((r) => (
+                <div key={r.label} className="flex items-center justify-between">
+                  <span>{r.label}</span>
+                  <span className="font-medium">{eur(r.amount)}</span>
+                </div>
+              ))}
+              <div className="flex items-center justify-between border-t border-slate-200 pt-2 font-semibold dark:border-slate-700">
+                <span>Total expenses</span>
+                <span>{eur(profitLoss.totalExpenses)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="mt-3 rounded-xl bg-slate-50 p-3 text-sm dark:bg-slate-900/60">
+          <div className="flex items-center justify-between font-semibold">
+            <span>Net profit / (loss)</span>
+            <span className={profitLoss.net >= 0 ? "text-emerald-700 dark:text-emerald-300" : "text-rose-700 dark:text-rose-300"}>
+              {eur(profitLoss.net)}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <section className="ui-surface rounded-2xl p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="text-sm font-semibold ui-page-heading">Balance Sheet</div>
+          <button
+            type="button"
+            className="ui-btn-outline-xs"
+            onClick={() =>
+              downloadSimpleCsv(
+                "balance-sheet.csv",
+                ["Section", "Amount"],
+                [
+                  ["Assets", qSummary.data?.assets ?? 0],
+                  ["Liabilities", qSummary.data?.liabilities ?? 0],
+                  ["Equity", qSummary.data?.equity ?? 0],
+                  ["Assets = Liabilities + Equity (check)", (qSummary.data?.assets ?? 0) - ((qSummary.data?.liabilities ?? 0) + (qSummary.data?.equity ?? 0))]
+                ]
+              )
+            }
+          >
+            Export Balance Sheet CSV
+          </button>
+        </div>
+        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <MetricCard label="Assets" value={eur(qSummary.data?.assets ?? 0)} />
+          <MetricCard label="Liabilities" value={eur(qSummary.data?.liabilities ?? 0)} />
+          <MetricCard label="Equity" value={eur(qSummary.data?.equity ?? 0)} />
+        </div>
+        <div className="mt-3 rounded-xl bg-slate-50 p-3 text-sm dark:bg-slate-900/60">
+          <div className="flex items-center justify-between font-medium">
+            <span>Balancing check: Assets - (Liabilities + Equity)</span>
+            <span>{eur((qSummary.data?.assets ?? 0) - ((qSummary.data?.liabilities ?? 0) + (qSummary.data?.equity ?? 0)) )}</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="ui-surface rounded-2xl p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="text-sm font-semibold ui-page-heading">Cash Flow Statement</div>
+          <button
+            type="button"
+            className="ui-btn-outline-xs"
+            onClick={() =>
+              downloadSimpleCsv(
+                "cash-flow-statement.csv",
+                ["Line", "Amount"],
+                [
+                  ["Operating inflows", cashFlow.operatingIn],
+                  ["Operating outflows", cashFlow.operatingOut],
+                  ["Net cash from operating", cashFlow.netOperating],
+                  ["Investing outflows", cashFlow.investingOut],
+                  ["Net cash from investing", cashFlow.netInvesting],
+                  ["Financing inflows", cashFlow.financingIn],
+                  ["Net cash from financing", cashFlow.netFinancing],
+                  ["Net change in cash", cashFlow.netChange]
+                ]
+              )
+            }
+          >
+            Export Cash Flow CSV
+          </button>
+        </div>
+        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
+          <MetricCard label="Net operating" value={eur(cashFlow.netOperating)} />
+          <MetricCard label="Net investing" value={eur(cashFlow.netInvesting)} />
+          <MetricCard label="Net financing" value={eur(cashFlow.netFinancing)} />
+          <MetricCard label="Net cash change" value={eur(cashFlow.netChange)} />
+        </div>
+      </section>
+
+      <section className="ui-surface rounded-2xl p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="text-sm font-semibold ui-page-heading">Director Capital Statement</div>
+          <button
+            type="button"
+            className="ui-btn-outline-xs"
+            onClick={() =>
+              downloadSimpleCsv(
+                "director-capital-statement.csv",
+                ["Director", "Email", "Capital", "Side fund", "Total stake"],
+                [
+                  ...directorCapital.rows.map((r) => [r.name, r.email, r.capital, r.sideFund, r.total]),
+                  ["TOTAL", "", directorCapital.totalCapital, directorCapital.totalSideFund, directorCapital.totalStake]
+                ]
+              )
+            }
+          >
+            Export Director Capital CSV
+          </button>
+        </div>
+        <div className="mt-3 overflow-x-auto">
+          <table className="min-w-full text-left text-sm">
+            <thead className="ui-table-head">
+              <tr>
+                <th className="px-3 py-2">Director</th>
+                <th className="px-3 py-2">Email</th>
+                <th className="px-3 py-2 text-right">Capital</th>
+                <th className="px-3 py-2 text-right">Side fund</th>
+                <th className="px-3 py-2 text-right">Total stake</th>
+              </tr>
+            </thead>
+            <tbody className="ui-table-divide">
+              {directorCapital.rows.map((r) => (
+                <tr key={`${r.email}-${r.name}`}>
+                  <td className="px-3 py-2">{r.name}</td>
+                  <td className="px-3 py-2">{r.email}</td>
+                  <td className="px-3 py-2 text-right">{eur(r.capital)}</td>
+                  <td className="px-3 py-2 text-right">{eur(r.sideFund)}</td>
+                  <td className="px-3 py-2 text-right font-semibold">{eur(r.total)}</td>
+                </tr>
+              ))}
+              <tr className="bg-slate-50 font-semibold dark:bg-slate-900/60">
+                <td className="px-3 py-2" colSpan={2}>TOTAL</td>
+                <td className="px-3 py-2 text-right">{eur(directorCapital.totalCapital)}</td>
+                <td className="px-3 py-2 text-right">{eur(directorCapital.totalSideFund)}</td>
+                <td className="px-3 py-2 text-right">{eur(directorCapital.totalStake)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="ui-surface rounded-2xl p-4">
