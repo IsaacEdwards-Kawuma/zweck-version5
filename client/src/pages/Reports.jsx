@@ -63,8 +63,8 @@ function escHtml(value) {
 
 const PRINT_COMPANY_NAME = "YOUR COMPANY NAME";
 const PRINT_COMPANY_LOCATION = "Your city, Your country";
-const PRINT_PREPARED_BY = "Director";
-const PRINT_AUTHORISED_BY = "Treasurer";
+const PRINT_PREPARED_BY = "Director Signature:";
+const PRINT_AUTHORISED_BY = "Authorised – Treasurer:";
 
 function makeStatementRef(statementCode, mode, from, to) {
   const today = new Date().toISOString().slice(0, 10).replaceAll("-", "");
@@ -552,6 +552,77 @@ export default function Reports() {
                 </tbody>
               </table>
             </div>`;
+      const contributionRows = selectedDirectorStatement.movementRows.filter((r) => r.type === "CONTRIBUTION");
+      const monthlyMap = new Map();
+      for (const r of contributionRows) {
+        const month = String(r.date).slice(0, 7);
+        const cur = monthlyMap.get(month) || { amount: 0, count: 0 };
+        cur.amount += r.amount;
+        cur.count += 1;
+        monthlyMap.set(month, cur);
+      }
+      const monthlyRows = [...monthlyMap.entries()]
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([month, v]) => ({
+          month,
+          amount: v.amount,
+          status: "Paid",
+          note: `${v.count} contribution${v.count === 1 ? "" : "s"}`
+        }));
+      const totalPaid = monthlyRows.reduce((s, r) => s + r.amount, 0);
+      const transactionsRecordedRows = selectedDirectorStatement.movementRows
+        .map((r) => {
+          const amount = Number(r.amount) || 0;
+          const debit = amount < 0 ? Math.abs(amount) : 0;
+          const credit = amount >= 0 ? amount : 0;
+          return {
+            date: fmtDate(r.date),
+            ref: `TX-${r.id}`,
+            description: r.description || r.typeLabel,
+            debit,
+            credit
+          };
+        })
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      const monthlySection = `
+        <div class="section">
+          <h3>Monthly Contributions (${monthlyRows.length} paid · Total: ${escHtml(eur(totalPaid))})</h3>
+          <table>
+            <thead><tr><th>Month</th><th class="num">Amount</th><th>Status</th><th>Note</th></tr></thead>
+            <tbody>
+              ${
+                monthlyRows.length
+                  ? monthlyRows
+                      .map(
+                        (r) =>
+                          `<tr><td>${escHtml(r.month)}</td><td class="num">${escHtml(eur(r.amount))}</td><td>${escHtml(r.status)}</td><td>${escHtml(r.note)}</td></tr>`
+                      )
+                      .join("")
+                  : `<tr><td colspan="4">No contributions recorded in selected period.</td></tr>`
+              }
+              <tr class="total"><td colspan="3">Total Paid</td><td class="num">${escHtml(eur(totalPaid))}</td></tr>
+            </tbody>
+          </table>
+        </div>`;
+      const transactionsRecordedSection = `
+        <div class="section">
+          <h3>Transactions Recorded (${transactionsRecordedRows.length})</h3>
+          <table>
+            <thead><tr><th>Date</th><th>Ref</th><th>Description</th><th class="num">Debit</th><th class="num">Credit</th></tr></thead>
+            <tbody>
+              ${
+                transactionsRecordedRows.length
+                  ? transactionsRecordedRows
+                      .map(
+                        (r) =>
+                          `<tr><td>${escHtml(r.date)}</td><td>${escHtml(r.ref)}</td><td>${escHtml(r.description)}</td><td class="num">${r.debit ? escHtml(eur(r.debit)) : "—"}</td><td class="num">${r.credit ? escHtml(eur(r.credit)) : "—"}</td></tr>`
+                      )
+                      .join("")
+                  : `<tr><td colspan="5">No transactions recorded in selected period.</td></tr>`
+              }
+            </tbody>
+          </table>
+        </div>`;
       openPrintDocument(
         `Director Statement (${mode})`,
         "Director Statement",
@@ -566,6 +637,8 @@ export default function Reports() {
           </tbody></table>
         </div>
         <div class="section"><h3>Capital Movement</h3><table><thead><tr><th>Line Item</th><th class="num">Amount</th></tr></thead><tbody>${rowsSingle}</tbody></table></div>
+        ${monthlySection}
+        ${transactionsRecordedSection}
         ${txTable}`
       );
       await logReportEvent("PRINT", "DIRECTOR_STATEMENT", mode);
