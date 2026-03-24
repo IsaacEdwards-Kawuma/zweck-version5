@@ -108,6 +108,50 @@ Schedule it **once per day** (UTC) from Render **Cron Jobs**, GitHub Actions, or
 
 Users can opt out under **Settings → Notifications** in the app (`emailMeetingReminders`).
 
+## Sentry alerts and incident runbook (optional env checklist)
+
+The API does **not** send Sentry notifications by itself. You configure alerting **in Sentry**, then store the same destinations in Render so **Settings → Production readiness** can show the monitoring dots as configured.
+
+### 1. Error reporting (`SENTRY_DSN`)
+
+1. In [Sentry](https://sentry.io): **Settings → Projects → [your project] → Client Keys (DSN)**.
+2. Copy the **DSN** and set **`SENTRY_DSN`** on Render (and in `server/.env` locally if you test Sentry in dev).
+
+Without `SENTRY_DSN`, the server does not report errors to Sentry.
+
+### 2. Email alerts (`SENTRY_ALERT_EMAIL`)
+
+1. In Sentry: **Alerts → Create Alert** (or edit an existing rule).
+2. Under **THEN** / actions, add **Send a notification via Email** (or use a Sentry integration that delivers to an inbox).
+3. Note the **email address** you use for ops/on-call (e.g. `alerts@yourdomain.com` or a Google Group).
+4. Set **`SENTRY_ALERT_EMAIL`** on Render to that **same** address string. It is only a **readiness flag** in this app (so admins see “Sentry alerts configured” in Settings).
+
+### 3. Webhook alerts (`SENTRY_ALERT_WEBHOOK`)
+
+1. In Sentry: **Settings → Integrations** (or **Alerts** on your rule) and add **Slack**, **Discord**, **Microsoft Teams**, or a **custom webhook** action.
+2. Complete the integration so Sentry can POST to your channel or URL.
+3. Set **`SENTRY_ALERT_WEBHOOK`** on Render to the **webhook URL** you configured (e.g. Slack Incoming Webhook URL, Discord webhook URL, or your custom HTTPS endpoint). Again, this value is stored for **readiness display**; Sentry performs the actual delivery.
+
+You can set **either** `SENTRY_ALERT_EMAIL` **or** `SENTRY_ALERT_WEBHOOK` (or both) for the readiness check to pass.
+
+### 4. Incident runbook (`INCIDENT_RUNBOOK_URL`)
+
+1. Create a short runbook page (Notion, Confluence, Google Doc, GitHub wiki) describing: who is on-call, how to triage ZweckOS/API errors, rollback steps, and links to Render/Neon/Vercel dashboards.
+2. Set **`INCIDENT_RUNBOOK_URL`** on Render to that page’s **https** URL.
+
+### 5. Apply on Render
+
+**Dashboard → your Web Service → Environment →** add or edit:
+
+| Variable | Example |
+|----------|---------|
+| `SENTRY_DSN` | `https://xxx@xxx.ingest.sentry.io/xxx` |
+| `SENTRY_ALERT_EMAIL` | `alerts@yourdomain.com` |
+| `SENTRY_ALERT_WEBHOOK` | `https://hooks.slack.com/services/...` |
+| `INCIDENT_RUNBOOK_URL` | `https://notion.so/your-runbook` |
+
+Redeploy or restart the service so the process picks up new variables. Admins can confirm under **Settings → Production readiness** in the app.
+
 ## Blueprint file
 
 This repo includes `render.yaml` at the root. You can use **New → Blueprint** and connect the repo; then add the **secret** variables (`DATABASE_URL`, `JWT_SECRET`, `ALLOWED_ORIGINS`, etc.) in the dashboard after the service is created.
