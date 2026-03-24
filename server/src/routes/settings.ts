@@ -61,6 +61,14 @@ router.get("/", (req, res) => {
           .toLowerCase()
       )
     },
+    readiness: {
+      workspacePersistence: true,
+      meetingsApi: true,
+      documentsApi: true,
+      reconciliationApi: true,
+      sentryAlertsConfigured: Boolean(process.env.SENTRY_ALERT_WEBHOOK?.trim() || process.env.SENTRY_ALERT_EMAIL?.trim()),
+      incidentRunbookConfigured: Boolean(process.env.INCIDENT_RUNBOOK_URL?.trim())
+    },
     endpoints: {
       health: "/api/health",
       openapi: "/api/openapi.json",

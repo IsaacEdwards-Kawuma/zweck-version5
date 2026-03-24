@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Loading from "../components/Loading";
 import ErrorBanner from "../components/ErrorBanner";
 import { listTransactions } from "../api/transactions";
+import { getReconciliationNote, saveReconciliationNote } from "../api/reconciliation";
 import { eur, fmtDate } from "../lib/format";
 
 const BANK_EFFECT = {
@@ -15,7 +16,6 @@ const BANK_EFFECT = {
   LEGAL: -1,
   OTHER_OUT: -1
 };
-const STORAGE_KEY = "zweck_reconciliation_notes_v1";
 
 function toIsoEndOfDay(yyyyMmDd) {
   if (!yyyyMmDd) return undefined;
@@ -33,25 +33,8 @@ function bankDelta(tx) {
   return dir * (Number(tx.amount) || 0);
 }
 
-function loadSaved() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : {};
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
-function saveSaved(next) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-}
-
-function keyFor(from, to) {
-  return `${from || "none"}__${to || "none"}`;
-}
-
 export default function Reconciliation() {
+  const qc = useQueryClient();
   const [periodFrom, setPeriodFrom] = useState(() => {
     const d = new Date();
     d.setDate(1);
@@ -66,7 +49,6 @@ export default function Reconciliation() {
   const [txQuery, setTxQuery] = useState("");
   const [directionFilter, setDirectionFilter] = useState("ALL");
   const [onlyUncleared, setOnlyUncleared] = useState(false);
-  const [savedByPeriod, setSavedByPeriod] = useState(() => loadSaved());
 
   const qLedgerToDate = useQuery({
     queryKey: ["transactions", "recon", "to-date", statementDate],
@@ -83,6 +65,17 @@ export default function Reconciliation() {
         from: periodFrom || undefined,
         to: statementDate || undefined
       })
+  });
+  const qNote = useQuery({
+    queryKey: ["reconciliation-note", periodFrom, statementDate],
+    queryFn: () => getReconciliationNote(periodFrom, statementDate),
+    enabled: Boolean(periodFrom && statementDate)
+  });
+  const mNote = useMutation({
+    mutationFn: (payload) => saveReconciliationNote(payload),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["reconciliation-note", periodFrom, statementDate] });
+    }
   });
 
   const ledgerBankBalanceToDate = useMemo(() => {
@@ -111,9 +104,9 @@ export default function Reconciliation() {
     let running = Number(openingBalance || 0);
     return bankTx.map((t) => {
       running += t.delta;
-      return { ...t, runningAfter: running, cleared: Boolean(getSavedForPeriod().cleared?.[t.id]) };
+      return { ...t, runningAfter: running, cleared: Boolean((qNote.data?.clearedMap || {})[String(t.id)]) };
     });
-  }, [qPeriod.data, openingBalance, txQuery, directionFilter, savedByPeriod, periodFrom, statementDate]);
+  }, [qPeriod.data, openingBalance, txQuery, directionFilter, qNote.data]);
 
   const visibleRows = useMemo(() => {
     return onlyUncleared ? periodRows.filter((r) => !r.cleared) : periodRows;
@@ -134,17 +127,17 @@ export default function Reconciliation() {
   const unclearedCount = periodRows.length - clearedCount;
   const clearanceRate = periodRows.length ? Math.round((clearedCount / periodRows.length) * 100) : 0;
 
-  function getSavedForPeriod() {
-    return savedByPeriod[keyFor(periodFrom, statementDate)] || { notes: "", cleared: {} };
-  }
+  const savedNotes = qNote.data?.notes || "";
+  const savedMap = qNote.data?.clearedMap || {};
 
   function updateSavedForPeriod(updater) {
-    const k = keyFor(periodFrom, statementDate);
-    setSavedByPeriod((prev) => {
-      const current = prev[k] || { notes: "", cleared: {} };
-      const next = { ...prev, [k]: updater(current) };
-      saveSaved(next);
-      return next;
+    const current = { notes: savedNotes, cleared: savedMap };
+    const next = updater(current);
+    mNote.mutate({
+      periodFrom,
+      statementDate,
+      notes: next.notes || "",
+      clearedMap: next.cleared || {}
     });
   }
 
@@ -187,6 +180,8 @@ export default function Reconciliation() {
   if (qLedgerToDate.isLoading || qPeriod.isLoading) return <Loading label="Loading reconciliation..." />;
   if (qLedgerToDate.error) return <ErrorBanner error={qLedgerToDate.error} />;
   if (qPeriod.error) return <ErrorBanner error={qPeriod.error} />;
+  if (qNote.isLoading) return <Loading label="Loading reconciliation notes..." />;
+  if (qNote.error) return <ErrorBanner error={qNote.error} />;
 
   return (
     <div className="space-y-5">
@@ -328,7 +323,7 @@ export default function Reconciliation() {
           <textarea
             className="mt-2 w-full rounded-lg border-slate-300 text-sm"
             rows={3}
-            value={getSavedForPeriod().notes || ""}
+            value={savedNotes}
             onChange={(e) =>
               updateSavedForPeriod((current) => ({
                 ...current,

@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMe } from "../hooks/useMe";
 import ErrorBanner from "../components/ErrorBanner";
 import Loading from "../components/Loading";
-
-const STORAGE_KEY = "zweck_meetings_v1";
+import { createMeeting, deleteMeeting, listMeetings, updateMeeting } from "../api/meetings";
 
 const STATUS = ["SCHEDULED", "COMPLETED", "CANCELLED", "DRAFT"];
 const MEETING_TYPES = ["Board", "Management", "Project", "Finance", "Operations", "Other"];
@@ -29,21 +29,6 @@ const EMPTY_FORM = {
   nextMeetingDate: "",
   status: "SCHEDULED"
 };
-
-function loadMeetings() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveMeetings(rows) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(rows));
-}
 
 function toCsv(rows) {
   const headers = [
@@ -79,10 +64,11 @@ function toCsv(rows) {
 }
 
 export default function Meetings() {
+  const qc = useQueryClient();
   const qMe = useMe(true);
+  const q = useQuery({ queryKey: ["meetings"], queryFn: listMeetings });
   const isAdmin = qMe.data?.role === "ADMIN";
 
-  const [rows, setRows] = useState(() => loadMeetings());
   const [form, setForm] = useState(EMPTY_FORM);
   const [editingId, setEditingId] = useState(null);
   const [query, setQuery] = useState("");
@@ -95,6 +81,27 @@ export default function Meetings() {
     return new Date(d.getFullYear(), d.getMonth(), 1);
   });
   const [selectedDate, setSelectedDate] = useState("");
+
+  const rows = Array.isArray(q.data) ? q.data : [];
+
+  const mCreate = useMutation({
+    mutationFn: (payload) => createMeeting(payload),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["meetings"] });
+    }
+  });
+  const mUpdate = useMutation({
+    mutationFn: ({ id, payload }) => updateMeeting(id, payload),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["meetings"] });
+    }
+  });
+  const mDelete = useMutation({
+    mutationFn: (id) => deleteMeeting(id),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["meetings"] });
+    }
+  });
 
   const filtered = useMemo(() => {
     return rows
@@ -161,6 +168,8 @@ export default function Meetings() {
 
   if (qMe.isLoading) return <Loading label="Loading meetings..." />;
   if (qMe.error) return <ErrorBanner error={qMe.error} />;
+  if (q.isLoading) return <Loading label="Loading meetings..." />;
+  if (q.error) return <ErrorBanner error={q.error} />;
 
   function onChange(name, value) {
     setForm((f) => ({ ...f, [name]: value }));
@@ -175,21 +184,14 @@ export default function Meetings() {
     e.preventDefault();
     if (!isAdmin) return;
     if (!form.title.trim() || !form.date) return;
-    const now = new Date().toISOString();
-
-    const next = editingId
-      ? rows.map((r) => (r.id === editingId ? { ...r, ...form, updatedAt: now } : r))
-      : [
-          {
-            id: crypto.randomUUID(),
-            ...form,
-            createdAt: now,
-            updatedAt: now
-          },
-          ...rows
-        ];
-    setRows(next);
-    saveMeetings(next);
+    const payload = {
+      ...form,
+      attendanceCount: form.attendanceCount === "" ? null : Number(form.attendanceCount),
+      expectedAttendees: form.expectedAttendees === "" ? null : Number(form.expectedAttendees),
+      reminderDays: form.reminderDays === "" ? null : Number(form.reminderDays)
+    };
+    if (editingId) mUpdate.mutate({ id: editingId, payload });
+    else mCreate.mutate(payload);
     resetForm();
   }
 
@@ -219,9 +221,7 @@ export default function Meetings() {
 
   function onDelete(id) {
     if (!isAdmin) return;
-    const next = rows.filter((r) => r.id !== id);
-    setRows(next);
-    saveMeetings(next);
+    mDelete.mutate(id);
     if (editingId === id) resetForm();
   }
 
@@ -238,10 +238,7 @@ export default function Meetings() {
 
   function setMeetingStatus(id, status) {
     if (!isAdmin) return;
-    const now = new Date().toISOString();
-    const next = rows.map((r) => (r.id === id ? { ...r, status, updatedAt: now } : r));
-    setRows(next);
-    saveMeetings(next);
+    mUpdate.mutate({ id, payload: { status } });
   }
 
   return (

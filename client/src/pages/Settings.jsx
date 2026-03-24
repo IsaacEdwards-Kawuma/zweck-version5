@@ -89,7 +89,8 @@ const NAV = [
   { href: "#settings-user-roles", label: "User roles" },
   { href: "#settings-features", label: "Features" },
   { href: "#settings-security", label: "Security" },
-  { href: "#settings-export", label: "Export" }
+  { href: "#settings-export", label: "Export" },
+  { href: "#settings-readiness", label: "Readiness" }
 ];
 
 function loadPrefs() {
@@ -584,6 +585,26 @@ export default function Settings() {
         >
           Download diagnostics JSON
         </button>
+      </section>
+
+      <section id="settings-readiness" className={SECTION}>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Production readiness</h2>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          High-level rollout checklist for persistence, monitoring, and operations.
+        </p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <StatusDot ok={Boolean(s?.readiness?.workspacePersistence)} label="Workspace persistence enabled" />
+          <StatusDot ok={Boolean(s?.readiness?.meetingsApi)} label="Meetings API active" />
+          <StatusDot ok={Boolean(s?.readiness?.documentsApi)} label="Documents API active" />
+          <StatusDot ok={Boolean(s?.readiness?.reconciliationApi)} label="Reconciliation API active" />
+          <StatusDot ok={Boolean(s?.readiness?.sentryAlertsConfigured)} label="Sentry alerts configured" />
+          <StatusDot ok={Boolean(s?.readiness?.incidentRunbookConfigured)} label="Incident runbook linked" />
+        </div>
+        <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+          Recommended env vars: <code className="rounded bg-slate-100 px-1 dark:bg-slate-900">SENTRY_ALERT_WEBHOOK</code>,{" "}
+          <code className="rounded bg-slate-100 px-1 dark:bg-slate-900">SENTRY_ALERT_EMAIL</code>,{" "}
+          <code className="rounded bg-slate-100 px-1 dark:bg-slate-900">INCIDENT_RUNBOOK_URL</code>.
+        </p>
       </section>
     </div>
   );

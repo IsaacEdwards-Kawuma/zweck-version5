@@ -204,3 +204,70 @@ model AuditLog {
   createdAt  DateTime @default(now())
 }
 
+model Meeting {
+  id               Int      @id @default(autoincrement())
+  title            String
+  date             String
+  time             String?
+  location         String?
+  chairperson      String?
+  attendees        String?
+  attendanceCount  Int?
+  expectedAttendees Int?
+  meetingType      String?  @default("Board")
+  priority         String?  @default("Medium")
+  recurrence       String?  @default("NONE")
+  reminderDays     Int?
+  agenda           String?
+  actionItems      String?
+  notes            String?
+  nextMeetingDate  String?
+  status           String   @default("SCHEDULED")
+  createdById      Int?
+  updatedById      Int?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([date])
+  @@index([status])
+}
+
+model DocumentRegister {
+  id              Int      @id @default(autoincrement())
+  title           String
+  category        String   @default("Governance")
+  reference       String?
+  owner           String?
+  confidentiality String   @default("Internal")
+  status          String   @default("ACTIVE")
+  version         String?  @default("1.0")
+  tags            String?
+  effectiveDate   String?
+  reviewDate      String?
+  expiryDate      String?
+  pinned          Boolean  @default(false)
+  url             String?
+  notes           String?
+  createdById     Int?
+  updatedById     Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status])
+  @@index([category])
+}
+
+model ReconciliationNote {
+  id               Int      @id @default(autoincrement())
+  periodFrom       String
+  statementDate    String
+  notes            String?
+  clearedMap       Json?
+  createdById      Int?
+  updatedById      Int?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([periodFrom, statementDate])
+}
+

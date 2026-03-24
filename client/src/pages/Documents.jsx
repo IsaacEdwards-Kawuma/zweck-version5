@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMe } from "../hooks/useMe";
 import Loading from "../components/Loading";
 import ErrorBanner from "../components/ErrorBanner";
-
-const STORAGE_KEY = "zweck_documents_v1";
+import { createDocument, deleteDocument, listDocuments, updateDocument } from "../api/documents";
 
 const CATEGORIES = ["Governance", "Legal", "Finance", "HR", "Operations", "Other"];
 const STATUS = ["ACTIVE", "UNDER_REVIEW", "ARCHIVED"];
@@ -25,27 +25,33 @@ const EMPTY_FORM = {
   notes: ""
 };
 
-function loadDocs() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveDocs(rows) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(rows));
-}
-
 export default function Documents() {
+  const qc = useQueryClient();
   const qMe = useMe(true);
+  const q = useQuery({ queryKey: ["documents"], queryFn: listDocuments });
   const isAdmin = qMe.data?.role === "ADMIN";
 
-  const [rows, setRows] = useState(() => loadDocs());
   const [form, setForm] = useState(EMPTY_FORM);
+  const rows = Array.isArray(q.data) ? q.data : [];
+  const mCreate = useMutation({
+    mutationFn: (payload) => createDocument(payload),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["documents"] });
+    }
+  });
+  const mUpdate = useMutation({
+    mutationFn: ({ id, payload }) => updateDocument(id, payload),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["documents"] });
+    }
+  });
+  const mDelete = useMutation({
+    mutationFn: (id) => deleteDocument(id),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["documents"] });
+    }
+  });
+
   const [editingId, setEditingId] = useState(null);
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("ALL");
@@ -91,6 +97,8 @@ export default function Documents() {
 
   if (qMe.isLoading) return <Loading label="Loading documents..." />;
   if (qMe.error) return <ErrorBanner error={qMe.error} />;
+  if (q.isLoading) return <Loading label="Loading documents..." />;
+  if (q.error) return <ErrorBanner error={q.error} />;
 
   function onChange(name, value) {
     setForm((f) => ({ ...f, [name]: value }));
@@ -105,12 +113,8 @@ export default function Documents() {
     e.preventDefault();
     if (!isAdmin) return;
     if (!form.title.trim()) return;
-    const now = new Date().toISOString();
-    const next = editingId
-      ? rows.map((r) => (r.id === editingId ? { ...r, ...form, updatedAt: now } : r))
-      : [{ id: crypto.randomUUID(), ...form, createdAt: now, updatedAt: now }, ...rows];
-    setRows(next);
-    saveDocs(next);
+    if (editingId) mUpdate.mutate({ id: editingId, payload: form });
+    else mCreate.mutate(form);
     resetForm();
   }
 
@@ -137,9 +141,7 @@ export default function Documents() {
 
   function onDelete(id) {
     if (!isAdmin) return;
-    const next = rows.filter((r) => r.id !== id);
-    setRows(next);
-    saveDocs(next);
+    mDelete.mutate(id);
     if (editingId === id) resetForm();
   }
 
@@ -181,19 +183,15 @@ export default function Documents() {
 
   function togglePin(id) {
     if (!isAdmin) return;
-    const now = new Date().toISOString();
-    const next = rows.map((r) => (r.id === id ? { ...r, pinned: !r.pinned, updatedAt: now } : r));
-    setRows(next);
-    saveDocs(next);
+    const row = rows.find((r) => r.id === id);
+    if (!row) return;
+    mUpdate.mutate({ id, payload: { pinned: !row.pinned } });
   }
 
   function markReviewed(id) {
     if (!isAdmin) return;
-    const now = new Date().toISOString();
     const today = new Date().toISOString().slice(0, 10);
-    const next = rows.map((r) => (r.id === id ? { ...r, reviewDate: today, status: "ACTIVE", updatedAt: now } : r));
-    setRows(next);
-    saveDocs(next);
+    mUpdate.mutate({ id, payload: { reviewDate: today, status: "ACTIVE" } });
   }
 
   return (
