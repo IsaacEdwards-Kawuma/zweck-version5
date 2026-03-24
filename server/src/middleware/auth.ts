@@ -52,13 +52,25 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (!header?.startsWith("Bearer ")) return res.status(401).json(apiError("Unauthorized"));
 
   const token = header.slice("Bearer ".length).trim();
-  try {
-    const payload = jwt.verify(token, getSecret()) as AuthUser;
-    req.user = payload;
-    next();
-  } catch {
-    return res.status(401).json(apiError("Unauthorized"));
-  }
+  void (async () => {
+    try {
+      const payload = jwt.verify(token, getSecret()) as AuthUser;
+      const dbUser = await prisma.user.findUnique({
+        where: { id: payload.id },
+        select: { id: true, email: true, role: true, directorId: true }
+      });
+      if (!dbUser) return res.status(401).json(apiError("Unauthorized"));
+      req.user = {
+        id: dbUser.id,
+        email: dbUser.email,
+        role: dbUser.role,
+        directorId: dbUser.directorId ?? null
+      };
+      next();
+    } catch {
+      return res.status(401).json(apiError("Unauthorized"));
+    }
+  })();
 }
 
 export function requireRole(role: AuthUser["role"]) {
