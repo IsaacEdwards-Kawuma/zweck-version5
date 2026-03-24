@@ -13,8 +13,35 @@ router.get("/", async (_req, res) => {
   const bank = balances.bank;
   const mmf = balances.mmf;
   const ypa = balances.ypa;
-  const totalAssets = bank + mmf + ypa;
   const mmfReturns = -balances.mmf_income;
+
+  const activeProjects = await prisma.project.findMany({
+    where: { status: "ACTIVE" },
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      budgetSpent: true,
+      tasks: { select: { actualCost: true } }
+    },
+    orderBy: { updatedAt: "desc" }
+  });
+
+  const projectSplit = activeProjects
+    .map((p) => {
+      const spentFromTasks = p.tasks.reduce((sum, t) => sum + (t.actualCost ?? 0), 0);
+      const value = p.budgetSpent ?? spentFromTasks;
+      return {
+        key: `project-${p.id}`,
+        name: p.code ? `${p.code} · ${p.name}` : p.name,
+        value
+      };
+    })
+    .filter((p) => p.value > 0);
+
+  const split = [{ key: "bank", name: "Bank", value: bank }, ...projectSplit];
+  const splitTotal = split.reduce((sum, item) => sum + item.value, 0);
+  const totalAssets = splitTotal;
 
   const directors = await prisma.director.findMany({
     orderBy: { name: "asc" },
@@ -69,6 +96,7 @@ router.get("/", async (_req, res) => {
     assets: { bank, mmf, ypa },
     mmfReturns,
     totalAssets,
+    split,
     percent:
       totalAssets > 0
         ? { bank: bank / totalAssets, mmf: mmf / totalAssets, ypa: ypa / totalAssets }

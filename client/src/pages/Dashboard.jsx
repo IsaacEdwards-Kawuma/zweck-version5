@@ -75,9 +75,9 @@ export default function Dashboard() {
   const totalDirectorCapital = (directors || []).reduce((s, d) => s + (d.total || 0), 0);
   const totalAssets = portfolio?.totalAssets || 0;
 
-  const portfolioData = [
-    { name: "Bank", key: "bank", value: portfolio?.assets?.bank || 0 }
-  ].filter((d) => d.value !== 0 || totalAssets === 0);
+  const portfolioData = (portfolio?.split || [{ name: "Bank", key: "bank", value: portfolio?.assets?.bank || 0 }]).filter(
+    (d) => d.value !== 0 || totalAssets === 0
+  );
 
   const incomeExpenseData = [
     { name: "Income", value: summary.income || 0 },

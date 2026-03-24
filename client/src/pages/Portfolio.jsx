@@ -194,11 +194,16 @@ export default function Portfolio() {
   if (q.error) return <ErrorBanner error={q.error} />;
 
   const p = q.data;
+  const split = p.split || [{ key: "bank", name: "Bank", value: p.assets.bank || 0 }];
+  const bankValue = split.find((s) => s.key === "bank")?.value ?? p.assets.bank ?? 0;
   const total = p.totalAssets || 0;
 
-  const currentAlloc = [
-    { asset: "Bank", key: "bank", target: 1, actual: total ? p.assets.bank / total : 0 }
-  ];
+  const currentAlloc = split.map((row) => ({
+    asset: row.name,
+    key: row.key,
+    target: split.length > 0 ? 1 / split.length : 0,
+    actual: total ? row.value / total : 0
+  }));
 
   const radarData = currentAlloc.map((row) => ({
     asset: row.asset,
@@ -208,16 +213,14 @@ export default function Portfolio() {
 
   const scenario = (() => {
     const reserve = Number(scenarioAmount || 0);
-    if (!reserve || reserve <= 0 || reserve > p.assets.bank) return null;
+    if (!reserve || reserve <= 0 || reserve > bankValue) return null;
     return {
       bank: reserve,
       total: p.totalAssets || 0
     };
   })();
 
-  const trendData = [
-    { name: "Bank", value: p.assets.bank }
-  ];
+  const trendData = split.map((item) => ({ name: item.name, value: item.value }));
 
   const barHeight = Math.min(520, Math.max(220, (barData.length || 1) * 40));
 
@@ -271,8 +274,9 @@ export default function Portfolio() {
       />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <AssetCard title="Bank Account" value={p.assets.bank} pct={p.percent.bank} />
+        <AssetCard title="Bank Account" value={bankValue} pct={total ? bankValue / total : 0} />
         <AssetCard title="Total Assets" value={p.totalAssets} pct={1} />
+        <AssetCard title="Active Projects" value={Math.max(0, p.totalAssets - bankValue)} pct={total ? (p.totalAssets - bankValue) / total : 0} />
       </div>
 
       {members && (
@@ -410,7 +414,7 @@ export default function Portfolio() {
             </ResponsiveContainer>
           </div>
           <div className="mt-3 text-xs text-slate-600">
-            Bank share versus overall assets. Expand this chart when new asset categories are introduced.
+            Split across bank and active projects. Values are refreshed from live portfolio data.
           </div>
         </div>
 
@@ -432,7 +436,7 @@ export default function Portfolio() {
                 />
               </div>
               <div className="text-xs text-slate-500">
-                Available in bank: <span className="font-semibold">{eur(p.assets.bank)}</span>
+                Available in bank: <span className="font-semibold">{eur(bankValue)}</span>
               </div>
             </div>
             {scenario && (
