@@ -51,6 +51,51 @@ function downloadSimpleCsv(filename, headers, rows) {
   URL.revokeObjectURL(url);
 }
 
+function escHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function openPrintDocument(title, innerHtml) {
+  const w = window.open("", "_blank");
+  if (!w) return;
+  w.document.write(`<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>${escHtml(title)}</title>
+    <style>
+      @page { size: A4; margin: 14mm; }
+      body { font-family: "Segoe UI", Arial, sans-serif; color: #0f172a; margin: 0; font-size: 12px; }
+      .wrap { max-width: 900px; margin: 0 auto; }
+      h1 { font-size: 22px; margin: 0; color: #0B3C6D; }
+      .meta { margin-top: 6px; color: #475569; font-size: 11px; }
+      .section { margin-top: 18px; }
+      .section h2 { font-size: 13px; margin: 0 0 8px; color: #0B3C6D; text-transform: uppercase; letter-spacing: .04em; }
+      table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+      th, td { border: 1px solid #cbd5e1; padding: 7px 8px; }
+      th { background: #0B3C6D; color: #fff; text-align: left; }
+      td.num, th.num { text-align: right; }
+      tr.total td { font-weight: 700; background: #f8fafc; }
+      .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+      .card { border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; }
+      .card .k { font-size: 10px; color: #475569; text-transform: uppercase; letter-spacing: .05em; }
+      .card .v { margin-top: 4px; font-size: 16px; font-weight: 700; color: #0f172a; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">${innerHtml}</div>
+  </body>
+</html>`);
+  w.document.close();
+  w.focus();
+  requestAnimationFrame(() => w.print());
+}
+
 export default function Reports() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -141,6 +186,100 @@ export default function Reports() {
     from || to
       ? `${from || "…"} → ${to || "…"}`
       : "All dates";
+  const reportMeta = `${new Date().toLocaleString()} · ${rangeLabel} · EUR`;
+
+  function printProfitLoss(mode) {
+    const rows =
+      mode === "summary"
+        ? `
+      <tr><td>Total income</td><td class="num">${escHtml(eur(profitLoss.totalIncome))}</td></tr>
+      <tr><td>Total expenses</td><td class="num">${escHtml(eur(profitLoss.totalExpenses))}</td></tr>
+      <tr class="total"><td>Net profit / (loss)</td><td class="num">${escHtml(eur(profitLoss.net))}</td></tr>
+    `
+        : `
+      ${profitLoss.income.map((r) => `<tr><td>Income: ${escHtml(r.label)}</td><td class="num">${escHtml(eur(r.amount))}</td></tr>`).join("")}
+      ${profitLoss.expenses.map((r) => `<tr><td>Expense: ${escHtml(r.label)}</td><td class="num">${escHtml(eur(r.amount))}</td></tr>`).join("")}
+      <tr><td>Total income</td><td class="num">${escHtml(eur(profitLoss.totalIncome))}</td></tr>
+      <tr><td>Total expenses</td><td class="num">${escHtml(eur(profitLoss.totalExpenses))}</td></tr>
+      <tr class="total"><td>Net profit / (loss)</td><td class="num">${escHtml(eur(profitLoss.net))}</td></tr>
+    `;
+    openPrintDocument(
+      `Profit and Loss (${mode})`,
+      `<h1>Profit and Loss Statement</h1><div class="meta">${escHtml(reportMeta)}</div>
+       <div class="section"><table><thead><tr><th>Line Item</th><th class="num">Amount</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    );
+  }
+
+  function printBalanceSheet(mode) {
+    const check = (qSummary.data?.assets ?? 0) - ((qSummary.data?.liabilities ?? 0) + (qSummary.data?.equity ?? 0));
+    const body =
+      mode === "summary"
+        ? `<div class="cards">
+            <div class="card"><div class="k">Assets</div><div class="v">${escHtml(eur(qSummary.data?.assets ?? 0))}</div></div>
+            <div class="card"><div class="k">Liabilities</div><div class="v">${escHtml(eur(qSummary.data?.liabilities ?? 0))}</div></div>
+            <div class="card"><div class="k">Equity</div><div class="v">${escHtml(eur(qSummary.data?.equity ?? 0))}</div></div>
+          </div>
+          <div class="section"><table><tbody><tr class="total"><td>Balancing check</td><td class="num">${escHtml(eur(check))}</td></tr></tbody></table></div>`
+        : `<div class="section">
+            <table><thead><tr><th>Section</th><th class="num">Amount</th></tr></thead><tbody>
+              <tr><td>Assets</td><td class="num">${escHtml(eur(qSummary.data?.assets ?? 0))}</td></tr>
+              <tr><td>Liabilities</td><td class="num">${escHtml(eur(qSummary.data?.liabilities ?? 0))}</td></tr>
+              <tr><td>Equity</td><td class="num">${escHtml(eur(qSummary.data?.equity ?? 0))}</td></tr>
+              <tr class="total"><td>Assets - (Liabilities + Equity)</td><td class="num">${escHtml(eur(check))}</td></tr>
+            </tbody></table>
+          </div>`;
+    openPrintDocument(`Balance Sheet (${mode})`, `<h1>Balance Sheet</h1><div class="meta">${escHtml(reportMeta)}</div>${body}`);
+  }
+
+  function printCashFlow(mode) {
+    const rows =
+      mode === "summary"
+        ? `
+          <tr><td>Net cash from operating</td><td class="num">${escHtml(eur(cashFlow.netOperating))}</td></tr>
+          <tr><td>Net cash from investing</td><td class="num">${escHtml(eur(cashFlow.netInvesting))}</td></tr>
+          <tr><td>Net cash from financing</td><td class="num">${escHtml(eur(cashFlow.netFinancing))}</td></tr>
+          <tr class="total"><td>Net cash change</td><td class="num">${escHtml(eur(cashFlow.netChange))}</td></tr>
+        `
+        : `
+          <tr><td>Operating inflows</td><td class="num">${escHtml(eur(cashFlow.operatingIn))}</td></tr>
+          <tr><td>Operating outflows</td><td class="num">${escHtml(eur(cashFlow.operatingOut))}</td></tr>
+          <tr><td>Net cash from operating</td><td class="num">${escHtml(eur(cashFlow.netOperating))}</td></tr>
+          <tr><td>Investing outflows</td><td class="num">${escHtml(eur(cashFlow.investingOut))}</td></tr>
+          <tr><td>Net cash from investing</td><td class="num">${escHtml(eur(cashFlow.netInvesting))}</td></tr>
+          <tr><td>Financing inflows</td><td class="num">${escHtml(eur(cashFlow.financingIn))}</td></tr>
+          <tr><td>Net cash from financing</td><td class="num">${escHtml(eur(cashFlow.netFinancing))}</td></tr>
+          <tr class="total"><td>Net cash change</td><td class="num">${escHtml(eur(cashFlow.netChange))}</td></tr>
+        `;
+    openPrintDocument(
+      `Cash Flow (${mode})`,
+      `<h1>Cash Flow Statement</h1><div class="meta">${escHtml(reportMeta)}</div>
+       <div class="section"><table><thead><tr><th>Line Item</th><th class="num">Amount</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    );
+  }
+
+  function printDirectorCapital(mode) {
+    const rows =
+      mode === "summary"
+        ? `
+          <tr><td>Total capital</td><td class="num">${escHtml(eur(directorCapital.totalCapital))}</td></tr>
+          <tr><td>Total side fund</td><td class="num">${escHtml(eur(directorCapital.totalSideFund))}</td></tr>
+          <tr class="total"><td>Total stake</td><td class="num">${escHtml(eur(directorCapital.totalStake))}</td></tr>
+        `
+        : `
+          ${directorCapital.rows
+            .map(
+              (r) =>
+                `<tr><td>${escHtml(r.name)}</td><td>${escHtml(r.email)}</td><td class="num">${escHtml(eur(r.capital))}</td><td class="num">${escHtml(eur(r.sideFund))}</td><td class="num">${escHtml(eur(r.total))}</td></tr>`
+            )
+            .join("")}
+          <tr class="total"><td colspan="2">TOTAL</td><td class="num">${escHtml(eur(directorCapital.totalCapital))}</td><td class="num">${escHtml(eur(directorCapital.totalSideFund))}</td><td class="num">${escHtml(eur(directorCapital.totalStake))}</td></tr>
+        `;
+    openPrintDocument(
+      `Director Capital (${mode})`,
+      `<h1>Director Capital Statement</h1><div class="meta">${escHtml(reportMeta)}</div>
+       <div class="section"><table><thead><tr><th>Director</th><th>Email</th><th class="num">Capital</th><th class="num">Side fund</th><th class="num">Total stake</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -208,25 +347,33 @@ export default function Reports() {
       <section className="ui-surface rounded-2xl p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="text-sm font-semibold ui-page-heading">Profit and Loss Statement</div>
-          <button
-            type="button"
-            className="ui-btn-outline-xs"
-            onClick={() =>
-              downloadSimpleCsv(
-                "profit-loss-statement.csv",
-                ["Section", "Line item", "Amount"],
-                [
-                  ...profitLoss.income.map((r) => ["Income", r.label, r.amount]),
-                  ...profitLoss.expenses.map((r) => ["Expenses", r.label, r.amount]),
-                  ["Totals", "Total income", profitLoss.totalIncome],
-                  ["Totals", "Total expenses", profitLoss.totalExpenses],
-                  ["Totals", "Net profit/loss", profitLoss.net]
-                ]
-              )
-            }
-          >
-            Export P&L CSV
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className="ui-btn-outline-xs" onClick={() => printProfitLoss("summary")}>
+              Print summary
+            </button>
+            <button type="button" className="ui-btn-outline-xs" onClick={() => printProfitLoss("detailed")}>
+              Print detailed
+            </button>
+            <button
+              type="button"
+              className="ui-btn-outline-xs"
+              onClick={() =>
+                downloadSimpleCsv(
+                  "profit-loss-statement.csv",
+                  ["Section", "Line item", "Amount"],
+                  [
+                    ...profitLoss.income.map((r) => ["Income", r.label, r.amount]),
+                    ...profitLoss.expenses.map((r) => ["Expenses", r.label, r.amount]),
+                    ["Totals", "Total income", profitLoss.totalIncome],
+                    ["Totals", "Total expenses", profitLoss.totalExpenses],
+                    ["Totals", "Net profit/loss", profitLoss.net]
+                  ]
+                )
+              }
+            >
+              Export P&L CSV
+            </button>
+          </div>
         </div>
         <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
           <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
@@ -273,24 +420,32 @@ export default function Reports() {
       <section className="ui-surface rounded-2xl p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="text-sm font-semibold ui-page-heading">Balance Sheet</div>
-          <button
-            type="button"
-            className="ui-btn-outline-xs"
-            onClick={() =>
-              downloadSimpleCsv(
-                "balance-sheet.csv",
-                ["Section", "Amount"],
-                [
-                  ["Assets", qSummary.data?.assets ?? 0],
-                  ["Liabilities", qSummary.data?.liabilities ?? 0],
-                  ["Equity", qSummary.data?.equity ?? 0],
-                  ["Assets = Liabilities + Equity (check)", (qSummary.data?.assets ?? 0) - ((qSummary.data?.liabilities ?? 0) + (qSummary.data?.equity ?? 0))]
-                ]
-              )
-            }
-          >
-            Export Balance Sheet CSV
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className="ui-btn-outline-xs" onClick={() => printBalanceSheet("summary")}>
+              Print summary
+            </button>
+            <button type="button" className="ui-btn-outline-xs" onClick={() => printBalanceSheet("detailed")}>
+              Print detailed
+            </button>
+            <button
+              type="button"
+              className="ui-btn-outline-xs"
+              onClick={() =>
+                downloadSimpleCsv(
+                  "balance-sheet.csv",
+                  ["Section", "Amount"],
+                  [
+                    ["Assets", qSummary.data?.assets ?? 0],
+                    ["Liabilities", qSummary.data?.liabilities ?? 0],
+                    ["Equity", qSummary.data?.equity ?? 0],
+                    ["Assets = Liabilities + Equity (check)", (qSummary.data?.assets ?? 0) - ((qSummary.data?.liabilities ?? 0) + (qSummary.data?.equity ?? 0))]
+                  ]
+                )
+              }
+            >
+              Export Balance Sheet CSV
+            </button>
+          </div>
         </div>
         <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
           <MetricCard label="Assets" value={eur(qSummary.data?.assets ?? 0)} />
@@ -308,28 +463,36 @@ export default function Reports() {
       <section className="ui-surface rounded-2xl p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="text-sm font-semibold ui-page-heading">Cash Flow Statement</div>
-          <button
-            type="button"
-            className="ui-btn-outline-xs"
-            onClick={() =>
-              downloadSimpleCsv(
-                "cash-flow-statement.csv",
-                ["Line", "Amount"],
-                [
-                  ["Operating inflows", cashFlow.operatingIn],
-                  ["Operating outflows", cashFlow.operatingOut],
-                  ["Net cash from operating", cashFlow.netOperating],
-                  ["Investing outflows", cashFlow.investingOut],
-                  ["Net cash from investing", cashFlow.netInvesting],
-                  ["Financing inflows", cashFlow.financingIn],
-                  ["Net cash from financing", cashFlow.netFinancing],
-                  ["Net change in cash", cashFlow.netChange]
-                ]
-              )
-            }
-          >
-            Export Cash Flow CSV
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className="ui-btn-outline-xs" onClick={() => printCashFlow("summary")}>
+              Print summary
+            </button>
+            <button type="button" className="ui-btn-outline-xs" onClick={() => printCashFlow("detailed")}>
+              Print detailed
+            </button>
+            <button
+              type="button"
+              className="ui-btn-outline-xs"
+              onClick={() =>
+                downloadSimpleCsv(
+                  "cash-flow-statement.csv",
+                  ["Line", "Amount"],
+                  [
+                    ["Operating inflows", cashFlow.operatingIn],
+                    ["Operating outflows", cashFlow.operatingOut],
+                    ["Net cash from operating", cashFlow.netOperating],
+                    ["Investing outflows", cashFlow.investingOut],
+                    ["Net cash from investing", cashFlow.netInvesting],
+                    ["Financing inflows", cashFlow.financingIn],
+                    ["Net cash from financing", cashFlow.netFinancing],
+                    ["Net change in cash", cashFlow.netChange]
+                  ]
+                )
+              }
+            >
+              Export Cash Flow CSV
+            </button>
+          </div>
         </div>
         <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
           <MetricCard label="Net operating" value={eur(cashFlow.netOperating)} />
@@ -342,22 +505,30 @@ export default function Reports() {
       <section className="ui-surface rounded-2xl p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="text-sm font-semibold ui-page-heading">Director Capital Statement</div>
-          <button
-            type="button"
-            className="ui-btn-outline-xs"
-            onClick={() =>
-              downloadSimpleCsv(
-                "director-capital-statement.csv",
-                ["Director", "Email", "Capital", "Side fund", "Total stake"],
-                [
-                  ...directorCapital.rows.map((r) => [r.name, r.email, r.capital, r.sideFund, r.total]),
-                  ["TOTAL", "", directorCapital.totalCapital, directorCapital.totalSideFund, directorCapital.totalStake]
-                ]
-              )
-            }
-          >
-            Export Director Capital CSV
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className="ui-btn-outline-xs" onClick={() => printDirectorCapital("summary")}>
+              Print summary
+            </button>
+            <button type="button" className="ui-btn-outline-xs" onClick={() => printDirectorCapital("detailed")}>
+              Print detailed
+            </button>
+            <button
+              type="button"
+              className="ui-btn-outline-xs"
+              onClick={() =>
+                downloadSimpleCsv(
+                  "director-capital-statement.csv",
+                  ["Director", "Email", "Capital", "Side fund", "Total stake"],
+                  [
+                    ...directorCapital.rows.map((r) => [r.name, r.email, r.capital, r.sideFund, r.total]),
+                    ["TOTAL", "", directorCapital.totalCapital, directorCapital.totalSideFund, directorCapital.totalStake]
+                  ]
+                )
+              }
+            >
+              Export Director Capital CSV
+            </button>
+          </div>
         </div>
         <div className="mt-3 overflow-x-auto">
           <table className="min-w-full text-left text-sm">
