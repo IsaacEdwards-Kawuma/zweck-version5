@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useOutletContext } from "react-router-dom";
 import DirectorAvatar from "../components/DirectorAvatar";
 import ErrorBanner from "../components/ErrorBanner";
-import { postTransaction, deleteTransaction, updateTransaction, listTransactions } from "../api/transactions";
+import { postTransaction, deleteTransaction, updateTransaction, listTransactions, txItems } from "../api/transactions";
 import { listDirectors } from "../api/directors";
 import { eur, fmtDate } from "../lib/format";
 
@@ -30,8 +30,8 @@ export default function PostTransaction() {
   const qRecent = useQuery({
     queryKey: ["transactions", "recent-on-post"],
     queryFn: async () => {
-      const all = await listTransactions();
-      return all.slice(0, 10);
+      const res = await listTransactions({ limit: 15, offset: 0 });
+      return txItems(res);
     }
   });
 

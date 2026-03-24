@@ -7,7 +7,7 @@ import TransactionTable from "../components/TransactionTable";
 import { useTransactions } from "../hooks/useTransactions";
 import { listDirectors } from "../api/directors";
 import { useQuery } from "@tanstack/react-query";
-import { deleteTransaction } from "../api/transactions";
+import { deleteTransaction, listTransactions, txItems } from "../api/transactions";
 import { eur } from "../lib/format";
 
 const TX_ACCOUNT_MAP = {
@@ -32,13 +32,16 @@ export default function Ledger() {
   const pageSize = 20;
 
   const filters = useMemo(() => {
-    const f = {};
+    const f = {
+      limit: pageSize,
+      offset: (page - 1) * pageSize
+    };
     if (type) f.type = type;
-    if (directorId) f.directorId = directorId;
+    if (directorId) f.directorId = Number(directorId);
     if (from) f.from = from;
     if (to) f.to = to;
     return f;
-  }, [type, directorId, from, to]);
+  }, [type, directorId, from, to, page, pageSize]);
 
   const qTx = useTransactions(filters);
   const qDirs = useQuery({ queryKey: ["directors"], queryFn: listDirectors });
@@ -56,42 +59,40 @@ export default function Ledger() {
     }
   });
 
-  const all = qTx.data || [];
+  const items = qTx.data?.items ?? [];
+  const total = qTx.data?.total ?? 0;
+  const agg = qTx.data?.aggregates;
 
   const stats = useMemo(() => {
-    if (!all.length) {
-      return {
-        total: 0,
-        count: 0,
-        avg: 0,
-        byType: {},
-        runningBank: []
-      };
+    if (!agg) {
+      return { total: 0, count: 0, avg: 0, byType: {} };
     }
-    let total = 0;
-    const byType = {};
-    let bankRunning = 0;
-    const runningBank = all.map((t) => {
-      total += t.amount;
-      byType[t.type] = (byType[t.type] || 0) + t.amount;
-      const map = TX_ACCOUNT_MAP[t.type];
-      if (map?.debit === "bank") bankRunning += t.amount;
-      if (map?.credit === "bank") bankRunning -= t.amount;
-      return { id: t.id, value: bankRunning };
-    });
     return {
-      total,
-      count: all.length,
-      avg: total / all.length,
-      byType,
-      runningBank
+      total: agg.sumAmount ?? 0,
+      count: agg.count ?? 0,
+      avg: agg.avgAmount ?? 0,
+      byType: agg.byType ?? {}
     };
-  }, [all]);
-  const totalPages = Math.max(1, Math.ceil(all.length / pageSize));
-  const clampedPage = Math.min(totalPages, Math.max(1, page));
-  const rows = all.slice((clampedPage - 1) * pageSize, clampedPage * pageSize);
+  }, [agg]);
 
-  function exportCsv() {
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const clampedPage = Math.min(totalPages, Math.max(1, page));
+  const rows = items;
+
+  async function exportCsv() {
+    const p = {
+      limit: 100000,
+      offset: 0
+    };
+    if (type) p.type = type;
+    if (directorId) p.directorId = directorId;
+    if (from) p.from = from;
+    if (to) p.to = to;
+    const res = await listTransactions(p);
+    const all = txItems(res);
+    if (res.total > 100000) {
+      window.alert(`Export includes first 100,000 rows only (${res.total} total matches). Narrow filters.`);
+    }
     const header = [
       "id",
       "date",
@@ -203,25 +204,19 @@ export default function Ledger() {
         </div>
       </div>
 
-      <div className="ui-stat-strip grid grid-cols-1 gap-3 rounded-xl p-3 text-xs text-slate-700 dark:text-slate-200 md:grid-cols-4">
+      <div className="ui-stat-strip grid grid-cols-1 gap-3 rounded-xl p-3 text-xs text-slate-700 dark:text-slate-200 md:grid-cols-3">
         <div>
-          <div className="uppercase tracking-wide text-[10px] ui-page-muted">Total amount</div>
+          <div className="uppercase tracking-wide text-[10px] ui-page-muted">Total amount (filtered)</div>
           <div className="mt-0.5 font-semibold">{eur(stats.total)}</div>
         </div>
         <div>
-          <div className="uppercase tracking-wide text-[10px] text-slate-500">Count</div>
+          <div className="uppercase tracking-wide text-[10px] text-slate-500">Count (filtered)</div>
           <div className="mt-0.5 font-semibold">{stats.count}</div>
         </div>
         <div>
           <div className="uppercase tracking-wide text-[10px] ui-page-muted">Average</div>
           <div className="mt-0.5 font-semibold">
             {stats.count ? eur(stats.avg) : "—"}
-          </div>
-        </div>
-        <div>
-          <div className="uppercase tracking-wide text-[10px] ui-page-muted">Bank running balance (in view)</div>
-          <div className="mt-0.5 font-semibold">
-            {eur(stats.runningBank[stats.runningBank.length - 1]?.value || 0)}
           </div>
         </div>
       </div>
@@ -231,7 +226,7 @@ export default function Ledger() {
       <div className="flex items-center justify-between text-sm">
         <div className="ui-body-text">
           Page <span className="font-medium ui-page-heading">{clampedPage}</span> of{" "}
-          <span className="font-medium ui-page-heading">{totalPages}</span> ({all.length} rows)
+          <span className="font-medium ui-page-heading">{totalPages}</span> ({total} matching rows)
         </div>
         <div className="flex gap-2">
           <button
@@ -253,4 +248,3 @@ export default function Ledger() {
     </div>
   );
 }
-

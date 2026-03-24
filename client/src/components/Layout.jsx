@@ -1,4 +1,4 @@
-import { Outlet, useLocation } from "react-router-dom";
+import { Link, Outlet, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
@@ -32,6 +32,22 @@ export default function Layout() {
         >
           <Outlet context={{ me: qMe.data }} />
         </main>
+        <footer
+          className="border-t border-slate-200/80 px-4 py-3 text-center text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400 print:hidden"
+          role="contentinfo"
+        >
+          <nav aria-label="Legal" className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
+            <Link className="hover:text-brand-700 dark:hover:text-brand-300" to="/privacy">
+              Privacy
+            </Link>
+            <span aria-hidden className="text-slate-300 dark:text-slate-600">
+              ·
+            </span>
+            <Link className="hover:text-brand-700 dark:hover:text-brand-300" to="/legal/data-rights">
+              Data &amp; privacy rights
+            </Link>
+          </nav>
+        </footer>
       </div>
     </div>
   );

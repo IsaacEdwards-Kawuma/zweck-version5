@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { balances, directorsAll, summary } from "../api/accounts";
-import { listTransactions } from "../api/transactions";
+import { listTransactions, txItems } from "../api/transactions";
 import { portfolio } from "../api/portfolio";
 
 export function useBalances() {
@@ -23,6 +23,9 @@ export function usePortfolio() {
 export function useTransactionsList() {
   return useQuery({
     queryKey: ["transactions", "dashboard"],
-    queryFn: () => listTransactions()
+    queryFn: async () => {
+      const res = await listTransactions({ limit: 100000, offset: 0 });
+      return txItems(res);
+    }
   });
 }

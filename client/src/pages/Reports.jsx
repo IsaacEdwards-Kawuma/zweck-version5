@@ -4,7 +4,7 @@ import Loading from "../components/Loading";
 import ErrorBanner from "../components/ErrorBanner";
 import MetricCard from "../components/MetricCard";
 import PrintStatementHeader from "../components/PrintStatementHeader";
-import { listTransactions } from "../api/transactions";
+import { listTransactions, txItems } from "../api/transactions";
 import { trackReportEvent } from "../api/reports";
 import { listDirectors } from "../api/directors";
 import { eur, eurCompact, fmtDate } from "../lib/format";
@@ -188,10 +188,11 @@ export default function Reports() {
   });
   const qTx = useQuery({
     queryKey: ["transactions", "reports"],
-    queryFn: () => listTransactions()
+    queryFn: async () => listTransactions({ limit: 100000, offset: 0 })
   });
 
-  const rawTxs = useMemo(() => qTx.data ?? [], [qTx.data]);
+  const rawTxs = useMemo(() => txItems(qTx.data), [qTx.data]);
+  const txTotal = qTx.data?.total;
   const txs = useMemo(() => filterByDateRange(rawTxs, from, to), [rawTxs, from, to]);
   const previousRange = useMemo(() => {
     if (!from || !to) return null;
@@ -674,6 +675,15 @@ export default function Reports() {
 
   return (
     <div className="ui-animate-in space-y-6">
+      {typeof txTotal === "number" && txTotal > 100000 ? (
+        <div
+          role="status"
+          className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-200"
+        >
+          Loaded {(100000).toLocaleString()} of {txTotal.toLocaleString()} posted transactions. Narrow the date range
+          for complete figures.
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="text-lg font-semibold ui-page-heading">Reports</div>

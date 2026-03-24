@@ -16,7 +16,10 @@
     { "name": "projects" },
     { "name": "users" },
     { "name": "audit" },
-    { "name": "settings" }
+    { "name": "settings" },
+    { "name": "search" },
+    { "name": "admin" },
+    { "name": "about-page" }
   ],
   "components": {
     "securitySchemes": {
@@ -156,12 +159,53 @@
         }
       }
     },
+    "/auth/me/data-export": {
+      "get": {
+        "tags": ["auth"],
+        "summary": "Personal data export (JSON)",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "User, director profile, recent director transactions" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/auth/me/erasure-request": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Record GDPR-style erasure request",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": { "notes": { "type": "string", "maxLength": 2000 } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Request recorded" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
     "/transactions": {
       "get": {
         "tags": ["transactions"],
-        "summary": "List transactions",
+        "summary": "List transactions (paginated)",
+        "description": "Returns items, total, limit, offset, and aggregates (sum/count/avg/byType) for the filter. Omit limit for up to 100k rows.",
         "security": [{ "bearerAuth": [] }],
-        "responses": { "200": { "description": "OK" } }
+        "parameters": [
+          { "name": "from", "in": "query", "schema": { "type": "string" } },
+          { "name": "to", "in": "query", "schema": { "type": "string" } },
+          { "name": "type", "in": "query", "schema": { "type": "string" } },
+          { "name": "directorId", "in": "query", "schema": { "type": "integer" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "maximum": 100000 } },
+          { "name": "offset", "in": "query", "schema": { "type": "integer", "minimum": 0 } }
+        ],
+        "responses": { "200": { "description": "Paginated list with aggregates" } }
       },
       "post": {
         "tags": ["transactions"],
@@ -230,6 +274,57 @@
         "summary": "Settings / monitoring summary (authenticated)",
         "security": [{ "bearerAuth": [] }],
         "responses": { "200": { "description": "Version, uptime, monitoring flags, rate limits" } }
+      }
+    },
+    "/search": {
+      "get": {
+        "tags": ["search"],
+        "summary": "Search directors, meetings, documents",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "q", "in": "query", "required": true, "schema": { "type": "string", "minLength": 2 } }],
+        "responses": {
+          "200": { "description": "Grouped hits" },
+          "400": { "description": "Query too short" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/admin/export": {
+      "get": {
+        "tags": ["admin"],
+        "summary": "Organisation JSON backup (admin)",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "JSON attachment" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" }
+        }
+      }
+    },
+    "/about-page": {
+      "get": {
+        "tags": ["about-page"],
+        "summary": "About page content",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "payload + isCustom" } }
+      },
+      "put": {
+        "tags": ["about-page"],
+        "summary": "Replace About page (admin)",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Saved" },
+          "403": { "description": "Forbidden" }
+        }
+      },
+      "delete": {
+        "tags": ["about-page"],
+        "summary": "Reset About page to defaults (admin)",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Defaults restored" },
+          "403": { "description": "Forbidden" }
+        }
       }
     }
   }

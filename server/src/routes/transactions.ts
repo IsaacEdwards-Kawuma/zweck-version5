@@ -9,6 +9,47 @@ import { TX_ACCOUNT_MAP } from "../lib/constants.js";
 
 const router = Router();
 
+const MAX_TX_LIMIT = 100_000;
+
+function shapeTransactionRow(
+  t: {
+    id: number;
+    type: TxType;
+    date: Date;
+    amount: Prisma.Decimal | number;
+    description: string | null;
+    director: {
+      id: number;
+      name: string;
+      initials: string;
+      avatarUrl: string | null;
+    } | null;
+    createdBy: number | null;
+    createdAt: Date;
+  }
+) {
+  const map = TX_ACCOUNT_MAP[t.type];
+  return {
+    id: t.id,
+    type: t.type,
+    date: t.date,
+    amount: t.amount,
+    description: t.description,
+    director: t.director
+      ? {
+          id: t.director.id,
+          name: t.director.name,
+          initials: t.director.initials,
+          avatarUrl: t.director.avatarUrl
+        }
+      : null,
+    debitAccount: map.debit,
+    creditAccount: map.credit,
+    createdBy: t.createdBy,
+    createdAt: t.createdAt
+  };
+}
+
 const baseSchema = z.object({
   type: z.nativeEnum(TxType),
   date: z.string().datetime(),
@@ -26,47 +67,78 @@ const updateSchema = baseSchema.partial().refine((val) => Object.keys(val).lengt
 });
 
 router.get("/", async (req, res) => {
-  const { from, to, type, directorId } = req.query as Record<string, string | undefined>;
+  const { from, to, type, directorId, limit: limitRaw, offset: offsetRaw } = req.query as Record<
+    string,
+    string | undefined
+  >;
 
-  const where: any = {};
+  const where: Prisma.TransactionWhereInput = {};
   if (from || to) {
-    where.date = {};
-    if (from) where.date.gte = new Date(from);
-    if (to) where.date.lte = new Date(to);
+    const dateFilter: Prisma.DateTimeFilter = {};
+    if (from) dateFilter.gte = new Date(from);
+    if (to) dateFilter.lte = new Date(to);
+    where.date = dateFilter;
   }
-  if (type) where.type = type;
-  if (directorId) where.directorId = Number(directorId);
+  if (type) where.type = type as TxType;
+  if (directorId) {
+    const n = Number(directorId);
+    if (Number.isFinite(n)) where.directorId = n;
+  }
 
-  const txs = await prisma.transaction.findMany({
-    where,
-    orderBy: { date: "desc" },
-    include: { director: true }
+  /** When omitted, return up to MAX_TX_LIMIT rows (legacy analytics); pass `limit` for paging (e.g. ledger). */
+  let limit = MAX_TX_LIMIT;
+  if (limitRaw !== undefined && limitRaw !== "") {
+    const n = Number(limitRaw);
+    if (Number.isFinite(n) && n >= 0) limit = Math.min(MAX_TX_LIMIT, Math.floor(n));
+  }
+  let offset = 0;
+  if (offsetRaw !== undefined && offsetRaw !== "") {
+    const n = Number(offsetRaw);
+    if (Number.isFinite(n) && n >= 0) offset = Math.floor(n);
+  }
+
+  const [rows, total, sumAgg, groupByType] = await Promise.all([
+    prisma.transaction.findMany({
+      where,
+      orderBy: { date: "desc" },
+      skip: offset,
+      take: limit,
+      include: { director: true }
+    }),
+    prisma.transaction.count({ where }),
+    prisma.transaction.aggregate({
+      where,
+      _sum: { amount: true },
+      _count: true
+    }),
+    prisma.transaction.groupBy({
+      by: ["type"],
+      where,
+      _sum: { amount: true }
+    })
+  ]);
+
+  const sumAmount = sumAgg._sum.amount ? Number(sumAgg._sum.amount) : 0;
+  const count = sumAgg._count;
+  const byType: Record<string, number> = {};
+  for (const g of groupByType) {
+    byType[g.type] = g._sum.amount ? Number(g._sum.amount) : 0;
+  }
+
+  const items = rows.map((t) => shapeTransactionRow(t));
+
+  return res.json({
+    items,
+    total,
+    limit,
+    offset,
+    aggregates: {
+      sumAmount,
+      count,
+      avgAmount: count > 0 ? sumAmount / count : 0,
+      byType
+    }
   });
-
-  const shaped = txs.map((t) => {
-    const map = TX_ACCOUNT_MAP[t.type];
-    return {
-      id: t.id,
-      type: t.type,
-      date: t.date,
-      amount: t.amount,
-      description: t.description,
-      director: t.director
-        ? {
-            id: t.director.id,
-            name: t.director.name,
-            initials: t.director.initials,
-            avatarUrl: t.director.avatarUrl
-          }
-        : null,
-      debitAccount: map.debit,
-      creditAccount: map.credit,
-      createdBy: t.createdBy,
-      createdAt: t.createdAt
-    };
-  });
-
-  return res.json(shaped);
 });
 
 router.post(

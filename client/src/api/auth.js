@@ -35,3 +35,12 @@ export async function resetPassword(token, password) {
   return data;
 }
 
+export async function getMyDataExport() {
+  const { data } = await api.get("/auth/me/data-export");
+  return data;
+}
+
+export async function requestDataErasure(notes) {
+  const { data } = await api.post("/auth/me/erasure-request", { notes: notes || undefined });
+  return data;
+}

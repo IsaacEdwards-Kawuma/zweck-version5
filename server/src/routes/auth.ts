@@ -4,6 +4,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { apiError } from "../lib/http.js";
 import { sendPasswordResetEmail } from "../lib/email.js";
@@ -332,6 +333,59 @@ router.get("/me", requireAuth, async (req, res) => {
     });
   }
   return res.status(404).json(apiError("User not found"));
+});
+
+/** Machine-readable export of the signed-in user's account + linked director profile (no password hash). */
+router.get("/me/data-export", requireAuth, async (req, res) => {
+  const user = await prisma.user.findUnique({
+    where: { id: req.user!.id },
+    select: {
+      id: true,
+      email: true,
+      role: true,
+      directorId: true,
+      createdAt: true,
+      lastLoginAt: true,
+      director: true
+    }
+  });
+  if (!user) return res.status(404).json(apiError("User not found"));
+  const directorTransactions = user.directorId
+    ? await prisma.transaction.findMany({
+        where: { directorId: user.directorId },
+        take: 5000,
+        orderBy: { date: "desc" },
+        select: { id: true, type: true, date: true, amount: true, description: true }
+      })
+    : [];
+  return res.json({
+    exportedAt: new Date().toISOString(),
+    purpose: "personal_data_export",
+    user,
+    directorTransactions
+  });
+});
+
+const erasureBody = z.object({
+  notes: z.string().max(2000).optional()
+});
+
+/** Records a GDPR-style erasure request; fulfilment is manual (DB + backups). */
+router.post("/me/erasure-request", requireAuth, validateBody(erasureBody), async (req, res) => {
+  const notes = (req.body as z.infer<typeof erasureBody>).notes ?? null;
+  await prisma.auditLog.create({
+    data: {
+      userId: req.user!.id,
+      action: "ERASURE_REQUEST",
+      entityType: "User",
+      entityId: req.user!.id,
+      after: { notes } as Prisma.InputJsonValue
+    }
+  });
+  return res.json({
+    ok: true,
+    message: "Your request was recorded. An administrator will review it and may contact you to confirm identity."
+  });
 });
 
 export default router;

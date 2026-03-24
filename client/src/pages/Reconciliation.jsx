@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Loading from "../components/Loading";
 import ErrorBanner from "../components/ErrorBanner";
-import { listTransactions } from "../api/transactions";
+import { listTransactions, txItems } from "../api/transactions";
 import { getReconciliationNote, saveReconciliationNote } from "../api/reconciliation";
 import { eur, fmtDate } from "../lib/format";
 
@@ -79,12 +79,12 @@ export default function Reconciliation() {
   });
 
   const ledgerBankBalanceToDate = useMemo(() => {
-    const txs = qLedgerToDate.data || [];
+    const txs = txItems(qLedgerToDate.data);
     return txs.reduce((sum, t) => sum + bankDelta(t), 0);
   }, [qLedgerToDate.data]);
 
   const periodRows = useMemo(() => {
-    const txs = qPeriod.data || [];
+    const txs = txItems(qPeriod.data);
     const bankTx = txs
       .map((t) => ({ ...t, delta: bankDelta(t) }))
       .filter((t) => t.delta !== 0)
