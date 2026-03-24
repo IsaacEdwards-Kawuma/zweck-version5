@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { apiError } from "../lib/http.js";
+import { requireRole } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 
 const router = Router();
@@ -29,7 +30,7 @@ const createSchema = z.object({
   notes: z.string().max(500).optional()
 });
 
-router.post("/", validateBody(createSchema), async (req, res) => {
+router.post("/", requireRole("ADMIN"), validateBody(createSchema), async (req, res) => {
   const body = req.body as z.infer<typeof createSchema>;
   const director = await prisma.director.findUnique({ where: { id: body.directorId } });
   if (!director) return res.status(400).json(apiError("Director not found", "directorId"));
@@ -59,7 +60,7 @@ router.post("/", validateBody(createSchema), async (req, res) => {
 
 const updateSchema = createSchema.partial().omit({ directorId: true });
 
-router.put("/:id", validateBody(updateSchema), async (req, res) => {
+router.put("/:id", requireRole("ADMIN"), validateBody(updateSchema), async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) return res.status(400).json(apiError("Invalid id"));
   const body = req.body as z.infer<typeof updateSchema>;

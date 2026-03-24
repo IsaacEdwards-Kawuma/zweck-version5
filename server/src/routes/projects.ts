@@ -125,7 +125,7 @@ router.get("/", async (_req, res) => {
   return res.json(out);
 });
 
-router.post("/", validateBody(createProjectSchema), async (req, res) => {
+router.post("/", requireRole("ADMIN"), validateBody(createProjectSchema), async (req, res) => {
   const body = req.body as z.infer<typeof createProjectSchema>;
   const uid = req.user?.id;
   if (!uid) return res.status(401).json(apiError("Unauthorized"));
@@ -194,7 +194,7 @@ router.get("/:id", async (req, res) => {
   return res.json({ ...project, progress, spentFromTasks });
 });
 
-router.put("/:id", validateBody(updateProjectSchema), async (req, res) => {
+router.put("/:id", requireRole("ADMIN"), validateBody(updateProjectSchema), async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) return res.status(400).json(apiError("Invalid project id"));
   const body = req.body as z.infer<typeof updateProjectSchema>;
@@ -252,7 +252,7 @@ router.delete("/:id", requireRole("ADMIN"), async (req, res) => {
   }
 });
 
-router.post("/:id/tasks", validateBody(createTaskSchema), async (req, res) => {
+router.post("/:id/tasks", requireRole("ADMIN"), validateBody(createTaskSchema), async (req, res) => {
   const projectId = Number(req.params.id);
   if (!Number.isFinite(projectId)) return res.status(400).json(apiError("Invalid project id"));
   const body = req.body as z.infer<typeof createTaskSchema>;
@@ -288,7 +288,7 @@ router.post("/:id/tasks", validateBody(createTaskSchema), async (req, res) => {
   return res.status(201).json(task);
 });
 
-router.put("/:projectId/tasks/:taskId", validateBody(updateTaskSchema), async (req, res) => {
+router.put("/:projectId/tasks/:taskId", requireRole("ADMIN"), validateBody(updateTaskSchema), async (req, res) => {
   const projectId = Number(req.params.projectId);
   const taskId = Number(req.params.taskId);
   if (!Number.isFinite(projectId) || !Number.isFinite(taskId)) {
@@ -329,7 +329,7 @@ router.put("/:projectId/tasks/:taskId", validateBody(updateTaskSchema), async (r
   return res.json(task);
 });
 
-router.delete("/:projectId/tasks/:taskId", async (req, res) => {
+router.delete("/:projectId/tasks/:taskId", requireRole("ADMIN"), async (req, res) => {
   const projectId = Number(req.params.projectId);
   const taskId = Number(req.params.taskId);
   if (!Number.isFinite(projectId) || !Number.isFinite(taskId)) {
