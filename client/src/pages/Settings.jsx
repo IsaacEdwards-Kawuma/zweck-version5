@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Loading from "../components/Loading";
@@ -127,9 +127,6 @@ export default function Settings() {
     }
   });
 
-  if (qSettings.isLoading) return <Loading label="Loading settings..." />;
-  if (qSettings.error) return <ErrorBanner error={qSettings.error} />;
-
   const s = qSettings.data;
   const app = s?.app || {};
   const runtime = s?.runtime || {};
@@ -144,11 +141,11 @@ export default function Settings() {
   const docsUrl = `${origin}/api/docs`;
   const openapiUrl = `${origin}/api/openapi.json`;
   const healthUrl = `${origin}/api/health`;
-  const filteredNav = useMemo(() => {
-    const q = sectionQuery.trim().toLowerCase();
-    if (!q) return NAV;
-    return NAV.filter((n) => n.label.toLowerCase().includes(q));
-  }, [sectionQuery]);
+  const navQuery = sectionQuery.trim().toLowerCase();
+  const filteredNav = navQuery ? NAV.filter((n) => n.label.toLowerCase().includes(navQuery)) : NAV;
+
+  if (qSettings.isLoading) return <Loading label="Loading settings..." />;
+  if (qSettings.error) return <ErrorBanner error={qSettings.error} />;
 
   function savePrefs(next) {
     setPrefs(next);

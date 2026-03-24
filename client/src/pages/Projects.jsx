@@ -88,9 +88,6 @@ export default function Projects() {
     }
   });
 
-  if (q.isLoading) return <Loading label="Loading projects..." />;
-  if (q.error) return <ErrorBanner error={q.error} />;
-
   const projectList = useMemo(() => (Array.isArray(q.data) ? q.data : []), [q.data]);
 
   const rows = useMemo(() => {
@@ -130,6 +127,9 @@ export default function Projects() {
   }, [projectList]);
 
   const directors = Array.isArray(qDirs.data) ? qDirs.data : [];
+
+  if (q.isLoading) return <Loading label="Loading projects..." />;
+  if (q.error) return <ErrorBanner error={q.error} />;
 
   function exportCsv() {
     const headers = ["code", "name", "program", "status", "priority", "budget", "budgetSpent", "progress", "tasksDone", "tasksTotal", "updatedAt"];
