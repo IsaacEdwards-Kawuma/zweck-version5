@@ -6,6 +6,7 @@ import MetricCard from "../components/MetricCard";
 import PrintStatementHeader from "../components/PrintStatementHeader";
 import { listTransactions } from "../api/transactions";
 import { trackReportEvent } from "../api/reports";
+import { listDirectors } from "../api/directors";
 import { eur, eurCompact, fmtDate } from "../lib/format";
 import { TX_TYPE_LABELS } from "../lib/dashboardAnalytics";
 import { useDirectorsAll, useSummary } from "../hooks/useDashboard";
@@ -175,11 +176,16 @@ function openPrintDocument(title, statementName, reportMeta, statementRef, inner
 export default function Reports() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [selectedDirectorId, setSelectedDirectorId] = useState("ALL");
   const dark = useDarkClass();
   const gridStroke = dark ? "#475569" : "#e2e8f0";
 
   const qSummary = useSummary();
   const qDirectors = useDirectorsAll();
+  const qDirectorsFull = useQuery({
+    queryKey: ["directors", "full", "reports"],
+    queryFn: listDirectors
+  });
   const qTx = useQuery({
     queryKey: ["transactions", "reports"],
     queryFn: () => listTransactions()
@@ -269,6 +275,72 @@ export default function Reports() {
     const totalStake = rows.reduce((s, r) => s + r.total, 0);
     return { rows, totalCapital, totalSideFund, totalStake };
   }, [qDirectors.data]);
+  const directorsFullMap = useMemo(() => {
+    const m = new Map();
+    for (const d of qDirectorsFull.data || []) m.set(String(d.id), d);
+    return m;
+  }, [qDirectorsFull.data]);
+  const previousDirectorCapitalById = useMemo(() => {
+    const map = new Map();
+    for (const d of qDirectors.data || []) {
+      map.set(String(d.id), { capital: 0, sideFund: 0, total: 0 });
+    }
+    for (const t of previousTxs) {
+      const id = t.directorId;
+      if (id == null) continue;
+      const key = String(id);
+      const cur = map.get(key) || { capital: 0, sideFund: 0, total: 0 };
+      if (t.type === "CONTRIBUTION") cur.capital += Number(t.amount) || 0;
+      if (t.type === "SIDE_FUND") cur.sideFund += Number(t.amount) || 0;
+      cur.total = cur.capital + cur.sideFund;
+      map.set(key, cur);
+    }
+    return map;
+  }, [previousTxs, qDirectors.data]);
+  const selectedDirectorStatement = useMemo(() => {
+    if (selectedDirectorId === "ALL") return null;
+    const row = (qDirectors.data || []).find((d) => String(d.id) === selectedDirectorId);
+    if (!row) return null;
+    const profile = directorsFullMap.get(String(row.id)) || {};
+    const prev = previousDirectorCapitalById.get(String(row.id)) || { capital: 0, sideFund: 0, total: 0 };
+    const openingCapital = prev.capital;
+    const openingSideFund = prev.sideFund;
+    const openingTotal = prev.total;
+    const movementCapital = row.capital - prev.capital;
+    const movementSideFund = row.sideFund - prev.sideFund;
+    const movementTotal = row.total - prev.total;
+    const movementRows = txs
+      .filter((t) => String(t.directorId ?? "") === String(row.id))
+      .map((t) => ({
+        id: t.id,
+        date: t.date,
+        type: t.type,
+        typeLabel: TX_TYPE_LABELS[t.type] || t.type.replaceAll("_", " "),
+        description: t.description || "",
+        amount: Number(t.amount) || 0
+      }))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    return {
+      id: row.id,
+      name: row.name || "Unknown",
+      role: "DIRECTOR",
+      email: profile.email || row.email || "",
+      phone: profile.phone || "",
+      address: profile.address || "",
+      joinedRound: profile.joinedRound ?? row.joinedRound ?? null,
+      openingCapital,
+      openingSideFund,
+      openingTotal,
+      movementCapital,
+      movementSideFund,
+      movementTotal,
+      closingCapital: row.capital,
+      closingSideFund: row.sideFund,
+      closingTotal: row.total,
+      previousTotal: prev.total,
+      movementRows
+    };
+  }, [selectedDirectorId, qDirectors.data, directorsFullMap, previousDirectorCapitalById, txs]);
   const top10 = useMemo(() => {
     return [...txs]
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
@@ -281,10 +353,13 @@ export default function Reports() {
     }));
   }, [byMonth]);
 
-  if (qTx.isLoading || qSummary.isLoading || qDirectors.isLoading) return <Loading label="Loading reports..." />;
+  if (qTx.isLoading || qSummary.isLoading || qDirectors.isLoading || qDirectorsFull.isLoading) {
+    return <Loading label="Loading reports..." />;
+  }
   if (qTx.error) return <ErrorBanner error={qTx.error} />;
   if (qSummary.error) return <ErrorBanner error={qSummary.error} />;
   if (qDirectors.error) return <ErrorBanner error={qDirectors.error} />;
+  if (qDirectorsFull.error) return <ErrorBanner error={qDirectorsFull.error} />;
 
   function clearRange() {
     setFrom("");
@@ -422,6 +497,80 @@ export default function Reports() {
       return;
     }
     const statementRef = makeStatementRef("DCS", mode, from, to);
+    if (selectedDirectorId !== "ALL") {
+      if (!selectedDirectorStatement) {
+        window.alert("Selected director not found in current report data.");
+        return;
+      }
+      const missing = [];
+      if (!selectedDirectorStatement.email) missing.push("email");
+      if (!selectedDirectorStatement.phone) missing.push("phone");
+      if (!selectedDirectorStatement.address) missing.push("address");
+      if (missing.length) {
+        window.alert(`Cannot print director statement. Missing: ${missing.join(", ")}.`);
+        return;
+      }
+      const rowsSingle =
+        mode === "summary"
+          ? `
+            <tr><td>Opening balance</td><td class="num">${escHtml(eur(selectedDirectorStatement.openingTotal))}</td></tr>
+            <tr><td>Movement in period</td><td class="num">${escHtml(eur(selectedDirectorStatement.movementTotal))}</td></tr>
+            <tr><td>Previous period closing</td><td class="num">${escHtml(eur(selectedDirectorStatement.previousTotal))}</td></tr>
+            <tr><td>Variance vs previous period</td><td class="num">${escHtml(comparePct(selectedDirectorStatement.closingTotal, selectedDirectorStatement.previousTotal))}</td></tr>
+            <tr class="total"><td>Closing balance</td><td class="num">${escHtml(eur(selectedDirectorStatement.closingTotal))}</td></tr>
+          `
+          : `
+            <tr><td>Opening capital</td><td class="num">${escHtml(eur(selectedDirectorStatement.openingCapital))}</td></tr>
+            <tr><td>Opening side fund</td><td class="num">${escHtml(eur(selectedDirectorStatement.openingSideFund))}</td></tr>
+            <tr><td>Opening total</td><td class="num">${escHtml(eur(selectedDirectorStatement.openingTotal))}</td></tr>
+            <tr><td>Capital movement</td><td class="num">${escHtml(eur(selectedDirectorStatement.movementCapital))}</td></tr>
+            <tr><td>Side fund movement</td><td class="num">${escHtml(eur(selectedDirectorStatement.movementSideFund))}</td></tr>
+            <tr><td>Total movement</td><td class="num">${escHtml(eur(selectedDirectorStatement.movementTotal))}</td></tr>
+            <tr><td>Previous period closing</td><td class="num">${escHtml(eur(selectedDirectorStatement.previousTotal))}</td></tr>
+            <tr><td>Variance vs previous period</td><td class="num">${escHtml(comparePct(selectedDirectorStatement.closingTotal, selectedDirectorStatement.previousTotal))}</td></tr>
+            <tr class="total"><td>Closing total</td><td class="num">${escHtml(eur(selectedDirectorStatement.closingTotal))}</td></tr>
+          `;
+      const txTable =
+        mode === "summary"
+          ? ""
+          : `
+            <div class="section">
+              <h3>Transaction Breakdown</h3>
+              <table>
+                <thead><tr><th>Date</th><th>Type</th><th>Description</th><th class="num">Amount</th></tr></thead>
+                <tbody>
+                  ${
+                    selectedDirectorStatement.movementRows.length
+                      ? selectedDirectorStatement.movementRows
+                          .map(
+                            (r) =>
+                              `<tr><td>${escHtml(fmtDate(r.date))}</td><td>${escHtml(r.typeLabel)}</td><td>${escHtml(r.description || "—")}</td><td class="num">${escHtml(eur(r.amount))}</td></tr>`
+                          )
+                          .join("")
+                      : `<tr><td colspan="4">No director transactions in selected period.</td></tr>`
+                  }
+                </tbody>
+              </table>
+            </div>`;
+      openPrintDocument(
+        `Director Statement (${mode})`,
+        "Director Statement",
+        `${reportMeta} · Status: FINAL`,
+        statementRef,
+        `<div class="section">
+          <h3>Director Identity</h3>
+          <table><tbody>
+            <tr><td>Name</td><td>${escHtml(selectedDirectorStatement.name)}</td><td>Role</td><td>${escHtml(selectedDirectorStatement.role)}</td></tr>
+            <tr><td>Email</td><td>${escHtml(selectedDirectorStatement.email)}</td><td>Phone</td><td>${escHtml(selectedDirectorStatement.phone)}</td></tr>
+            <tr><td>Address</td><td>${escHtml(selectedDirectorStatement.address)}</td><td>Joined round</td><td>${escHtml(selectedDirectorStatement.joinedRound ?? "—")}</td></tr>
+          </tbody></table>
+        </div>
+        <div class="section"><h3>Capital Movement</h3><table><thead><tr><th>Line Item</th><th class="num">Amount</th></tr></thead><tbody>${rowsSingle}</tbody></table></div>
+        ${txTable}`
+      );
+      await logReportEvent("PRINT", "DIRECTOR_STATEMENT", mode);
+      return;
+    }
     const rows =
       mode === "summary"
         ? `
@@ -681,6 +830,24 @@ export default function Reports() {
       <section className="ui-surface rounded-2xl p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="text-sm font-semibold ui-page-heading">Director Capital Statement</div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-slate-500 dark:text-slate-400" htmlFor="director-statement-select">
+              Statement scope
+            </label>
+            <select
+              id="director-statement-select"
+              className="ui-input py-1 text-xs"
+              value={selectedDirectorId}
+              onChange={(e) => setSelectedDirectorId(e.target.value)}
+            >
+              <option value="ALL">All directors (register)</option>
+              {(qDirectors.data || []).map((d) => (
+                <option key={d.id} value={String(d.id)}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" className="ui-btn-outline-xs" onClick={() => printDirectorCapital("summary")}>
               Print summary
@@ -693,6 +860,28 @@ export default function Reports() {
               className="ui-btn-outline-xs"
               onClick={async () => {
                 if (!directorCapital.rows.length) return window.alert("No director capital data to export.");
+                if (selectedDirectorId !== "ALL") {
+                  if (!selectedDirectorStatement) return window.alert("Selected director not found.");
+                  downloadSimpleCsv(
+                    `director-statement-${selectedDirectorStatement.id}.csv`,
+                    ["Director", "Email", "Phone", "Address", "Opening", "Movement", "Closing", "Prev Period", "Variance %"],
+                    [
+                      [
+                        selectedDirectorStatement.name,
+                        selectedDirectorStatement.email,
+                        selectedDirectorStatement.phone,
+                        selectedDirectorStatement.address,
+                        selectedDirectorStatement.openingTotal,
+                        selectedDirectorStatement.movementTotal,
+                        selectedDirectorStatement.closingTotal,
+                        selectedDirectorStatement.previousTotal,
+                        comparePct(selectedDirectorStatement.closingTotal, selectedDirectorStatement.previousTotal)
+                      ]
+                    ]
+                  );
+                  await logReportEvent("EXPORT_CSV", "DIRECTOR_STATEMENT", "detailed");
+                  return;
+                }
                 downloadSimpleCsv(
                   "director-capital-statement.csv",
                   ["Director", "Email", "Capital", "Side fund", "Total stake"],
@@ -708,36 +897,85 @@ export default function Reports() {
             </button>
           </div>
         </div>
-        <div className="mt-3 overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
-            <thead className="ui-table-head">
-              <tr>
-                <th className="px-3 py-2">Director</th>
-                <th className="px-3 py-2">Email</th>
-                <th className="px-3 py-2 text-right">Capital</th>
-                <th className="px-3 py-2 text-right">Side fund</th>
-                <th className="px-3 py-2 text-right">Total stake</th>
-              </tr>
-            </thead>
-            <tbody className="ui-table-divide">
-              {directorCapital.rows.map((r) => (
-                <tr key={`${r.email}-${r.name}`}>
-                  <td className="px-3 py-2">{r.name}</td>
-                  <td className="px-3 py-2">{r.email}</td>
-                  <td className="px-3 py-2 text-right">{eur(r.capital)}</td>
-                  <td className="px-3 py-2 text-right">{eur(r.sideFund)}</td>
-                  <td className="px-3 py-2 text-right font-semibold">{eur(r.total)}</td>
+        {selectedDirectorStatement ? (
+          <div className="mt-3 rounded-xl border border-brand-200/60 bg-brand-50/40 p-3 text-xs text-slate-700 dark:border-brand-500/40 dark:bg-brand-950/30 dark:text-slate-300">
+            Single-director statement enabled for <span className="font-semibold">{selectedDirectorStatement.name}</span>.
+            Print validates identity fields (email, phone, address) before generating.
+          </div>
+        ) : null}
+        {selectedDirectorStatement ? (
+          <div className="mt-3 space-y-3">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+              <MetricCard label="Opening balance" value={eur(selectedDirectorStatement.openingTotal)} />
+              <MetricCard label="Movement in period" value={eur(selectedDirectorStatement.movementTotal)} />
+              <MetricCard label="Closing balance" value={eur(selectedDirectorStatement.closingTotal)} />
+              <MetricCard
+                label="Variance vs previous"
+                value={comparePct(selectedDirectorStatement.closingTotal, selectedDirectorStatement.previousTotal)}
+              />
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead className="ui-table-head">
+                  <tr>
+                    <th className="px-3 py-2">Date</th>
+                    <th className="px-3 py-2">Type</th>
+                    <th className="px-3 py-2">Description</th>
+                    <th className="px-3 py-2 text-right">Amount</th>
+                  </tr>
+                </thead>
+                <tbody className="ui-table-divide">
+                  {selectedDirectorStatement.movementRows.map((r) => (
+                    <tr key={r.id}>
+                      <td className="px-3 py-2">{fmtDate(r.date)}</td>
+                      <td className="px-3 py-2">{r.typeLabel}</td>
+                      <td className="px-3 py-2">{r.description || "—"}</td>
+                      <td className="px-3 py-2 text-right">{eur(r.amount)}</td>
+                    </tr>
+                  ))}
+                  {!selectedDirectorStatement.movementRows.length ? (
+                    <tr>
+                      <td className="px-3 py-3 text-center text-slate-500 dark:text-slate-400" colSpan={4}>
+                        No director transactions in selected period.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-3 overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead className="ui-table-head">
+                <tr>
+                  <th className="px-3 py-2">Director</th>
+                  <th className="px-3 py-2">Email</th>
+                  <th className="px-3 py-2 text-right">Capital</th>
+                  <th className="px-3 py-2 text-right">Side fund</th>
+                  <th className="px-3 py-2 text-right">Total stake</th>
                 </tr>
-              ))}
-              <tr className="bg-slate-50 font-semibold dark:bg-slate-900/60">
-                <td className="px-3 py-2" colSpan={2}>TOTAL</td>
-                <td className="px-3 py-2 text-right">{eur(directorCapital.totalCapital)}</td>
-                <td className="px-3 py-2 text-right">{eur(directorCapital.totalSideFund)}</td>
-                <td className="px-3 py-2 text-right">{eur(directorCapital.totalStake)}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="ui-table-divide">
+                {directorCapital.rows.map((r) => (
+                  <tr key={`${r.email}-${r.name}`}>
+                    <td className="px-3 py-2">{r.name}</td>
+                    <td className="px-3 py-2">{r.email}</td>
+                    <td className="px-3 py-2 text-right">{eur(r.capital)}</td>
+                    <td className="px-3 py-2 text-right">{eur(r.sideFund)}</td>
+                    <td className="px-3 py-2 text-right font-semibold">{eur(r.total)}</td>
+                  </tr>
+                ))}
+                <tr className="bg-slate-50 font-semibold dark:bg-slate-900/60">
+                  <td className="px-3 py-2" colSpan={2}>TOTAL</td>
+                  <td className="px-3 py-2 text-right">{eur(directorCapital.totalCapital)}</td>
+                  <td className="px-3 py-2 text-right">{eur(directorCapital.totalSideFund)}</td>
+                  <td className="px-3 py-2 text-right">{eur(directorCapital.totalStake)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
