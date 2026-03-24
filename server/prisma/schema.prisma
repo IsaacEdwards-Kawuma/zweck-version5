@@ -14,6 +14,13 @@ model Director {
   name        String
   initials    String    @db.VarChar(3)
   email       String    @unique
+  phone       String?
+  idNumber    String?
+  occupation  String?
+  address     String?
+  nextOfKinName  String?
+  nextOfKinPhone String?
+  notes       String?
   avatarUrl   String?
   joinedRound Int       @default(1)
   active      Boolean   @default(true)

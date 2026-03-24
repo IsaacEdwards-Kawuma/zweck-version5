@@ -35,6 +35,13 @@ export default function Directors() {
     name: "",
     initials: "",
     email: "",
+    phone: "",
+    idNumber: "",
+    occupation: "",
+    address: "",
+    nextOfKinName: "",
+    nextOfKinPhone: "",
+    notes: "",
     joinedRound: "",
     active: true
   });
@@ -43,7 +50,20 @@ export default function Directors() {
   const mCreate = useMutation({
     mutationFn: (payload) => createDirector(payload),
     onSuccess: async () => {
-      setForm({ name: "", initials: "", email: "", joinedRound: "", active: true });
+      setForm({
+        name: "",
+        initials: "",
+        email: "",
+        phone: "",
+        idNumber: "",
+        occupation: "",
+        address: "",
+        nextOfKinName: "",
+        nextOfKinPhone: "",
+        notes: "",
+        joinedRound: "",
+        active: true
+      });
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["directors"] }),
         qc.invalidateQueries({ queryKey: ["directors_all"] })
@@ -202,6 +222,13 @@ export default function Directors() {
                 name: form.name,
                 initials: form.initials,
                 email: form.email,
+                phone: form.phone,
+                idNumber: form.idNumber,
+                occupation: form.occupation,
+                address: form.address,
+                nextOfKinName: form.nextOfKinName,
+                nextOfKinPhone: form.nextOfKinPhone,
+                notes: form.notes,
                 joinedRound: form.joinedRound ? Number(form.joinedRound) : undefined,
                 active: form.active
               };
@@ -251,6 +278,63 @@ export default function Directors() {
                 onChange={(e) => setForm((f) => ({ ...f, joinedRound: e.target.value }))}
               />
             </div>
+            <div>
+              <div className="text-xs font-medium text-slate-700">Phone</div>
+              <input
+                className="mt-1 w-full rounded-lg border-slate-300"
+                value={form.phone}
+                onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+              />
+            </div>
+            <div>
+              <div className="text-xs font-medium text-slate-700">ID / NIN</div>
+              <input
+                className="mt-1 w-full rounded-lg border-slate-300"
+                value={form.idNumber}
+                onChange={(e) => setForm((f) => ({ ...f, idNumber: e.target.value }))}
+              />
+            </div>
+            <div>
+              <div className="text-xs font-medium text-slate-700">Occupation</div>
+              <input
+                className="mt-1 w-full rounded-lg border-slate-300"
+                value={form.occupation}
+                onChange={(e) => setForm((f) => ({ ...f, occupation: e.target.value }))}
+              />
+            </div>
+            <div className="md:col-span-2">
+              <div className="text-xs font-medium text-slate-700">Address</div>
+              <input
+                className="mt-1 w-full rounded-lg border-slate-300"
+                value={form.address}
+                onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
+              />
+            </div>
+            <div>
+              <div className="text-xs font-medium text-slate-700">Next of kin</div>
+              <input
+                className="mt-1 w-full rounded-lg border-slate-300"
+                value={form.nextOfKinName}
+                onChange={(e) => setForm((f) => ({ ...f, nextOfKinName: e.target.value }))}
+              />
+            </div>
+            <div>
+              <div className="text-xs font-medium text-slate-700">Next of kin phone</div>
+              <input
+                className="mt-1 w-full rounded-lg border-slate-300"
+                value={form.nextOfKinPhone}
+                onChange={(e) => setForm((f) => ({ ...f, nextOfKinPhone: e.target.value }))}
+              />
+            </div>
+            <div className="md:col-span-4">
+              <div className="text-xs font-medium text-slate-700">Notes</div>
+              <textarea
+                className="mt-1 w-full rounded-lg border-slate-300"
+                rows={3}
+                value={form.notes}
+                onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+              />
+            </div>
             <div className="flex items-center gap-2 md:col-span-2">
               <input
                 id="dir-active"
@@ -270,7 +354,20 @@ export default function Directors() {
                   className="ui-btn-outline-xs font-medium"
                   onClick={() => {
                     setEditingId(null);
-                    setForm({ name: "", initials: "", email: "", joinedRound: "", active: true });
+                    setForm({
+                      name: "",
+                      initials: "",
+                      email: "",
+                      phone: "",
+                      idNumber: "",
+                      occupation: "",
+                      address: "",
+                      nextOfKinName: "",
+                      nextOfKinPhone: "",
+                      notes: "",
+                      joinedRound: "",
+                      active: true
+                    });
                   }}
                 >
                   Cancel
@@ -301,6 +398,13 @@ export default function Directors() {
                       name: d.name,
                       initials: d.initials,
                       email: d.email,
+                      phone: d.phone ?? "",
+                      idNumber: d.idNumber ?? "",
+                      occupation: d.occupation ?? "",
+                      address: d.address ?? "",
+                      nextOfKinName: d.nextOfKinName ?? "",
+                      nextOfKinPhone: d.nextOfKinPhone ?? "",
+                      notes: d.notes ?? "",
                       joinedRound: d.joinedRound?.toString?.() ?? "",
                       active: d.active
                     });

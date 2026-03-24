@@ -213,6 +213,40 @@ export default function DirectorDetail() {
         </div>
       </div>
 
+      <div className="rounded-2xl ui-surface p-4">
+        <div className="text-sm font-semibold text-slate-900">Profile details</div>
+        <div className="mt-3 grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
+          <div>
+            <div className="text-xs uppercase tracking-wide text-slate-500">Phone</div>
+            <div className="mt-1 text-slate-800">{director.phone || "—"}</div>
+          </div>
+          <div>
+            <div className="text-xs uppercase tracking-wide text-slate-500">ID / NIN</div>
+            <div className="mt-1 text-slate-800">{director.idNumber || "—"}</div>
+          </div>
+          <div>
+            <div className="text-xs uppercase tracking-wide text-slate-500">Occupation</div>
+            <div className="mt-1 text-slate-800">{director.occupation || "—"}</div>
+          </div>
+          <div>
+            <div className="text-xs uppercase tracking-wide text-slate-500">Address</div>
+            <div className="mt-1 text-slate-800">{director.address || "—"}</div>
+          </div>
+          <div>
+            <div className="text-xs uppercase tracking-wide text-slate-500">Next of kin</div>
+            <div className="mt-1 text-slate-800">{director.nextOfKinName || "—"}</div>
+          </div>
+          <div>
+            <div className="text-xs uppercase tracking-wide text-slate-500">Next of kin phone</div>
+            <div className="mt-1 text-slate-800">{director.nextOfKinPhone || "—"}</div>
+          </div>
+        </div>
+        <div className="mt-4">
+          <div className="text-xs uppercase tracking-wide text-slate-500">Notes</div>
+          <div className="mt-1 whitespace-pre-wrap text-sm text-slate-800">{director.notes || "—"}</div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="rounded-2xl ui-surface p-4">
           <div className="text-sm font-semibold text-slate-900">Capital vs side fund</div>

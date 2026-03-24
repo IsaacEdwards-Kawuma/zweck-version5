@@ -11,6 +11,12 @@ import { validateBody } from "../middleware/validate.js";
 
 const router = Router();
 
+function emptyToNull(v: unknown) {
+  if (typeof v !== "string") return v;
+  const t = v.trim();
+  return t === "" ? null : t;
+}
+
 router.get("/", async (_req, res) => {
   const directors = await prisma.director.findMany({ orderBy: { createdAt: "asc" } });
   return res.json(directors);
@@ -20,6 +26,13 @@ const createSchema = z.object({
   name: z.string().min(1).max(120),
   initials: z.string().min(1).max(3),
   email: z.string().email(),
+  phone: z.string().max(40).optional().nullable(),
+  idNumber: z.string().max(80).optional().nullable(),
+  occupation: z.string().max(120).optional().nullable(),
+  address: z.string().max(300).optional().nullable(),
+  nextOfKinName: z.string().max(120).optional().nullable(),
+  nextOfKinPhone: z.string().max(40).optional().nullable(),
+  notes: z.string().max(2000).optional().nullable(),
   joinedRound: z.number().int().positive().optional(),
   active: z.boolean().optional()
 });
@@ -31,22 +44,29 @@ router.post("/", requireRole("ADMIN"), validateBody(createSchema), async (req, r
   const existing = await prisma.director.findUnique({ where: { email } });
   if (existing) return res.status(400).json(apiError("Email already in use", "email"));
 
-  const director = await prisma.director.create({
-    data: {
-      name: body.name,
-      initials: body.initials.toUpperCase(),
-      email,
-      joinedRound: body.joinedRound ?? 1,
-      active: body.active ?? true
-    }
-  });
+  const createData: any = {
+    name: body.name,
+    initials: body.initials.toUpperCase(),
+    email,
+    phone: emptyToNull(body.phone),
+    idNumber: emptyToNull(body.idNumber),
+    occupation: emptyToNull(body.occupation),
+    address: emptyToNull(body.address),
+    nextOfKinName: emptyToNull(body.nextOfKinName),
+    nextOfKinPhone: emptyToNull(body.nextOfKinPhone),
+    notes: emptyToNull(body.notes),
+    joinedRound: body.joinedRound ?? 1,
+    active: body.active ?? true
+  };
+
+  const director = await prisma.director.create({ data: createData });
 
   return res.status(201).json(director);
 });
 
 const updateSchema = createSchema.partial();
 
-router.put("/:id", validateBody(updateSchema), async (req, res) => {
+router.put("/:id", requireRole("ADMIN"), validateBody(updateSchema), async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) return res.status(400).json(apiError("Invalid director id"));
 
@@ -54,6 +74,13 @@ router.put("/:id", validateBody(updateSchema), async (req, res) => {
   const data: any = { ...body };
   if (data.email) data.email = data.email.toLowerCase().trim();
   if (data.initials) data.initials = data.initials.toUpperCase();
+  if ("phone" in data) data.phone = emptyToNull(data.phone);
+  if ("idNumber" in data) data.idNumber = emptyToNull(data.idNumber);
+  if ("occupation" in data) data.occupation = emptyToNull(data.occupation);
+  if ("address" in data) data.address = emptyToNull(data.address);
+  if ("nextOfKinName" in data) data.nextOfKinName = emptyToNull(data.nextOfKinName);
+  if ("nextOfKinPhone" in data) data.nextOfKinPhone = emptyToNull(data.nextOfKinPhone);
+  if ("notes" in data) data.notes = emptyToNull(data.notes);
 
   try {
     const updated = await prisma.director.update({ where: { id }, data });
