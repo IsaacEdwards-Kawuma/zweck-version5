@@ -49,6 +49,18 @@ router.get("/", (req, res) => {
       loginWindowMinutes: 15,
       forgotPasswordWindowMinutes: 60
     },
+    deployment: {
+      authDisabled: ["true", "1", "yes"].includes(String(process.env.AUTH_DISABLED || "").trim().toLowerCase()),
+      jwtConfigured: Boolean(process.env.JWT_SECRET?.trim()),
+      databaseUrlConfigured: Boolean(process.env.DATABASE_URL?.trim()),
+      directUrlConfigured: Boolean(process.env.DIRECT_URL?.trim()),
+      allowedOriginsConfigured: Boolean(process.env.ALLOWED_ORIGINS?.trim() || process.env.CLIENT_ORIGIN?.trim()),
+      vercelPreviewOriginsEnabled: ["true", "1", "yes"].includes(
+        String(process.env.ALLOW_VERCEL_PREVIEWS || "")
+          .trim()
+          .toLowerCase()
+      )
+    },
     endpoints: {
       health: "/api/health",
       openapi: "/api/openapi.json",

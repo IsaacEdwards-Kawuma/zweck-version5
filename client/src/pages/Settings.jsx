@@ -80,6 +80,7 @@ const NAV = [
   { href: "#settings-account", label: "Account" },
   { href: "#settings-theme", label: "Theme" },
   { href: "#settings-status", label: "API status" },
+  { href: "#settings-deployment", label: "Deployment" },
   { href: "#settings-monitoring", label: "Monitoring" },
   { href: "#settings-limits", label: "Rate limits" },
   { href: "#settings-api-docs", label: "API docs" },
@@ -272,6 +273,23 @@ export default function Settings() {
             </a>
           </div>
         )}
+      </section>
+
+      <section id="settings-deployment" className={SECTION}>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          Deployment readiness
+        </h2>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          Fast checks for production configuration and security posture.
+        </p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <StatusDot ok={s.deployment.jwtConfigured} label="JWT secret configured" />
+          <StatusDot ok={!s.deployment.authDisabled} label="Auth enabled" />
+          <StatusDot ok={s.deployment.databaseUrlConfigured} label="Database URL configured" />
+          <StatusDot ok={s.deployment.directUrlConfigured} label="Direct DB URL configured" />
+          <StatusDot ok={s.deployment.allowedOriginsConfigured} label="Allowed origins configured" />
+          <StatusDot ok={s.deployment.vercelPreviewOriginsEnabled} label="Vercel preview origins enabled" />
+        </div>
       </section>
 
       <section id="settings-monitoring" className={SECTION}>

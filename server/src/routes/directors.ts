@@ -22,7 +22,7 @@ router.get("/", async (_req, res) => {
   return res.json(directors);
 });
 
-const createSchema = z.object({
+export const createDirectorSchema = z.object({
   name: z.string().min(1).max(120),
   initials: z.string().min(1).max(3),
   email: z.string().email(),
@@ -37,8 +37,8 @@ const createSchema = z.object({
   active: z.boolean().optional()
 });
 
-router.post("/", requireRole("ADMIN"), validateBody(createSchema), async (req, res) => {
-  const body = req.body as z.infer<typeof createSchema>;
+router.post("/", requireRole("ADMIN"), validateBody(createDirectorSchema), async (req, res) => {
+  const body = req.body as z.infer<typeof createDirectorSchema>;
   const email = body.email.toLowerCase().trim();
 
   const existing = await prisma.director.findUnique({ where: { email } });
@@ -64,13 +64,13 @@ router.post("/", requireRole("ADMIN"), validateBody(createSchema), async (req, r
   return res.status(201).json(director);
 });
 
-const updateSchema = createSchema.partial();
+export const updateDirectorSchema = createDirectorSchema.partial();
 
-router.put("/:id", requireRole("ADMIN"), validateBody(updateSchema), async (req, res) => {
+router.put("/:id", requireRole("ADMIN"), validateBody(updateDirectorSchema), async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) return res.status(400).json(apiError("Invalid director id"));
 
-  const body = req.body as z.infer<typeof updateSchema>;
+  const body = req.body as z.infer<typeof updateDirectorSchema>;
   const data: any = { ...body };
   if (data.email) data.email = data.email.toLowerCase().trim();
   if (data.initials) data.initials = data.initials.toUpperCase();

@@ -62,7 +62,7 @@ Example: `https://zweckos-api.onrender.com`
 
 **Optional:** `VITE_API_URL=https://YOUR-RENDER-HOST/api` to call Render **directly** (HTTPS) instead of the proxy. Remove `VITE_API_URL` from Vercel if it still points at `http://localhost:3001/api`.
 
-5. Deploy. Open the Vercel URL and use **First Admin Setup** or login.
+5. Deploy. Open the Vercel URL and sign up/login.
 
 **SPA routing:** Vercel must serve `index.html` for paths like `/login` (client-side routing). The repo includes `client/vercel.json` with a rewrite for that. If you still see 404 on `/login`, confirm **Root Directory** is `client` so this file is used.
 
@@ -89,6 +89,10 @@ After changing Vercel domains, update `ALLOWED_ORIGINS` on Render and redeploy t
 - **Production**: migrations run during Render **build** via `npx prisma migrate deploy` (see `render.yaml` / manual build command).
 
 If you add migrations locally, push to Git and redeploy Render so the new migration runs on build.
+
+If deployment fails with `P3009`/`P3018`, use:
+
+- **[PRISMA_MIGRATION_RECOVERY.md](./PRISMA_MIGRATION_RECOVERY.md)**
 
 ## 5. Local `.env` parity
 

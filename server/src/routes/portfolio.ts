@@ -4,6 +4,30 @@ import { deriveBalances } from "../lib/derive.js";
 
 const router = Router();
 
+type ActiveProjectForSplit = {
+  id: number;
+  code: string;
+  name: string;
+  budgetSpent: number | null;
+  tasks: Array<{ actualCost: number | null }>;
+};
+
+export function buildPortfolioSplit(bank: number, activeProjects: ActiveProjectForSplit[]) {
+  const projectSplit = activeProjects
+    .map((p) => {
+      const spentFromTasks = p.tasks.reduce((sum, t) => sum + (t.actualCost ?? 0), 0);
+      const value = p.budgetSpent ?? spentFromTasks;
+      return {
+        key: `project-${p.id}`,
+        name: p.code ? `${p.code} · ${p.name}` : p.name,
+        value
+      };
+    })
+    .filter((p) => p.value > 0);
+
+  return [{ key: "bank", name: "Bank", value: bank }, ...projectSplit];
+}
+
 router.get("/", async (_req, res) => {
   const txs = await prisma.transaction.findMany({
     select: { type: true, amount: true, directorId: true }
@@ -27,19 +51,7 @@ router.get("/", async (_req, res) => {
     orderBy: { updatedAt: "desc" }
   });
 
-  const projectSplit = activeProjects
-    .map((p) => {
-      const spentFromTasks = p.tasks.reduce((sum, t) => sum + (t.actualCost ?? 0), 0);
-      const value = p.budgetSpent ?? spentFromTasks;
-      return {
-        key: `project-${p.id}`,
-        name: p.code ? `${p.code} · ${p.name}` : p.name,
-        value
-      };
-    })
-    .filter((p) => p.value > 0);
-
-  const split = [{ key: "bank", name: "Bank", value: bank }, ...projectSplit];
+  const split = buildPortfolioSplit(bank, activeProjects);
   const splitTotal = split.reduce((sum, item) => sum + item.value, 0);
   const totalAssets = splitTotal;
 

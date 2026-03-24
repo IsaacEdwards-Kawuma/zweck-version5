@@ -52,14 +52,13 @@ npm run dev
 - Client: `http://localhost:5173`
 - API: `http://localhost:3001/api/health`
 
-### First login (no seed data)
+### Signup and first admin
 
-The database starts completely empty. To avoid seed data while still enabling first access:
+The database starts completely empty. Current behavior:
 
-- The **first call** to `POST /api/auth/register` is treated as a **bootstrap** and creates the first **ADMIN** user.
-- After the first user exists, `POST /api/auth/register` is **ADMIN-only**.
-
-The UI has a **“First Admin Setup”** tab on the login screen to do this.
+- The **first** successful signup (`POST /api/auth/register`) becomes **ADMIN**.
+- All **subsequent** signups become **USER**.
+- Admins can change user roles later from **Settings → User role management**.
 
 ### Prisma Studio
 
@@ -79,6 +78,10 @@ Production DB migrations (after changing schema locally):
 npm run db:deploy
 ```
 
+If Render/Neon reports failed migration history (`P3009`/`P3018`), follow the runbook:
+
+- **[PRISMA_MIGRATION_RECOVERY.md](./PRISMA_MIGRATION_RECOVERY.md)**
+
 ### Quality checks (from repo root)
 
 ```bash
@@ -95,6 +98,10 @@ GitHub Actions runs lint, unit tests, and build on push/PR (see `.github/workflo
 - **Password reset**: UI **Forgot password?** on the login screen. The API sends email when **SMTP** is configured (`SMTP_HOST`, etc. in `server/.env`). Without SMTP, the server logs the reset link to stdout (development). Set **`PUBLIC_APP_URL`** (or **`CLIENT_ORIGIN`**) so links point at your Vercel app in production.
 - **Audit log** (admins): API `GET /api/audit`, UI **Audit** in the top bar next to **Users**.
 - **Director profile photos** default to local disk (`server/uploads/`). For production without a persistent disk, configure **S3-compatible** storage — see `server/.env.example` and [DEPLOYMENT.md](./DEPLOYMENT.md).
+- **Role matrix (summary)**:
+  - `ADMIN`: full data entry and user/role management.
+  - `DIRECTOR`: own profile/avatar self-management and normal app usage.
+  - `USER`: standard app usage without admin actions.
 
 ### API documentation & monitoring
 

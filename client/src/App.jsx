@@ -1,55 +1,60 @@
+import { lazy, Suspense } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import Protected from "./components/Protected";
 import Layout from "./components/Layout";
-import Login from "./pages/Login";
-import ForgotPassword from "./pages/ForgotPassword";
-import ResetPassword from "./pages/ResetPassword";
-import Dashboard from "./pages/Dashboard";
-import PostTransaction from "./pages/PostTransaction";
-import Ledger from "./pages/Ledger";
-import ChartOfAccounts from "./pages/ChartOfAccounts";
-import Directors from "./pages/Directors";
-import DirectorDetail from "./pages/DirectorDetail";
-import Portfolio from "./pages/Portfolio";
-import ProjectsLayout from "./pages/ProjectsLayout";
-import Projects from "./pages/Projects";
-import ProjectDetail from "./pages/ProjectDetail";
-import Reports from "./pages/Reports";
-import NotFound from "./pages/NotFound";
-import Users from "./pages/Users";
-import AuditLog from "./pages/AuditLog";
-import Settings from "./pages/Settings";
+import Loading from "./components/Loading";
+
+const Login = lazy(() => import("./pages/Login"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const PostTransaction = lazy(() => import("./pages/PostTransaction"));
+const Ledger = lazy(() => import("./pages/Ledger"));
+const ChartOfAccounts = lazy(() => import("./pages/ChartOfAccounts"));
+const Directors = lazy(() => import("./pages/Directors"));
+const DirectorDetail = lazy(() => import("./pages/DirectorDetail"));
+const Portfolio = lazy(() => import("./pages/Portfolio"));
+const ProjectsLayout = lazy(() => import("./pages/ProjectsLayout"));
+const Projects = lazy(() => import("./pages/Projects"));
+const ProjectDetail = lazy(() => import("./pages/ProjectDetail"));
+const Reports = lazy(() => import("./pages/Reports"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const Users = lazy(() => import("./pages/Users"));
+const AuditLog = lazy(() => import("./pages/AuditLog"));
+const Settings = lazy(() => import("./pages/Settings"));
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/signup" element={<Login />} />
-      <Route path="/forgot-password" element={<ForgotPassword />} />
-      <Route path="/reset-password" element={<ResetPassword />} />
+    <Suspense fallback={<Loading label="Loading page..." />}>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
 
-      <Route element={<Protected />}>
-        <Route element={<Layout />}>
-          <Route index element={<Dashboard />} />
-          <Route path="/reports" element={<Reports />} />
-          <Route path="/users" element={<Users />} />
-          <Route path="/audit" element={<AuditLog />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/post" element={<PostTransaction />} />
-          <Route path="/ledger" element={<Ledger />} />
-          <Route path="/accounts" element={<ChartOfAccounts />} />
-          <Route path="/directors" element={<Directors />} />
-          <Route path="/directors/:id" element={<DirectorDetail />} />
-          <Route path="/portfolio" element={<Portfolio />} />
-          <Route path="/projects" element={<ProjectsLayout />}>
-            <Route index element={<Projects />} />
+        <Route element={<Protected />}>
+          <Route element={<Layout />}>
+            <Route index element={<Dashboard />} />
+            <Route path="/reports" element={<Reports />} />
+            <Route path="/users" element={<Users />} />
+            <Route path="/audit" element={<AuditLog />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/post" element={<PostTransaction />} />
+            <Route path="/ledger" element={<Ledger />} />
+            <Route path="/accounts" element={<ChartOfAccounts />} />
+            <Route path="/directors" element={<Directors />} />
+            <Route path="/directors/:id" element={<DirectorDetail />} />
+            <Route path="/portfolio" element={<Portfolio />} />
+            <Route path="/projects" element={<ProjectsLayout />}>
+              <Route index element={<Projects />} />
+            </Route>
+            <Route path="/project/:id" element={<ProjectDetail />} />
+            <Route path="/mmf" element={<Navigate to="/projects" replace />} />
+            <Route path="/ypa" element={<Navigate to="/projects" replace />} />
+            <Route path="*" element={<NotFound />} />
           </Route>
-          <Route path="/project/:id" element={<ProjectDetail />} />
-          <Route path="/mmf" element={<Navigate to="/projects" replace />} />
-          <Route path="/ypa" element={<Navigate to="/projects" replace />} />
-          <Route path="*" element={<NotFound />} />
         </Route>
-      </Route>
-    </Routes>
+      </Routes>
+    </Suspense>
   );
 }

@@ -24,7 +24,7 @@ Use these when you create a **Web Service** (or Blueprint) on [Render](https://r
 
 | Field | Value |
 |--------|--------|
-| **Repository** | `https://github.com/IsaacEdwards-Kawuma/Zweck-V5` (or your fork) |
+| **Repository** | `https://github.com/IsaacEdwards-Kawuma/zweck-version5.git` (or your fork) |
 | **Branch** | `master` or `main` (match your default branch) |
 | **Root Directory** | `server` |
 
@@ -79,6 +79,10 @@ Local copies go in `server/.env` (gitignored) — see `server/.env.example`.
 - **Health check:** `GET https://<your-service-name>.onrender.com/api/health` → `{"ok":true}`
 - **Vercel `RENDER_API_URL`:** `https://<your-service-name>.onrender.com` (no `/api` — used by the Edge proxy in `client/api/`)
 - **Optional Vercel `VITE_API_URL`:** `https://<your-service-name>.onrender.com/api` only if you skip the proxy and call the API directly from the browser
+
+If build fails with Prisma migration state errors (`P3009`, `P3018`), follow:
+
+- **[PRISMA_MIGRATION_RECOVERY.md](./PRISMA_MIGRATION_RECOVERY.md)**
 
 ## Blueprint file
 
