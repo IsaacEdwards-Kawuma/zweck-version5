@@ -3,7 +3,7 @@ import jwt from "jsonwebtoken";
 import { prisma } from "../lib/prisma.js";
 import { apiError } from "../lib/http.js";
 
-export type AuthUser = { id: number; email: string; role: "ADMIN" | "DIRECTOR"; directorId: number | null };
+export type AuthUser = { id: number; email: string; role: "ADMIN" | "USER" | "DIRECTOR"; directorId: number | null };
 
 function getSecret(): string {
   const secret = process.env.JWT_SECRET;

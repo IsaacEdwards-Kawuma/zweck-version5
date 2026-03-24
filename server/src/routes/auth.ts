@@ -47,7 +47,7 @@ function getSecret(): string {
   return secret;
 }
 
-function signToken(user: { id: number; email: string; role: "ADMIN" | "DIRECTOR"; directorId: number | null }) {
+function signToken(user: { id: number; email: string; role: "ADMIN" | "USER" | "DIRECTOR"; directorId: number | null }) {
   const payload: AuthUser = { ...user };
   return jwt.sign(payload, getSecret(), { expiresIn: "7d" });
 }
@@ -153,7 +153,7 @@ router.post(
 const registerBody = z.object({
   email: z.string().email(),
   password: z.string().min(8).max(200),
-  role: z.enum(["ADMIN", "DIRECTOR"]).optional(),
+  role: z.enum(["ADMIN", "USER", "DIRECTOR"]).optional(),
   director: z
     .object({
       name: z.string().min(1).max(120),
@@ -180,7 +180,7 @@ router.post("/register", validateBody(registerBody), async (req, res) => {
   const bootstrap = usersCount === 0;
   // Public signup:
   // - first account becomes ADMIN
-  // - all subsequent signups become DIRECTOR
+  // - all subsequent signups become USER
   return handleRegister(parsed, bootstrap, null, res);
 });
 
@@ -197,7 +197,7 @@ async function handleRegister(
 
   const passwordHash = await bcrypt.hash(body.password, 12);
 
-  const role: "ADMIN" | "DIRECTOR" = bootstrap ? "ADMIN" : "DIRECTOR";
+  const role: "ADMIN" | "USER" = bootstrap ? "ADMIN" : "USER";
 
   let directorId: number | null = null;
   if (body.director) {

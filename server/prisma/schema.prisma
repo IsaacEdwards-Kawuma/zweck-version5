@@ -28,7 +28,7 @@ model User {
   id         Int       @id @default(autoincrement())
   email      String    @unique
   password   String
-  role       Role      @default(DIRECTOR)
+  role       Role      @default(USER)
   directorId Int?      @unique
   director   Director? @relation(fields: [directorId], references: [id])
   createdAt  DateTime  @default(now())
@@ -51,6 +51,7 @@ model PasswordResetToken {
 
 enum Role {
   ADMIN
+  USER
   DIRECTOR
 }
 
