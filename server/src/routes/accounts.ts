@@ -103,6 +103,7 @@ router.get("/summary", async (_req, res) => {
   const balances = deriveBalances(txs);
 
   const assets = sumGroup(balances, "Assets");
+  const liabilities = sumGroup(balances, "Liabilities");
   const equity = sumGroup(balances, "Equity");
   const income = -sumGroup(balances, "Income");
   const expenses = sumGroup(balances, "Expenses");
@@ -112,6 +113,7 @@ router.get("/summary", async (_req, res) => {
     accounts: ACCOUNTS,
     balances,
     assets,
+    liabilities: -liabilities,
     equity: -equity,
     income,
     expenses,

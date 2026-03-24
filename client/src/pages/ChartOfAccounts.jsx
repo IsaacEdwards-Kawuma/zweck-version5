@@ -21,9 +21,10 @@ import {
   Legend
 } from "recharts";
 
-const GROUPS = ["Assets", "Equity", "Income", "Expenses"];
+const GROUPS = ["Assets", "Liabilities", "Equity", "Income", "Expenses"];
 const GROUP_BAR_COLORS = {
   Assets: "#0ea5e9",
+  Liabilities: "#f59e0b",
   Equity: "#a855f7",
   Income: "#22c55e",
   Expenses: "#ef4444"
@@ -38,6 +39,7 @@ export default function ChartOfAccounts() {
   const accounts = q.data?.accounts;
   const balances = q.data?.balances;
   const assetsTotal = q.data?.assets;
+  const liabilitiesTotal = q.data?.liabilities;
   const equityTotal = q.data?.equity;
   const incomeTotal = q.data?.income;
   const expensesTotal = q.data?.expenses;
@@ -67,7 +69,7 @@ export default function ChartOfAccounts() {
       for (const [key, meta] of Object.entries(accounts)) {
         if (meta.group !== g) continue;
         const bal = balances[key] || 0;
-        const display = g === "Income" || g === "Equity" ? -bal : bal;
+        const display = g === "Income" || g === "Equity" || g === "Liabilities" ? -bal : bal;
         out.push({
           key: `${g}-${key}`,
           short: meta.name.length > 22 ? `${meta.name.slice(0, 20)}…` : meta.name,
@@ -123,8 +125,9 @@ export default function ChartOfAccounts() {
         meta={`Generated ${new Date().toLocaleString()} · ZweckOS`}
       />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
         <MetricCard label="Total assets" value={eur(assetsTotal ?? 0)} />
+        <MetricCard label="Liabilities (display)" value={eur(liabilitiesTotal ?? 0)} />
         <MetricCard label="Equity (display)" value={eur(equityTotal ?? 0)} />
         <MetricCard label="Income (cumulative)" value={eur(incomeTotal ?? 0)} />
         <MetricCard label="Expenses (cumulative)" value={eur(expensesTotal ?? 0)} />
@@ -197,7 +200,7 @@ export default function ChartOfAccounts() {
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-600/80">
                   {rows.map((r) => {
-                    const display = g === "Income" || g === "Equity" ? -r.bal : r.bal;
+                    const display = g === "Income" || g === "Equity" || g === "Liabilities" ? -r.bal : r.bal;
                     const zero = Math.abs(display) < 0.0000001;
                     const pct = pctOfAssets(display, g);
                     return (
@@ -227,7 +230,7 @@ export default function ChartOfAccounts() {
       })}
 
       <div className="ui-stat-strip rounded-lg p-4 text-sm text-slate-700 dark:text-slate-300">
-        <strong className="text-slate-900 dark:text-slate-100">Note:</strong> Income and equity balances are shown with flipped sign for
+        <strong className="text-slate-900 dark:text-slate-100">Note:</strong> Income, liabilities, and equity balances are shown with flipped sign for
         readability (same convention as elsewhere in ZweckOS). Export includes raw display values per row.
       </div>
     </div>

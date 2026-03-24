@@ -14,7 +14,7 @@ const TX_ACCOUNT_MAP = {
   TX_CHARGE: { debit: "tx_charge", credit: "bank", needsDirector: false },
   LEGAL: { debit: "legal", credit: "bank", needsDirector: false },
   PENALTY: { debit: "bank", credit: "penalties", needsDirector: true },
-  LOAN_IN: { debit: "bank", credit: "loan_income", needsDirector: false },
+  LOAN_IN: { debit: "bank", credit: "loan_liability", needsDirector: false },
   OTHER_OUT: { debit: "other_exp", credit: "bank", needsDirector: false }
 };
 
