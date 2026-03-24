@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import Loading from "../components/Loading";
 import ErrorBanner from "../components/ErrorBanner";
 import { listAuditLogs } from "../api/audit";
+import { listLoginEvents } from "../api/users";
 import { useMe } from "../hooks/useMe";
 
 export default function AuditLog() {
@@ -11,8 +12,13 @@ export default function AuditLog() {
     queryFn: () => listAuditLogs(200),
     enabled: qMe.data?.role === "ADMIN"
   });
+  const qLogins = useQuery({
+    queryKey: ["login_events"],
+    queryFn: () => listLoginEvents(200),
+    enabled: qMe.data?.role === "ADMIN"
+  });
 
-  if (qMe.isLoading || q.isLoading) return <Loading label="Loading audit log..." />;
+  if (qMe.isLoading || q.isLoading || qLogins.isLoading) return <Loading label="Loading audit log..." />;
   if (qMe.error) return <ErrorBanner error={qMe.error} />;
   if (qMe.data?.role !== "ADMIN") {
     return (
@@ -22,8 +28,10 @@ export default function AuditLog() {
     );
   }
   if (q.error) return <ErrorBanner error={q.error} />;
+  if (qLogins.error) return <ErrorBanner error={qLogins.error} />;
 
   const rows = q.data || [];
+  const loginRows = qLogins.data || [];
 
   return (
     <div className="space-y-4">
@@ -66,6 +74,49 @@ export default function AuditLog() {
               <tr>
                 <td className="px-4 py-8 text-center text-slate-500 dark:text-slate-400" colSpan={5}>
                   No audit entries yet.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div>
+        <div className="text-lg font-semibold ui-page-heading">Login history</div>
+        <div className="text-sm ui-body-text">Recent successful sign-ins (newest first, max 200).</div>
+      </div>
+
+      <div className="ui-table-wrap">
+        <table className="min-w-full text-left text-sm">
+          <thead className="ui-table-head">
+            <tr>
+              <th className="px-4 py-3">When</th>
+              <th className="px-4 py-3">User</th>
+              <th className="px-4 py-3">Role</th>
+              <th className="px-4 py-3">IP</th>
+              <th className="px-4 py-3">User Agent</th>
+            </tr>
+          </thead>
+          <tbody className="ui-table-divide">
+            {loginRows.map((r) => (
+              <tr key={r.id} className="align-top">
+                <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-600 dark:text-slate-400">
+                  {new Date(r.createdAt).toLocaleString()}
+                </td>
+                <td className="px-4 py-3 text-xs text-slate-700 dark:text-slate-300">{r.user?.email || `#${r.userId}`}</td>
+                <td className="px-4 py-3 text-xs text-slate-700 dark:text-slate-300">{r.user?.role || "—"}</td>
+                <td className="px-4 py-3 text-xs text-slate-700 dark:text-slate-300">{r.ip || "—"}</td>
+                <td className="px-4 py-3 text-xs text-slate-700 dark:text-slate-300">
+                  <span className="inline-block max-w-[28rem] truncate align-bottom" title={r.userAgent || ""}>
+                    {r.userAgent || "—"}
+                  </span>
+                </td>
+              </tr>
+            ))}
+            {!loginRows.length && (
+              <tr>
+                <td className="px-4 py-8 text-center text-slate-500 dark:text-slate-400" colSpan={5}>
+                  No login entries yet.
                 </td>
               </tr>
             )}

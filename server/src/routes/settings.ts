@@ -2,6 +2,7 @@ import { Router } from "express";
 import { isS3AvatarStorageConfigured } from "../lib/avatarStorage.js";
 import { getPublicAppUrl } from "../lib/publicAppUrl.js";
 import { getServerPackageVersion } from "../lib/serverVersion.js";
+import { prisma } from "../lib/prisma.js";
 
 const router = Router();
 
@@ -9,8 +10,12 @@ const router = Router();
  * Authenticated summary for the Settings UI: monitoring flags, rate-limit numbers, version.
  * Does not expose secrets (DSN, SMTP passwords, JWT).
  */
-router.get("/", (req, res) => {
+router.get("/", async (req, res) => {
   const user = req.user!;
+  const dbUser = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { lastLoginAt: true }
+  });
   res.json({
     app: {
       name: "ZweckOS API",
@@ -20,7 +25,8 @@ router.get("/", (req, res) => {
       userId: user.id,
       email: user.email,
       role: user.role,
-      directorId: user.directorId
+      directorId: user.directorId,
+      lastLoginAt: dbUser?.lastLoginAt ?? null
     },
     runtime: {
       nodeEnv: process.env.NODE_ENV || "development",

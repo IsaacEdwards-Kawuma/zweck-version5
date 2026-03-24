@@ -301,6 +301,12 @@ export default function Settings() {
           </span>
         </p>
         <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-slate-600 dark:text-slate-300">
+            Last login:{" "}
+            <strong className="text-slate-900 dark:text-slate-100">
+              {session.lastLoginAt ? new Date(session.lastLoginAt).toLocaleString() : "—"}
+            </strong>
+          </span>
           <Link
             className="font-medium text-brand-700 underline-offset-2 hover:text-brand-800 hover:underline"
             to="/forgot-password"

@@ -27,6 +27,18 @@ vi.mock("../src/lib/prisma.js", () => ({
         .fn()
         .mockResolvedValue({ id: 301, periodFrom: "2026-03-01", statementDate: "2026-03-31", notes: "x", clearedMap: {} })
     },
+    loginEvent: {
+      findMany: vi.fn().mockResolvedValue([
+        {
+          id: 1,
+          userId: 2,
+          success: true,
+          ip: "127.0.0.1",
+          userAgent: "vitest",
+          createdAt: new Date().toISOString()
+        }
+      ])
+    },
     auditLog: {
       create: vi.fn().mockResolvedValue({ id: 1 })
     }
@@ -88,5 +100,32 @@ describe("workspace RBAC", () => {
       clearedMap: {}
     });
     expect(r.status).toBe(200);
+  });
+
+  it("allows USER self login-events and blocks USER admin login-events endpoint", async () => {
+    const { createApp } = await import("../src/app.js");
+    const app = createApp();
+
+    const mine = await request(app).get("/api/users/me/login-events");
+    expect(mine.status).toBe(200);
+
+    const adminOnly = await request(app).get("/api/users/login-events/all");
+    expect(adminOnly.status).toBe(403);
+  });
+
+  it("allows ADMIN login-events endpoint", async () => {
+    findFirstMock.mockResolvedValue({
+      id: 1,
+      email: "admin@example.com",
+      role: "ADMIN",
+      directorId: null
+    });
+
+    const { createApp } = await import("../src/app.js");
+    const app = createApp();
+
+    const res = await request(app).get("/api/users/login-events/all");
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
   });
 });

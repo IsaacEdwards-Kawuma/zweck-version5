@@ -39,11 +39,25 @@ model User {
   role       Role      @default(USER)
   directorId Int?      @unique
   director   Director? @relation(fields: [directorId], references: [id])
+  lastLoginAt DateTime?
   createdAt  DateTime  @default(now())
 
   projectsCreated Project[]     @relation("ProjectCreator")
   tasksCreated    ProjectTask[] @relation("TaskCreator")
   passwordResetTokens PasswordResetToken[]
+  loginEvents LoginEvent[]
+}
+
+model LoginEvent {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  success   Boolean  @default(true)
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
 
 model PasswordResetToken {

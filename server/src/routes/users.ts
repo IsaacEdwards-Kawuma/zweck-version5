@@ -10,6 +10,13 @@ const updateRoleBody = z.object({
   role: z.enum(["ADMIN", "USER", "DIRECTOR"])
 });
 
+function parseLimit(raw: unknown, fallback: number) {
+  if (raw == null || raw === "") return fallback;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 1 || n > 500) return null;
+  return Math.floor(n);
+}
+
 router.get("/", requireRole("ADMIN"), async (_req: Request, res: Response) => {
   const users = await prisma.user.findMany({
     orderBy: { createdAt: "asc" },
@@ -78,6 +85,48 @@ router.patch(
     return res.json(updated);
   }
 );
+
+router.get("/me/login-events", async (req: Request, res: Response) => {
+  if (!req.user) return res.status(401).json(apiError("Unauthorized"));
+  const limit = parseLimit(req.query?.limit, 50);
+  if (limit == null) return res.status(400).json(apiError("Invalid query parameters"));
+
+  const rows = await prisma.loginEvent.findMany({
+    where: { userId: req.user.id },
+    orderBy: { createdAt: "desc" },
+    take: limit
+  });
+  return res.json(rows);
+});
+
+router.get("/login-events/all", requireRole("ADMIN"), async (req: Request, res: Response) => {
+  const limit = parseLimit(req.query?.limit, 200);
+  if (limit == null) return res.status(400).json(apiError("Invalid query parameters"));
+  const rows = await prisma.loginEvent.findMany({
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    include: {
+      user: {
+        select: { id: true, email: true, role: true }
+      }
+    }
+  });
+  return res.json(rows);
+});
+
+router.get("/:id/login-events", requireRole("ADMIN"), async (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) return res.status(400).json(apiError("Invalid id"));
+  const limit = parseLimit(req.query?.limit, 100);
+  if (limit == null) return res.status(400).json(apiError("Invalid query parameters"));
+
+  const rows = await prisma.loginEvent.findMany({
+    where: { userId: id },
+    orderBy: { createdAt: "desc" },
+    take: limit
+  });
+  return res.json(rows);
+});
 
 export default router;
 

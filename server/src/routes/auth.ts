@@ -52,6 +52,14 @@ function signToken(user: { id: number; email: string; role: "ADMIN" | "USER" | "
   return jwt.sign(payload, getSecret(), { expiresIn: "7d" });
 }
 
+function requestIp(req: { headers: Record<string, unknown>; ip?: string }): string | null {
+  const forwarded = req.headers["x-forwarded-for"];
+  if (typeof forwarded === "string" && forwarded.trim()) {
+    return forwarded.split(",")[0]?.trim() || null;
+  }
+  return req.ip || null;
+}
+
 router.post(
   "/login",
   loginLimiter,
@@ -68,6 +76,23 @@ router.post(
 
     const ok = await bcrypt.compare(password, user.password);
     if (!ok) return res.status(401).json(apiError("Invalid email or password"));
+
+    const ip = requestIp(req);
+    const userAgent = req.headers["user-agent"] || null;
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: new Date() }
+      }),
+      prisma.loginEvent.create({
+        data: {
+          userId: user.id,
+          success: true,
+          ip,
+          userAgent: typeof userAgent === "string" ? userAgent : null
+        }
+      })
+    ]);
 
     const token = signToken({ id: user.id, email: user.email, role: user.role, directorId: user.directorId ?? null });
     return res.json({ token });
@@ -238,7 +263,7 @@ async function handleRegister(
 router.get("/me", requireAuth, async (req, res) => {
   const user = await prisma.user.findUnique({
     where: { id: req.user!.id },
-    select: { id: true, email: true, role: true, directorId: true, createdAt: true }
+    select: { id: true, email: true, role: true, directorId: true, createdAt: true, lastLoginAt: true }
   });
   if (user) return res.json(user);
   if (isAuthDisabled() && req.user) {
@@ -247,7 +272,8 @@ router.get("/me", requireAuth, async (req, res) => {
       email: req.user.email,
       role: req.user.role,
       directorId: req.user.directorId,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      lastLoginAt: null
     });
   }
   return res.status(404).json(apiError("User not found"));
