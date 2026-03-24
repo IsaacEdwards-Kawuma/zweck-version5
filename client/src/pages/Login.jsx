@@ -3,6 +3,15 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import ErrorBanner from "../components/ErrorBanner";
 import { login, register } from "../api/auth";
 
+function isNetworkNoResponse(err) {
+  const root = err?.cause ?? err;
+  return !root?.response && (root?.code === "ERR_NETWORK" || root?.message === "Network Error");
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export default function Login() {
   const nav = useNavigate();
   const location = useLocation();
@@ -25,6 +34,23 @@ export default function Login() {
       localStorage.setItem("zweck_token", data.token);
       nav("/");
     } catch (e2) {
+      // Practical recovery: sometimes signup/login succeeds on backend but proxy/network response is dropped.
+      // Retry login once; for signup flow, auto-login usually works if the account was just created.
+      if (isNetworkNoResponse(e2)) {
+        try {
+          if (mode === "login") {
+            await sleep(700);
+          }
+          const retry = await login(email, password);
+          if (retry?.token) {
+            localStorage.setItem("zweck_token", retry.token);
+            nav("/");
+            return;
+          }
+        } catch {
+          // keep original error below
+        }
+      }
       setErr(e2);
     } finally {
       setLoading(false);
