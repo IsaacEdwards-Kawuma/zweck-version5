@@ -72,6 +72,13 @@ model PasswordResetToken {
   @@index([userId])
 }
 
+/** Singleton row `id = 1`: editable About page copy (admin-managed). */
+model AboutPage {
+  id        Int      @id
+  payload   Json
+  updatedAt DateTime @updatedAt
+}
+
 enum Role {
   ADMIN
   USER

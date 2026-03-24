@@ -28,6 +28,7 @@ import meetingsRoutes from "./routes/meetings.js";
 import documentsRoutes from "./routes/documents.js";
 import reconciliationRoutes from "./routes/reconciliation.js";
 import reportsRoutes from "./routes/reports.js";
+import aboutPageRoutes from "./routes/aboutPage.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const openapiDocument = JSON.parse(readFileSync(join(__dirname, "openapi.json"), "utf8")) as Record<string, unknown>;
@@ -112,6 +113,7 @@ export function createApp(): express.Express {
   app.use("/api/documents", documentsRoutes);
   app.use("/api/reconciliation", reconciliationRoutes);
   app.use("/api/reports", reportsRoutes);
+  app.use("/api/about-page", aboutPageRoutes);
 
   app.use((_req, res) => res.status(404).json(apiError("Not found")));
 
