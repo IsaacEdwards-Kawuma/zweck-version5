@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "ZweckOS API",
-    "description": "Internal accounting and operations API. Authenticated routes except `/auth/login`, `/auth/register`, `/auth/forgot-password`, `/auth/reset-password`, `/health`, `/docs`, `/openapi.json`.",
+    "description": "Internal accounting and operations API. Authenticated routes except `/auth/login`, `/auth/register`, `/auth/forgot-password`, `/auth/reset-password`, `/health`, `/docs`, `/openapi.json`. Scheduled jobs under `/jobs/*` use `CRON_SECRET` (header `X-Cron-Secret` or `Authorization: Bearer`), not JWT.",
     "version": "1.0.0"
   },
   "servers": [{ "url": "/api", "description": "Relative to API origin" }],
@@ -21,7 +21,8 @@
     { "name": "admin" },
     { "name": "about-page" },
     { "name": "meetings" },
-    { "name": "integrations" }
+    { "name": "integrations" },
+    { "name": "jobs" }
   ],
   "components": {
     "securitySchemes": {
@@ -29,6 +30,11 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "JWT"
+      },
+      "cronSecret": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Cron-Secret"
       }
     },
     "schemas": {
@@ -275,7 +281,79 @@
         "tags": ["settings"],
         "summary": "Settings / monitoring summary (authenticated)",
         "security": [{ "bearerAuth": [] }],
-        "responses": { "200": { "description": "Version, uptime, monitoring flags, rate limits" } }
+        "responses": {
+          "200": {
+            "description": "Version, uptime, monitoring flags, rate limits. `session` includes `emailMeetingReminders` (boolean)."
+          }
+        }
+      }
+    },
+    "/settings/notifications": {
+      "patch": {
+        "tags": ["settings"],
+        "summary": "Update email notification preferences",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["emailMeetingReminders"],
+                "properties": {
+                  "emailMeetingReminders": {
+                    "type": "boolean",
+                    "description": "When true, eligible users may receive meeting reminder emails (admins, directors, meeting creator)."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated preference",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "emailMeetingReminders": { "type": "boolean" } }
+                }
+              }
+            }
+          },
+          "400": { "description": "Invalid body" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/jobs/meeting-reminders": {
+      "post": {
+        "tags": ["jobs"],
+        "summary": "Run meeting reminder email job (scheduler)",
+        "description": "Call daily from a cron or external scheduler. Not for browser use. Requires `CRON_SECRET` on the server; send the same value in `X-Cron-Secret` or as `Authorization: Bearer <secret>`.",
+        "security": [{ "cronSecret": [] }],
+        "responses": {
+          "200": {
+            "description": "Job result counts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "checked": { "type": "integer" },
+                    "sent": { "type": "integer" },
+                    "skipped": { "type": "integer" },
+                    "errors": { "type": "array", "items": { "type": "string" } }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Missing or wrong secret" },
+          "503": { "description": "`CRON_SECRET` not configured on server" },
+          "500": { "description": "Job failed" }
+        }
       }
     },
     "/search": {

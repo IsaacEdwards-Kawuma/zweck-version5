@@ -15,6 +15,7 @@ Use a **separate** Neon (or Postgres) database and a **separate** Render service
 - Copy `server/.env.example` and point `DATABASE_URL` at the staging database.
 - Use a **different** `JWT_SECRET` from production (tokens must not be interchangeable).
 - Set `ALLOWED_ORIGINS` / `CLIENT_ORIGIN` to your staging front-end URL only.
+- If you test meeting reminder emails, set `CRON_SECRET`, SMTP, and schedule `POST /api/jobs/meeting-reminders` against the staging API only.
 
 ## Migrations
 

@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Loading from "../components/Loading";
 import ErrorBanner from "../components/ErrorBanner";
 import ThemeSettings from "../components/ThemeSettings";
-import { getHealth, getSettings } from "../api/settings";
+import { getHealth, getSettings, updateNotificationPreferences } from "../api/settings";
 import { listUsers, updateUserRole, listLoginEvents, listMyLoginEvents } from "../api/users";
 import { pingIntegration } from "../api/integrations";
 
@@ -82,6 +82,7 @@ const APP_FEATURES = [
 
 const NAV = [
   { href: "#settings-account", label: "Account" },
+  { href: "#settings-notifications", label: "Notifications" },
   { href: "#settings-my-logins", label: "My logins" },
   { href: "#settings-workspace", label: "Workspace" },
   { href: "#settings-theme", label: "Theme" },
@@ -511,6 +512,37 @@ export default function Settings() {
         </div>
       </section>
 
+      <section id="settings-notifications" className={SECTION}>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          Email notifications
+        </h2>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+          Meeting reminders go to opted-in administrators, directors, and the person who created the meeting. Turn this off
+          if you do not want these emails at your address.
+        </p>
+        <label className="mt-4 inline-flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/40">
+          <input
+            type="checkbox"
+            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+            checked={session.emailMeetingReminders !== false}
+            disabled={mNotifications.isPending}
+            onChange={(e) => mNotifications.mutate(e.target.checked)}
+          />
+          <span>
+            <span className="font-medium text-slate-900 dark:text-slate-100">Meeting reminder emails</span>
+            <span className="mt-1 block text-xs text-slate-600 dark:text-slate-400">
+              Requires SMTP on the server. A daily scheduled job sends reminders when a meeting&apos;s date minus reminder
+              days matches today (UTC).
+            </span>
+          </span>
+        </label>
+        {mNotifications.error ? (
+          <div className="mt-3">
+            <ErrorBanner error={mNotifications.error} />
+          </div>
+        ) : null}
+      </section>
+
       <section id="settings-my-logins" className={SECTION}>
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
           My login activity
@@ -631,7 +663,8 @@ export default function Settings() {
           <StatusDot ok={monitoring.structuredLogging} label="Structured logs (pino)" />
           <StatusDot ok={monitoring.sentryServer} label="Sentry (server)" />
           <StatusDot ok={clientSentry} label="Sentry (browser build)" />
-          <StatusDot ok={monitoring.smtpConfigured} label="SMTP (password reset email)" />
+          <StatusDot ok={monitoring.smtpConfigured} label="SMTP (password reset &amp; reminders)" />
+          <StatusDot ok={monitoring.cronSecretConfigured} label="CRON_SECRET (meeting reminder job)" />
           <StatusDot ok={monitoring.publicAppUrlConfigured} label="Public app URL for reset links" />
           <div className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
             <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-sky-500 shadow-sm shadow-sky-500/30" aria-hidden />

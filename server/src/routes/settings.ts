@@ -3,6 +3,7 @@ import { isS3AvatarStorageConfigured } from "../lib/avatarStorage.js";
 import { getPublicAppUrl } from "../lib/publicAppUrl.js";
 import { getServerPackageVersion } from "../lib/serverVersion.js";
 import { prisma } from "../lib/prisma.js";
+import { apiError } from "../lib/http.js";
 
 const router = Router();
 
@@ -15,7 +16,7 @@ router.get("/", async (req, res) => {
   const isAdmin = user.role === "ADMIN";
   const dbUser = await prisma.user.findUnique({
     where: { id: user.id },
-    select: { lastLoginAt: true }
+    select: { lastLoginAt: true, emailMeetingReminders: true }
   });
   res.json({
     app: {
@@ -27,7 +28,8 @@ router.get("/", async (req, res) => {
       email: user.email,
       role: user.role,
       directorId: user.directorId,
-      lastLoginAt: dbUser?.lastLoginAt ?? null
+      lastLoginAt: dbUser?.lastLoginAt ?? null,
+      emailMeetingReminders: dbUser?.emailMeetingReminders ?? true
     },
     runtime: isAdmin
       ? {
@@ -94,6 +96,20 @@ router.get("/", async (req, res) => {
       docs: "/api/docs"
     }
   });
+});
+
+router.patch("/notifications", async (req, res) => {
+  const user = req.user!;
+  const raw = req.body?.emailMeetingReminders;
+  if (typeof raw !== "boolean") {
+    return res.status(400).json(apiError("emailMeetingReminders must be a boolean"));
+  }
+  const updated = await prisma.user.update({
+    where: { id: user.id },
+    data: { emailMeetingReminders: raw },
+    select: { emailMeetingReminders: true }
+  });
+  res.json({ emailMeetingReminders: updated.emailMeetingReminders });
 });
 
 export default router;

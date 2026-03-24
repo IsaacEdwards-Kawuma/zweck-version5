@@ -65,8 +65,13 @@ Add **each row** as a separate variable if you add manually. Values below are **
 | `CLIENT_ORIGIN` | No | Optional single URL if you prefer: `https://your-app.vercel.app` |
 | `ALLOW_VERCEL_PREVIEWS` | No | `true` to allow any `https://*.vercel.app` (preview deployments). |
 | `HOST` | No | Default `0.0.0.0` (already in code). |
+| `CRON_SECRET` | No† | Long random string (e.g. `openssl rand -hex 32`). Without it, `POST /api/jobs/meeting-reminders` returns 503. |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | No | Needed to send reminder emails (same as password reset). |
+| `PUBLIC_APP_URL` or `CLIENT_ORIGIN` | No | Used in email links to the app. |
 
 \*Required for the browser app to call the API without CORS errors. Use your **exact** Vercel production URL(s).
+
+†Optional unless you schedule meeting reminders: set `CRON_SECRET`, configure SMTP, then call the job daily (see **Meeting reminder cron** below).
 
 ### Do **not** commit these to Git
 
@@ -83,6 +88,16 @@ Local copies go in `server/.env` (gitignored) — see `server/.env.example`.
 If build fails with Prisma migration state errors (`P3009`, `P3018`), follow:
 
 - **[PRISMA_MIGRATION_RECOVERY.md](./PRISMA_MIGRATION_RECOVERY.md)**
+
+## Meeting reminder cron
+
+The API exposes **`POST /api/jobs/meeting-reminders`** (not JWT-protected). Send the same value as **`CRON_SECRET`** in the **`X-Cron-Secret`** header or as **`Authorization: Bearer <secret>`**.
+
+Schedule it **once per day** (UTC) from Render **Cron Jobs**, GitHub Actions, or another scheduler hitting your API origin, for example:
+
+`curl -X POST -H "X-Cron-Secret: $CRON_SECRET" "https://<your-service-name>.onrender.com/api/jobs/meeting-reminders"`
+
+Users can opt out under **Settings → Notifications** in the app (`emailMeetingReminders`).
 
 ## Blueprint file
 

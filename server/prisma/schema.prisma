@@ -40,6 +40,8 @@ model User {
   directorId Int?      @unique
   director   Director? @relation(fields: [directorId], references: [id])
   lastLoginAt DateTime?
+  /** When true, user may receive meeting reminder emails (admins, directors, and meeting creator). */
+  emailMeetingReminders Boolean @default(true)
   createdAt  DateTime  @default(now())
 
   projectsCreated Project[]     @relation("ProjectCreator")
@@ -250,8 +252,18 @@ model Meeting {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
+  reminderSent MeetingReminderSent?
+
   @@index([date])
   @@index([status])
+}
+
+/** One row per meeting after the reminder email has been sent (idempotent). */
+model MeetingReminderSent {
+  id        Int      @id @default(autoincrement())
+  meetingId Int      @unique
+  meeting   Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  sentAt    DateTime @default(now())
 }
 
 model DocumentRegister {

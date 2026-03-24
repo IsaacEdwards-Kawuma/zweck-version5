@@ -1,6 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/app.js";
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 describe("createApp", () => {
   it("GET /api/health returns ok", async () => {
@@ -63,5 +67,33 @@ describe("createApp", () => {
       mode: "summary"
     });
     expect(res.status).toBe(401);
+  });
+
+  it("POST /api/jobs/meeting-reminders returns 503 when CRON_SECRET is empty", async () => {
+    vi.stubEnv("CRON_SECRET", "");
+    const app = createApp();
+    const res = await request(app).post("/api/jobs/meeting-reminders");
+    expect(res.status).toBe(503);
+    expect(res.body.message).toMatch(/CRON_SECRET/i);
+  });
+
+  it("POST /api/jobs/meeting-reminders returns 401 when secret is wrong", async () => {
+    vi.stubEnv("CRON_SECRET", "correct-cron-secret");
+    const app = createApp();
+    const res = await request(app).post("/api/jobs/meeting-reminders").set("X-Cron-Secret", "wrong");
+    expect(res.status).toBe(401);
+  });
+
+  it("POST /api/jobs/meeting-reminders accepts Authorization Bearer for secret", async () => {
+    vi.stubEnv("CRON_SECRET", "correct-cron-secret");
+    const app = createApp();
+    const res = await request(app)
+      .post("/api/jobs/meeting-reminders")
+      .set("Authorization", "Bearer correct-cron-secret");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("checked");
+    expect(res.body).toHaveProperty("sent");
+    expect(res.body).toHaveProperty("skipped");
+    expect(Array.isArray(res.body.errors)).toBe(true);
   });
 });

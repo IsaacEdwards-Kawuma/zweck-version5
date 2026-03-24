@@ -31,3 +31,16 @@ ALLOW_VERCEL_PREVIEWS=false
 # Flag burst when N failed attempts happen inside M minutes for same user.
 FAILED_LOGIN_BURST_THRESHOLD=5
 FAILED_LOGIN_BURST_WINDOW_MINUTES=10
+
+# Optional — meeting reminder cron job (POST /api/jobs/meeting-reminders). See RENDER_SETTINGS.md.
+# CRON_SECRET=REPLACE_WITH_OPENSSL_RAND_HEX_32
+
+# Optional — SMTP (password reset + meeting reminders)
+# SMTP_HOST=
+# SMTP_PORT=587
+# SMTP_USER=
+# SMTP_PASS=
+# SMTP_FROM=
+
+# Optional — links in emails (password reset, meeting reminders)
+# PUBLIC_APP_URL=https://your-app.vercel.app

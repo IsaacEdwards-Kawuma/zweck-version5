@@ -10,3 +10,8 @@ export async function getHealth() {
   const { data } = await api.get("/health");
   return data;
 }
+
+export async function updateNotificationPreferences({ emailMeetingReminders }) {
+  const { data } = await api.patch("/settings/notifications", { emailMeetingReminders });
+  return data;
+}

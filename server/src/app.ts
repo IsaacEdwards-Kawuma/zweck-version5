@@ -32,6 +32,7 @@ import aboutPageRoutes from "./routes/aboutPage.js";
 import searchRoutes from "./routes/search.js";
 import adminExportRoutes from "./routes/adminExport.js";
 import integrationsRoutes from "./routes/integrations.js";
+import jobsRoutes from "./routes/jobs.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const openapiDocument = JSON.parse(readFileSync(join(__dirname, "openapi.json"), "utf8")) as Record<string, unknown>;
@@ -81,6 +82,7 @@ export function createApp(): express.Express {
       const pathOnly = req.originalUrl?.split("?")[0] || "";
       if (pathOnly === "/api/health" || pathOnly.startsWith("/api/uploads")) return true;
       if (pathOnly === "/api/openapi.json" || pathOnly.startsWith("/api/docs")) return true;
+      if (pathOnly.startsWith("/api/jobs/")) return true;
       return false;
     }
   });
@@ -100,6 +102,8 @@ export function createApp(): express.Express {
   app.use("/api/uploads", express.static(uploadRoot));
 
   app.use("/api/auth", authRoutes);
+
+  app.use("/api/jobs", jobsRoutes);
 
   app.use("/api", requireAuth);
   app.use("/api/transactions", transactionsRoutes);
