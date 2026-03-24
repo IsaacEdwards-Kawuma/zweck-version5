@@ -673,7 +673,7 @@ export default function Reports() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="ui-animate-in space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="text-lg font-semibold ui-page-heading">Reports</div>
@@ -706,7 +706,7 @@ export default function Reports() {
         meta={`Generated ${new Date().toLocaleString()} · ZweckOS`}
       />
 
-      <div className="ui-surface rounded-xl p-4 print:hidden">
+      <div className="ui-animate-pop ui-surface rounded-xl p-4 print:hidden">
         <div className="text-sm font-semibold ui-page-heading">Date range</div>
         <p className="text-xs ui-page-muted">Leave blank to include all posted transactions.</p>
         <div className="mt-3 flex flex-wrap items-end gap-3">
@@ -739,7 +739,7 @@ export default function Reports() {
         />
       </div>
 
-      <section className="ui-surface rounded-2xl p-4">
+      <section className="ui-animate-pop ui-surface rounded-2xl p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="text-sm font-semibold ui-page-heading">Profit and Loss Statement</div>
           <div className="flex flex-wrap gap-2">
@@ -814,7 +814,7 @@ export default function Reports() {
         </div>
       </section>
 
-      <section className="ui-surface rounded-2xl p-4">
+      <section className="ui-animate-pop ui-surface rounded-2xl p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="text-sm font-semibold ui-page-heading">Balance Sheet</div>
           <div className="flex flex-wrap gap-2">
@@ -858,7 +858,7 @@ export default function Reports() {
         </div>
       </section>
 
-      <section className="ui-surface rounded-2xl p-4">
+      <section className="ui-animate-pop ui-surface rounded-2xl p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="text-sm font-semibold ui-page-heading">Cash Flow Statement</div>
           <div className="flex flex-wrap gap-2">
@@ -902,7 +902,7 @@ export default function Reports() {
         </div>
       </section>
 
-      <section className="ui-surface rounded-2xl p-4">
+      <section className="ui-animate-pop ui-surface rounded-2xl p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="text-sm font-semibold ui-page-heading">Director Capital Statement</div>
           <div className="flex items-center gap-2">
@@ -990,7 +990,7 @@ export default function Reports() {
                 value={comparePct(selectedDirectorStatement.closingTotal, selectedDirectorStatement.previousTotal)}
               />
             </div>
-            <div className="overflow-x-auto">
+            <div className="ui-table-wrap">
               <table className="min-w-full text-left text-sm">
                 <thead className="ui-table-head">
                   <tr>
@@ -1002,7 +1002,7 @@ export default function Reports() {
                 </thead>
                 <tbody className="ui-table-divide">
                   {selectedDirectorStatement.movementRows.map((r) => (
-                    <tr key={r.id}>
+                    <tr key={r.id} className="ui-table-row-hover">
                       <td className="px-3 py-2">{fmtDate(r.date)}</td>
                       <td className="px-3 py-2">{r.typeLabel}</td>
                       <td className="px-3 py-2">{r.description || "—"}</td>
@@ -1021,7 +1021,7 @@ export default function Reports() {
             </div>
           </div>
         ) : (
-          <div className="mt-3 overflow-x-auto">
+          <div className="ui-table-wrap mt-3">
             <table className="min-w-full text-left text-sm">
               <thead className="ui-table-head">
                 <tr>
@@ -1155,9 +1155,9 @@ export default function Reports() {
         </div>
       </div>
 
-      <div className="ui-surface rounded-2xl p-4">
+      <div className="ui-animate-pop ui-surface rounded-2xl p-4">
         <div className="mb-2 text-sm font-semibold ui-page-heading">Monthly summary</div>
-        <div className="overflow-x-auto">
+        <div className="ui-table-wrap">
           <table className="min-w-full text-left text-sm">
             <thead className="ui-table-head">
               <tr>
@@ -1168,7 +1168,7 @@ export default function Reports() {
                 <th className="px-3 py-2 text-right">Net</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="ui-table-divide">
               {monthlyTable.map((row) => (
                 <tr key={row.month}>
                   <td className="px-3 py-2 font-mono text-xs">{row.month}</td>
@@ -1190,9 +1190,9 @@ export default function Reports() {
         </div>
       </div>
 
-      <div className="ui-surface rounded-2xl p-4">
+      <div className="ui-animate-pop ui-surface rounded-2xl p-4">
         <div className="mb-2 text-sm font-semibold ui-page-heading">Most recent 10 transactions (in range)</div>
-        <div className="overflow-x-auto">
+        <div className="ui-table-wrap">
           <table className="min-w-full text-left text-sm">
             <thead className="ui-table-head">
               <tr>

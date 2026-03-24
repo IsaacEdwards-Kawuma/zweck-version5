@@ -162,7 +162,7 @@ export default function Projects() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="ui-animate-in space-y-6">
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5 print:hidden">
         <StatCard label="Total projects" value={stats.total} />
         <StatCard label="In progress" value={stats.active} />
@@ -171,8 +171,9 @@ export default function Projects() {
         <StatCard label="High priority" value={stats.highPriority} />
       </section>
 
-      <div className="flex flex-wrap items-start justify-between gap-4 print:hidden">
-        <div className="text-sm text-slate-600">
+      <div className="ui-surface rounded-xl p-3 print:hidden">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="text-sm ui-page-muted">
           Create projects, set leaders, contacts, budgets, then open a project for tasks and spend tracking.
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -231,14 +232,11 @@ export default function Projects() {
           <button type="button" className="ui-btn-outline" onClick={exportCsv}>
             Export CSV
           </button>
-          <button
-            type="button"
-            className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-700"
-            onClick={() => setShowForm((v) => !v)}
-          >
+          <button type="button" className="ui-btn-outline" onClick={() => setShowForm((v) => !v)}>
             {showForm ? "Close form" : "New project"}
           </button>
         </div>
+      </div>
       </div>
 
       <PrintStatementHeader
@@ -249,7 +247,7 @@ export default function Projects() {
 
       {showForm ? (
         <form
-          className="space-y-3 rounded-xl ui-surface p-4 print:hidden"
+          className="ui-animate-pop space-y-3 rounded-xl ui-surface p-4 print:hidden"
           onSubmit={(e) => {
             e.preventDefault();
             if (!form.name.trim()) return;
@@ -261,7 +259,7 @@ export default function Projects() {
             <div className="md:col-span-2">
               <label className="text-xs font-medium text-slate-700">Name *</label>
               <input
-                className="mt-1 w-full rounded-lg border-slate-300"
+                className="ui-input mt-1 w-full"
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                 required
@@ -270,7 +268,7 @@ export default function Projects() {
             <div className="md:col-span-2">
               <label className="text-xs font-medium text-slate-700">Description</label>
               <textarea
-                className="mt-1 w-full rounded-lg border-slate-300"
+                className="ui-input mt-1 w-full"
                 rows={2}
                 value={form.description}
                 onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
@@ -279,7 +277,7 @@ export default function Projects() {
             <div>
               <label className="text-xs font-medium text-slate-700">Status</label>
               <select
-                className="mt-1 w-full rounded-lg border-slate-300"
+                className="ui-input mt-1 w-full"
                 value={form.status}
                 onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
               >
@@ -293,7 +291,7 @@ export default function Projects() {
             <div>
               <label className="text-xs font-medium text-slate-700">Priority</label>
               <select
-                className="mt-1 w-full rounded-lg border-slate-300"
+                className="ui-input mt-1 w-full"
                 value={form.priority}
                 onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))}
               >
@@ -308,7 +306,7 @@ export default function Projects() {
               <label className="text-xs font-medium text-slate-700">Start date</label>
               <input
                 type="date"
-                className="mt-1 w-full rounded-lg border-slate-300"
+                className="ui-input mt-1 w-full"
                 value={form.startDate}
                 onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))}
               />
@@ -317,7 +315,7 @@ export default function Projects() {
               <label className="text-xs font-medium text-slate-700">Target end date</label>
               <input
                 type="date"
-                className="mt-1 w-full rounded-lg border-slate-300"
+                className="ui-input mt-1 w-full"
                 value={form.endDate}
                 onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))}
               />
@@ -325,7 +323,7 @@ export default function Projects() {
             <div>
               <label className="text-xs font-medium text-slate-700">Program</label>
               <select
-                className="mt-1 w-full rounded-lg border-slate-300"
+                className="ui-input mt-1 w-full"
                 value={form.projectKind}
                 onChange={(e) => setForm((f) => ({ ...f, projectKind: e.target.value }))}
               >
@@ -339,7 +337,7 @@ export default function Projects() {
             <div>
               <label className="text-xs font-medium text-slate-700">Project leader</label>
               <select
-                className="mt-1 w-full rounded-lg border-slate-300"
+                className="ui-input mt-1 w-full"
                 value={form.leaderDirectorId}
                 onChange={(e) => setForm((f) => ({ ...f, leaderDirectorId: e.target.value }))}
               >
@@ -354,7 +352,7 @@ export default function Projects() {
             <div>
               <label className="text-xs font-medium text-slate-700">Budget (planned)</label>
               <input
-                className="mt-1 w-full rounded-lg border-slate-300"
+                className="ui-input mt-1 w-full"
                 inputMode="decimal"
                 value={form.budget}
                 onChange={(e) => setForm((f) => ({ ...f, budget: e.target.value }))}
@@ -364,7 +362,7 @@ export default function Projects() {
             <div>
               <label className="text-xs font-medium text-slate-700">Budget spent (recorded)</label>
               <input
-                className="mt-1 w-full rounded-lg border-slate-300"
+                className="ui-input mt-1 w-full"
                 inputMode="decimal"
                 value={form.budgetSpent}
                 onChange={(e) => setForm((f) => ({ ...f, budgetSpent: e.target.value }))}
@@ -383,20 +381,20 @@ export default function Projects() {
               <label className="text-xs font-medium text-slate-700">Contact person</label>
               <div className="mt-1 grid grid-cols-1 gap-2 sm:grid-cols-3">
                 <input
-                  className="rounded-lg border-slate-300"
+                  className="ui-input"
                   placeholder="Name"
                   value={form.contactName}
                   onChange={(e) => setForm((f) => ({ ...f, contactName: e.target.value }))}
                 />
                 <input
-                  className="rounded-lg border-slate-300"
+                  className="ui-input"
                   placeholder="Email"
                   type="email"
                   value={form.contactEmail}
                   onChange={(e) => setForm((f) => ({ ...f, contactEmail: e.target.value }))}
                 />
                 <input
-                  className="rounded-lg border-slate-300"
+                  className="ui-input"
                   placeholder="Phone"
                   value={form.contactPhone}
                   onChange={(e) => setForm((f) => ({ ...f, contactPhone: e.target.value }))}
@@ -404,19 +402,15 @@ export default function Projects() {
               </div>
             </div>
           </div>
-          <button
-            type="submit"
-            disabled={mCreate.isPending || qDirs.isLoading}
-            className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
-          >
+          <button type="submit" disabled={mCreate.isPending || qDirs.isLoading} className="ui-btn-outline">
             {mCreate.isPending ? "Saving…" : "Create project"}
           </button>
         </form>
       ) : null}
 
-      <div className="ui-table-wrap">
+      <div className="ui-animate-pop ui-table-wrap">
         <table className="min-w-full text-left text-sm">
-          <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-600">
+          <thead className="ui-table-head">
             <tr>
               <th className="px-4 py-3">Code</th>
               <th className="px-4 py-3">Project</th>
@@ -431,7 +425,7 @@ export default function Projects() {
               <th className="px-4 py-3 print:hidden"> </th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="ui-table-divide">
             {rows.length === 0 ? (
               <tr>
                 <td colSpan={11} className="px-4 py-8 text-center text-slate-500">
@@ -440,7 +434,7 @@ export default function Projects() {
               </tr>
             ) : (
               rows.map((p) => (
-                <tr key={p.id} className="border-b border-slate-100 hover:bg-slate-50/80">
+                <tr key={p.id} className="ui-table-row-hover">
                   <td className="px-4 py-3 font-mono text-xs text-slate-700">{p.code}</td>
                   <td className="px-4 py-3 font-medium text-slate-900">{p.name}</td>
                   <td className="px-4 py-3 text-xs text-slate-700">{PROJECT_KIND[p.projectKind] || p.projectKind}</td>

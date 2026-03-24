@@ -9,7 +9,7 @@ body,
 }
 
 body {
-  @apply min-h-full bg-gradient-to-br from-slate-50 via-brand-50/35 to-accent-50/50 text-slate-900;
+  @apply min-h-full bg-gradient-to-br from-slate-50 via-brand-50/30 to-accent-50/45 text-slate-900;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -17,6 +17,26 @@ body {
 
 html.dark body {
   @apply bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100;
+}
+
+/* Ambient visual glow for richer depth without heavy textures */
+body::before {
+  content: "";
+  position: fixed;
+  inset: -20vmax;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    radial-gradient(45vmax 45vmax at 15% 15%, rgba(56, 189, 248, 0.08), transparent 70%),
+    radial-gradient(45vmax 45vmax at 85% 20%, rgba(99, 102, 241, 0.08), transparent 72%),
+    radial-gradient(40vmax 40vmax at 50% 90%, rgba(16, 185, 129, 0.06), transparent 75%);
+}
+
+html.dark body::before {
+  background:
+    radial-gradient(45vmax 45vmax at 15% 15%, rgba(56, 189, 248, 0.12), transparent 72%),
+    radial-gradient(45vmax 45vmax at 85% 20%, rgba(129, 140, 248, 0.12), transparent 72%),
+    radial-gradient(40vmax 40vmax at 50% 90%, rgba(16, 185, 129, 0.08), transparent 75%);
 }
 
 ::selection {
@@ -49,12 +69,24 @@ html.dark ::selection {
       transform: scale(1);
     }
   }
+
+  @keyframes subtle-glow {
+    0% {
+      filter: saturate(1);
+    }
+    50% {
+      filter: saturate(1.08);
+    }
+    100% {
+      filter: saturate(1);
+    }
+  }
 }
 
 /* Shared surfaces & controls — use with rounded-* / padding as needed */
 @layer components {
   .ui-surface {
-    @apply border border-slate-200 bg-white shadow-sm transition-all duration-200 dark:border-slate-700 dark:bg-slate-900/85;
+    @apply border border-slate-200/90 bg-white/95 shadow-sm backdrop-blur-sm transition-all duration-200 dark:border-slate-700/90 dark:bg-slate-900/80;
   }
 
   .ui-surface:hover {
@@ -69,12 +101,16 @@ html.dark ::selection {
     animation: soft-pop 220ms ease-out both;
   }
 
+  .ui-ambient {
+    animation: subtle-glow 8s ease-in-out infinite;
+  }
+
   .ui-surface-inset {
     @apply rounded-xl border border-slate-200 bg-white/95 text-slate-900 backdrop-blur dark:border-slate-700 dark:bg-slate-900/95 dark:text-slate-100;
   }
 
   .ui-table-wrap {
-    @apply overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/85;
+    @apply overflow-x-auto rounded-xl border border-slate-200/90 bg-white/95 shadow-sm backdrop-blur-sm dark:border-slate-700/90 dark:bg-slate-900/80;
   }
 
   .ui-table-head {
@@ -98,7 +134,7 @@ html.dark ::selection {
   }
 
   .ui-input {
-    @apply rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-[box-shadow,border-color,background-color,transform] duration-150 focus:-translate-y-px focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-brand-400 dark:focus:ring-brand-400/20;
+    @apply rounded-lg border border-slate-300/90 bg-white/95 px-2 py-1.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-[box-shadow,border-color,background-color,transform] duration-150 focus:-translate-y-px focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-brand-400 dark:focus:ring-brand-400/20;
   }
 
   .ui-page-heading {

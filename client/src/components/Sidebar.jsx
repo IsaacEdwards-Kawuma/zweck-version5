@@ -144,14 +144,14 @@ export default function Sidebar({ mobileOpen, onClose, me }) {
       />
       <aside
         className={[
-          "fixed inset-y-0 left-0 z-40 flex h-full w-64 flex-col border-r border-brand-100/80 bg-white/95 shadow-sm shadow-brand-900/5 transition-transform duration-300 print:hidden dark:border-slate-700 dark:bg-slate-900/95 dark:shadow-black/20",
+          "fixed inset-y-0 left-0 z-40 flex h-full w-64 flex-col border-r border-brand-100/70 bg-white/80 shadow-lg shadow-brand-900/10 backdrop-blur-md transition-transform duration-300 print:hidden dark:border-slate-700/90 dark:bg-slate-900/85 dark:shadow-black/30",
           mobileOpen ? "translate-x-0" : "-translate-x-full",
           "lg:static lg:z-auto lg:translate-x-0"
         ].join(" ")}
       >
       <div className="bg-gradient-to-br from-brand-600 via-brand-500 to-accent-600 px-4 py-5 text-white shadow-md shadow-brand-900/20">
         <div className="flex items-center gap-2">
-          <img src="/zweck-logo.png" alt="Zweck logo" className="h-8 w-auto rounded-md bg-white/90 p-1" />
+          <img src="/zweck-logo.png" alt="Zweck logo" className="h-8 w-auto rounded-md bg-white/90 p-1 shadow-sm transition-transform duration-300 hover:scale-105" />
           <div>
             <div className="text-lg font-semibold tracking-tight">ZweckOS</div>
             <div className="mt-0.5 text-xs font-medium text-white/85">Zweck Co. Ltd — Kampala</div>
@@ -169,8 +169,8 @@ export default function Sidebar({ mobileOpen, onClose, me }) {
               [
                 "group block rounded-lg border-l-[3px] px-3 py-2 text-sm font-medium transition-all duration-200",
                 isActive
-                  ? "border-brand-500 bg-gradient-to-r from-brand-50 to-accent-50 text-brand-800 shadow-sm dark:border-brand-400 dark:from-brand-950/90 dark:to-slate-800/90 dark:text-brand-100"
-                  : "border-transparent text-slate-700 hover:translate-x-1 hover:border-brand-200 hover:bg-brand-50/60 hover:text-brand-800 dark:text-slate-300 dark:hover:border-brand-500/40 dark:hover:bg-slate-800/90 dark:hover:text-brand-200"
+                  ? "border-brand-500 bg-gradient-to-r from-brand-50 to-accent-50 text-brand-800 shadow-sm ring-1 ring-brand-100/80 dark:border-brand-400 dark:from-brand-950/90 dark:to-slate-800/90 dark:text-brand-100 dark:ring-brand-500/20"
+                  : "border-transparent text-slate-700 hover:translate-x-1 hover:border-brand-200 hover:bg-brand-50/60 hover:text-brand-800 hover:shadow-sm dark:text-slate-300 dark:hover:border-brand-500/40 dark:hover:bg-slate-800/90 dark:hover:text-brand-200"
               ].join(" ")
             }
           >
