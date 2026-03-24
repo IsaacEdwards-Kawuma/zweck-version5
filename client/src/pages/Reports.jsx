@@ -85,30 +85,46 @@ function openPrintDocument(title, statementName, reportMeta, statementRef, inner
       @page { size: A4; margin: 12mm; }
       body { font-family: "Segoe UI", Arial, sans-serif; color: #0f172a; margin: 0; font-size: 12px; background: #fff; }
       .wrap { max-width: 980px; margin: 0 auto; padding: 2px 4px; }
-      .top { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; }
-      .brand h1 { margin: 0; font-size: 36px; letter-spacing: 0.02em; color: #0b2547; line-height: 1; font-weight: 800; }
-      .brand p { margin: 6px 0 0; color: #64748b; font-size: 12px; }
+      .top {
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+        align-items: flex-start;
+        padding: 14px 16px;
+        border-radius: 12px;
+        color: #ffffff;
+        background: linear-gradient(135deg, #0b2547 0%, #1d4e89 62%, #c9a227 160%);
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,.15);
+      }
+      .brand h1 { margin: 0; font-size: 34px; letter-spacing: 0.02em; color: #ffffff; line-height: 1; font-weight: 800; }
+      .brand p { margin: 7px 0 0; color: #dbeafe; font-size: 12px; }
       .title { text-align: right; }
-      .title h2 { margin: 0; font-size: 19px; color: #0b2547; letter-spacing: 0.02em; text-transform: uppercase; }
-      .title .meta { margin-top: 8px; color: #475569; font-size: 11px; }
-      .rule { height: 3px; margin: 14px 0 16px; background: #0b2547; border: 0; }
-      .summary { border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 10px; padding: 12px 14px; }
-      .summary .k { color: #475569; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
-      .summary .v { margin-top: 4px; font-size: 13px; color: #0f172a; }
+      .title h2 { margin: 0; font-size: 19px; color: #ffffff; letter-spacing: 0.02em; text-transform: uppercase; }
+      .title .meta { margin-top: 8px; color: #dbeafe; font-size: 11px; }
+      .rule { height: 4px; margin: 14px 0 16px; background: linear-gradient(90deg, #0b2547 0%, #1d4e89 60%, #c9a227 100%); border: 0; border-radius: 999px; }
+      .summary {
+        border: 1px solid #bfd2ea;
+        background: linear-gradient(180deg, #eef5ff 0%, #f8fbff 100%);
+        border-radius: 10px;
+        padding: 12px 14px;
+      }
+      .summary .k { color: #334155; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+      .summary .v { margin-top: 4px; font-size: 13px; color: #0b2547; font-weight: 600; }
       .section { margin-top: 16px; }
-      .section h3 { margin: 0 0 8px; color: #0b2547; font-size: 18px; font-weight: 700; }
+      .section h3 { margin: 0 0 8px; color: #0b2547; font-size: 18px; font-weight: 700; border-left: 4px solid #c9a227; padding-left: 8px; }
       table { width: 100%; border-collapse: collapse; margin-top: 8px; }
       th, td { border: 1px solid #cbd5e1; padding: 7px 8px; }
       th { background: #0b2547; color: #fff; text-align: left; }
       td.num, th.num { text-align: right; }
-      tr.total td { font-weight: 700; background: #f8fafc; }
+      tbody tr:nth-child(even) td { background: #f8fbff; }
+      tr.total td { font-weight: 700; background: #fff5d6; color: #7a5600; }
       .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-      .card { border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; }
-      .card .k { font-size: 10px; color: #475569; text-transform: uppercase; letter-spacing: .05em; }
-      .card .v { margin-top: 4px; font-size: 16px; font-weight: 700; color: #0f172a; }
+      .card { border: 1px solid #bfd2ea; border-radius: 8px; padding: 10px; background: #f8fbff; }
+      .card .k { font-size: 10px; color: #334155; text-transform: uppercase; letter-spacing: .05em; }
+      .card .v { margin-top: 4px; font-size: 16px; font-weight: 700; color: #0b2547; }
       .signatures { margin-top: 26px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
       .sig-title { font-size: 12px; color: #0f172a; margin-bottom: 34px; }
-      .sig-line { border-top: 1px solid #64748b; padding-top: 6px; color: #0f172a; font-size: 12px; }
+      .sig-line { border-top: 2px solid #1d4e89; padding-top: 6px; color: #0f172a; font-size: 12px; font-weight: 600; }
       .footer { margin-top: 14px; display: flex; justify-content: space-between; gap: 20px; color: #475569; font-size: 11px; }
       @media print {
         .signatures { break-inside: avoid; }
