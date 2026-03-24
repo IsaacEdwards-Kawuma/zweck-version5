@@ -19,6 +19,8 @@ const ProjectsLayout = lazy(() => import("./pages/ProjectsLayout"));
 const Projects = lazy(() => import("./pages/Projects"));
 const ProjectDetail = lazy(() => import("./pages/ProjectDetail"));
 const Reports = lazy(() => import("./pages/Reports"));
+const Meetings = lazy(() => import("./pages/Meetings"));
+const Documents = lazy(() => import("./pages/Documents"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const Users = lazy(() => import("./pages/Users"));
 const AuditLog = lazy(() => import("./pages/AuditLog"));
@@ -37,6 +39,8 @@ export default function App() {
           <Route element={<Layout />}>
             <Route index element={<Dashboard />} />
             <Route path="/reports" element={<Reports />} />
+            <Route path="/meetings" element={<Meetings />} />
+            <Route path="/documents" element={<Documents />} />
             <Route path="/users" element={<Users />} />
             <Route path="/audit" element={<AuditLog />} />
             <Route path="/settings" element={<Settings />} />
