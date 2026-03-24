@@ -6,6 +6,14 @@ import { ACCOUNTS } from "../lib/constants.js";
 
 const router = Router();
 
+function withEquityShareFromContribution<T extends { capital: number }>(rows: T[]) {
+  const totalContribution = rows.reduce((s, r) => s + (Number(r.capital) || 0), 0);
+  return rows.map((r) => ({
+    ...r,
+    equitySharePct: totalContribution > 0 ? Math.round(((r.capital / totalContribution) * 100) * 100) / 100 : 0
+  }));
+}
+
 router.get("/balances", async (_req, res) => {
   const txs = await prisma.transaction.findMany({ select: { type: true, amount: true } });
   const balances = deriveBalances(txs);
@@ -33,8 +41,13 @@ router.get("/director/:id", async (req, res) => {
     if (t.type === "CONTRIBUTION") capital += t.amount;
     if (t.type === "SIDE_FUND") sideFund += t.amount;
   }
-
-  return res.json({ director, capital, sideFund, total: capital + sideFund });
+  const totalContribution = await prisma.transaction.aggregate({
+    where: { type: "CONTRIBUTION", directorId: { not: null } },
+    _sum: { amount: true }
+  });
+  const contributionBase = Number(totalContribution._sum.amount || 0);
+  const equitySharePct = contributionBase > 0 ? Math.round(((capital / contributionBase) * 100) * 100) / 100 : 0;
+  return res.json({ director, capital, sideFund, total: capital + sideFund, equitySharePct });
 });
 
 router.get("/directors/all", async (_req, res) => {
@@ -58,10 +71,11 @@ router.get("/directors/all", async (_req, res) => {
     totals.set(t.directorId, cur);
   }
 
-  const out = directors.map((d) => {
+  const outRaw = directors.map((d) => {
     const t = totals.get(d.id) ?? { capital: 0, sideFund: 0 };
     return { ...d, capital: t.capital, sideFund: t.sideFund, total: t.capital + t.sideFund };
   });
+  const out = withEquityShareFromContribution(outRaw);
 
   return res.json(out);
 });
@@ -90,10 +104,11 @@ router.get("/directors", async (_req, res) => {
     totals.set(t.directorId, cur);
   }
 
-  const out = directors.map((d) => {
+  const outRaw = directors.map((d) => {
     const t = totals.get(d.id) ?? { capital: 0, sideFund: 0 };
     return { ...d, capital: t.capital, sideFund: t.sideFund, total: t.capital + t.sideFund };
   });
+  const out = withEquityShareFromContribution(outRaw);
 
   return res.json(out);
 });

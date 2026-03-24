@@ -328,6 +328,7 @@ export default function Reports() {
       phone: profile.phone || "",
       address: profile.address || "",
       joinedRound: profile.joinedRound ?? row.joinedRound ?? null,
+      equitySharePct: Number(row.equitySharePct || 0),
       openingCapital,
       openingSideFund,
       openingTotal,
@@ -634,6 +635,7 @@ export default function Reports() {
             <tr><td>Name</td><td>${escHtml(selectedDirectorStatement.name)}</td><td>Role</td><td>${escHtml(selectedDirectorStatement.role)}</td></tr>
             <tr><td>Email</td><td>${escHtml(selectedDirectorStatement.email)}</td><td>Phone</td><td>${escHtml(selectedDirectorStatement.phone)}</td></tr>
             <tr><td>Address</td><td>${escHtml(selectedDirectorStatement.address)}</td><td>Joined round</td><td>${escHtml(selectedDirectorStatement.joinedRound ?? "—")}</td></tr>
+            <tr><td>Equity share</td><td>${escHtml(`${selectedDirectorStatement.equitySharePct.toFixed(2)}%`)}</td><td></td><td></td></tr>
           </tbody></table>
         </div>
         <div class="section"><h3>Capital Movement</h3><table><thead><tr><th>Line Item</th><th class="num">Amount</th></tr></thead><tbody>${rowsSingle}</tbody></table></div>
@@ -655,17 +657,17 @@ export default function Reports() {
           ${directorCapital.rows
             .map(
               (r) =>
-                `<tr><td>${escHtml(r.name || "Unknown")}</td><td>${escHtml(r.email || "Not provided")}</td><td class="num">${escHtml(eur(r.capital))}</td><td class="num">${escHtml(eur(r.sideFund))}</td><td class="num">${escHtml(eur(r.total))}</td></tr>`
+                `<tr><td>${escHtml(r.name || "Unknown")}</td><td>${escHtml(r.email || "Not provided")}</td><td class="num">${escHtml(eur(r.capital))}</td><td class="num">${escHtml(eur(r.sideFund))}</td><td class="num">${escHtml(eur(r.total))}</td><td class="num">${escHtml(`${Number(r.equitySharePct || 0).toFixed(2)}%`)}</td></tr>`
             )
             .join("")}
-          <tr class="total"><td colspan="2">TOTAL</td><td class="num">${escHtml(eur(directorCapital.totalCapital))}</td><td class="num">${escHtml(eur(directorCapital.totalSideFund))}</td><td class="num">${escHtml(eur(directorCapital.totalStake))}</td></tr>
+          <tr class="total"><td colspan="2">TOTAL</td><td class="num">${escHtml(eur(directorCapital.totalCapital))}</td><td class="num">${escHtml(eur(directorCapital.totalSideFund))}</td><td class="num">${escHtml(eur(directorCapital.totalStake))}</td><td class="num">100.00%</td></tr>
         `;
     openPrintDocument(
       `Director Capital (${mode})`,
       "Director Capital Statement",
       reportMeta,
       statementRef,
-      `<div class="section"><h3>Director Capital Register</h3><table><thead><tr><th>Director</th><th>Email</th><th class="num">Capital</th><th class="num">Side fund</th><th class="num">Total stake</th></tr></thead><tbody>${rows}</tbody></table></div>`
+      `<div class="section"><h3>Director Capital Register</h3><table><thead><tr><th>Director</th><th>Email</th><th class="num">Capital</th><th class="num">Side fund</th><th class="num">Total stake</th><th class="num">Equity %</th></tr></thead><tbody>${rows}</tbody></table></div>`
     );
     await logReportEvent("PRINT", "DIRECTOR_CAPITAL", mode);
   }
@@ -937,7 +939,7 @@ export default function Reports() {
                   if (!selectedDirectorStatement) return window.alert("Selected director not found.");
                   downloadSimpleCsv(
                     `director-statement-${selectedDirectorStatement.id}.csv`,
-                    ["Director", "Email", "Phone", "Address", "Opening", "Movement", "Closing", "Prev Period", "Variance %"],
+                    ["Director", "Email", "Phone", "Address", "Opening", "Movement", "Closing", "Prev Period", "Variance %", "Equity %"],
                     [
                       [
                         selectedDirectorStatement.name,
@@ -948,7 +950,8 @@ export default function Reports() {
                         selectedDirectorStatement.movementTotal,
                         selectedDirectorStatement.closingTotal,
                         selectedDirectorStatement.previousTotal,
-                        comparePct(selectedDirectorStatement.closingTotal, selectedDirectorStatement.previousTotal)
+                        comparePct(selectedDirectorStatement.closingTotal, selectedDirectorStatement.previousTotal),
+                        `${selectedDirectorStatement.equitySharePct.toFixed(2)}%`
                       ]
                     ]
                   );
@@ -957,10 +960,10 @@ export default function Reports() {
                 }
                 downloadSimpleCsv(
                   "director-capital-statement.csv",
-                  ["Director", "Email", "Capital", "Side fund", "Total stake"],
+                  ["Director", "Email", "Capital", "Side fund", "Total stake", "Equity %"],
                   [
-                    ...directorCapital.rows.map((r) => [r.name, r.email, r.capital, r.sideFund, r.total]),
-                    ["TOTAL", "", directorCapital.totalCapital, directorCapital.totalSideFund, directorCapital.totalStake]
+                    ...directorCapital.rows.map((r) => [r.name, r.email, r.capital, r.sideFund, r.total, `${Number(r.equitySharePct || 0).toFixed(2)}%`]),
+                    ["TOTAL", "", directorCapital.totalCapital, directorCapital.totalSideFund, directorCapital.totalStake, "100.00%"]
                   ]
                 );
                 await logReportEvent("EXPORT_CSV", "DIRECTOR_CAPITAL", "detailed");
@@ -1027,6 +1030,7 @@ export default function Reports() {
                   <th className="px-3 py-2 text-right">Capital</th>
                   <th className="px-3 py-2 text-right">Side fund</th>
                   <th className="px-3 py-2 text-right">Total stake</th>
+                  <th className="px-3 py-2 text-right">Equity %</th>
                 </tr>
               </thead>
               <tbody className="ui-table-divide">
@@ -1037,6 +1041,7 @@ export default function Reports() {
                     <td className="px-3 py-2 text-right">{eur(r.capital)}</td>
                     <td className="px-3 py-2 text-right">{eur(r.sideFund)}</td>
                     <td className="px-3 py-2 text-right font-semibold">{eur(r.total)}</td>
+                    <td className="px-3 py-2 text-right font-semibold">{Number(r.equitySharePct || 0).toFixed(2)}%</td>
                   </tr>
                 ))}
                 <tr className="bg-slate-50 font-semibold dark:bg-slate-900/60">
@@ -1044,6 +1049,7 @@ export default function Reports() {
                   <td className="px-3 py-2 text-right">{eur(directorCapital.totalCapital)}</td>
                   <td className="px-3 py-2 text-right">{eur(directorCapital.totalSideFund)}</td>
                   <td className="px-3 py-2 text-right">{eur(directorCapital.totalStake)}</td>
+                  <td className="px-3 py-2 text-right">100.00%</td>
                 </tr>
               </tbody>
             </table>
