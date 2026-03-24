@@ -17,6 +17,10 @@ NODE_ENV=production
 
 DATABASE_URL=REPLACE_WITH_YOUR_NEON_CONNECTION_STRING
 
+# Required on Render for reliable prisma migrate deploy: Neon "Direct" URL (non-pooler), same DB as DATABASE_URL.
+# See RENDER_SETTINGS.md — without this, migrate often hits P1002 (advisory lock timeout).
+DIRECT_URL=REPLACE_WITH_NEON_DIRECT_CONNECTION_STRING
+
 JWT_SECRET=REPLACE_WITH_OPENSSL_RAND_HEX_32
 
 ALLOWED_ORIGINS=REPLACE_WITH_YOUR_VERCEL_URL

@@ -33,8 +33,10 @@ Use these when you create a **Web Service** (or Blueprint) on [Render](https://r
 | Field | Value |
 |--------|--------|
 | **Runtime** | `Node` |
-| **Build Command** | `npm install && npm run build && npx prisma migrate deploy` |
+| **Build Command** | `npm install && npm run build:render` |
 | **Start Command** | `npm start` |
+
+`build:render` runs `npm run build` then `sh scripts/migrate-deploy.sh`, which retries `prisma migrate deploy` up to five times with backoff. That reduces **P1002** (advisory lock timeout) failures on Neon during deploy.
 
 > Render sets **`PORT`** automatically — do **not** set `PORT` in the dashboard unless you know you need a fixed value. The app uses `process.env.PORT`.
 
@@ -60,6 +62,7 @@ Add **each row** as a separate variable if you add manually. Values below are **
 |-----|----------|-----------------|
 | `NODE_ENV` | Yes | `production` |
 | `DATABASE_URL` | Yes | Neon connection string; must include `?sslmode=require` at the end if Neon asks for SSL. |
+| `DIRECT_URL` | Yes* | Neon **non-pooler** (“direct”) connection URL for Prisma Migrate. Without it, migrate may use the pooler and hit **P1002** advisory lock timeouts. Copy from Neon → Connection string → **Direct**. |
 | `JWT_SECRET` | Yes | Long random string (e.g. run `openssl rand -hex 32` locally). |
 | `ALLOWED_ORIGINS` | Yes* | Your Vercel site(s), comma-separated: `https://your-app.vercel.app` |
 | `CLIENT_ORIGIN` | No | Optional single URL if you prefer: `https://your-app.vercel.app` |
@@ -70,6 +73,8 @@ Add **each row** as a separate variable if you add manually. Values below are **
 | `PUBLIC_APP_URL` or `CLIENT_ORIGIN` | No | Used in email links to the app. |
 
 \*Required for the browser app to call the API without CORS errors. Use your **exact** Vercel production URL(s).
+
+\*\*Set `DIRECT_URL` on Render to Neon’s **direct** (non-pooler) connection string (Neon dashboard → **Connection details** → **Direct**). `schema.prisma` uses it for `migrate deploy`; if it is unset or still points at a pooler, builds often fail with **P1002** (advisory lock timeout). The retry script helps, but `DIRECT_URL` is the real fix.
 
 †Optional unless you schedule meeting reminders: set `CRON_SECRET`, configure SMTP, then call the job daily (see **Meeting reminder cron** below).
 
@@ -84,6 +89,8 @@ Local copies go in `server/.env` (gitignored) — see `server/.env.example`.
 - **Health check:** `GET https://<your-service-name>.onrender.com/api/health` → `{"ok":true}`
 - **Vercel `RENDER_API_URL`:** `https://<your-service-name>.onrender.com` (no `/api` — used by the Edge proxy in `client/api/`)
 - **Optional Vercel `VITE_API_URL`:** `https://<your-service-name>.onrender.com/api` only if you skip the proxy and call the API directly from the browser
+
+If **`prisma migrate deploy` fails with P1002** (advisory lock timeout): add **`DIRECT_URL`** (Neon direct URL), ensure only **one** deploy runs at a time, redeploy. As a last resort, Neon support sometimes suggests `PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=1` for migrate-only environments (avoid concurrent migrations).
 
 If build fails with Prisma migration state errors (`P3009`, `P3018`), follow:
 

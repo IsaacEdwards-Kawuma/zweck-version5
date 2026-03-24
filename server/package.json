@@ -6,6 +6,8 @@
     "postinstall": "prisma generate",
     "dev": "tsx watch src/index.ts",
     "build": "prisma generate && tsc -p tsconfig.json && copyfiles -f src/openapi.json dist",
+    "migrate:deploy": "prisma migrate deploy",
+    "build:render": "npm run build && sh scripts/migrate-deploy.sh",
     "start": "node dist/index.js",
     "prisma": "prisma",
     "lint": "tsc -p tsconfig.json --noEmit",
