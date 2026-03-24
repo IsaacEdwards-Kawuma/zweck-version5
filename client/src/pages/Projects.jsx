@@ -91,8 +91,10 @@ export default function Projects() {
   if (q.isLoading) return <Loading label="Loading projects..." />;
   if (q.error) return <ErrorBanner error={q.error} />;
 
+  const projectList = useMemo(() => (Array.isArray(q.data) ? q.data : []), [q.data]);
+
   const rows = useMemo(() => {
-    let out = (q.data || []).filter((p) => {
+    let out = projectList.filter((p) => {
       if (filter && p.status !== filter) return false;
       if (kindFilter && p.projectKind !== kindFilter) return false;
       if (priorityFilter && p.priority !== priorityFilter) return false;
@@ -114,10 +116,10 @@ export default function Projects() {
       out = out.sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
     }
     return out;
-  }, [q.data, filter, kindFilter, priorityFilter, overBudgetOnly, query, sortBy]);
+  }, [projectList, filter, kindFilter, priorityFilter, overBudgetOnly, query, sortBy]);
 
   const stats = useMemo(() => {
-    const all = q.data || [];
+    const all = projectList;
     return {
       total: all.length,
       active: all.filter((p) => p.status === "IN_PROGRESS").length,
@@ -125,9 +127,9 @@ export default function Projects() {
       overBudget: all.filter((p) => isOverBudget(p)).length,
       highPriority: all.filter((p) => p.priority === "HIGH" || p.priority === "CRITICAL").length
     };
-  }, [q.data]);
+  }, [projectList]);
 
-  const directors = qDirs.data || [];
+  const directors = Array.isArray(qDirs.data) ? qDirs.data : [];
 
   function exportCsv() {
     const headers = ["code", "name", "program", "status", "priority", "budget", "budgetSpent", "progress", "tasksDone", "tasksTotal", "updatedAt"];
