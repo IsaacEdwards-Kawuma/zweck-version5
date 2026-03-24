@@ -1,4 +1,5 @@
 import { NavLink } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 const links = [
   { to: "/", label: "Dashboard" },
@@ -16,6 +17,7 @@ const links = [
 ];
 
 export default function Sidebar({ mobileOpen, onClose }) {
+  const nav = useNavigate();
   return (
     <>
       <button
@@ -29,7 +31,7 @@ export default function Sidebar({ mobileOpen, onClose }) {
       />
       <aside
         className={[
-          "fixed inset-y-0 left-0 z-40 h-full w-64 border-r border-brand-100/80 bg-white/95 shadow-sm shadow-brand-900/5 transition-transform print:hidden dark:border-slate-700 dark:bg-slate-900/95 dark:shadow-black/20",
+          "fixed inset-y-0 left-0 z-40 flex h-full w-64 flex-col border-r border-brand-100/80 bg-white/95 shadow-sm shadow-brand-900/5 transition-transform print:hidden dark:border-slate-700 dark:bg-slate-900/95 dark:shadow-black/20",
           mobileOpen ? "translate-x-0" : "-translate-x-full",
           "lg:static lg:z-auto lg:translate-x-0"
         ].join(" ")}
@@ -43,7 +45,7 @@ export default function Sidebar({ mobileOpen, onClose }) {
           </div>
         </div>
       </div>
-      <nav className="space-y-0.5 px-2 pb-4 pt-3">
+      <nav className="flex-1 space-y-0.5 px-2 pb-4 pt-3">
         {links.map((l) => (
           <NavLink
             key={l.to}
@@ -63,6 +65,19 @@ export default function Sidebar({ mobileOpen, onClose }) {
           </NavLink>
         ))}
       </nav>
+      <div className="border-t border-slate-200 px-3 py-3 dark:border-slate-700">
+        <button
+          type="button"
+          className="w-full rounded-lg border border-brand-200/80 bg-white px-3 py-2 text-sm font-medium text-brand-900 hover:bg-brand-50 dark:border-brand-500/40 dark:bg-slate-800 dark:text-brand-200 dark:hover:bg-slate-700"
+          onClick={() => {
+            localStorage.removeItem("zweck_token");
+            onClose?.();
+            nav("/");
+          }}
+        >
+          Logout
+        </button>
+      </div>
       </aside>
     </>
   );
