@@ -106,6 +106,11 @@ export function buildDirectorStatementCsv(d, p, members) {
 
 function printStyles() {
   return `
+    :root {
+      --zweck-blue: #0B3C6D;
+      --zweck-gold: #C9A227;
+      --zweck-white: #FFFFFF;
+    }
     @page { margin: 14mm 16mm; size: A4; }
     * { box-sizing: border-box; }
     body {
@@ -119,7 +124,7 @@ function printStyles() {
     }
     .doc { max-width: 760px; margin: 0 auto; }
     .letterhead {
-      border-bottom: 3px solid #1e3a5f;
+      border-bottom: 3px solid var(--zweck-blue);
       padding-bottom: 14px;
       margin-bottom: 20px;
     }
@@ -128,7 +133,7 @@ function printStyles() {
       font-weight: 700;
       letter-spacing: 0.16em;
       text-transform: uppercase;
-      color: #1e40af;
+      color: var(--zweck-gold);
       margin-bottom: 6px;
     }
     .letterhead__title {
@@ -157,14 +162,14 @@ function printStyles() {
       border: 1px solid #e2e8f0;
       border-radius: 8px;
       padding: 10px 12px;
-      background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+      background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
     }
     .summary-card__label {
       font-size: 9px;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.06em;
-      color: #64748b;
+      color: var(--zweck-blue);
     }
     .summary-card__value {
       font-size: 15px;
@@ -178,7 +183,7 @@ function printStyles() {
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.1em;
-      color: #475569;
+      color: var(--zweck-blue);
       margin: 20px 0 10px 0;
       padding-bottom: 6px;
       border-bottom: 1px solid #e2e8f0;
@@ -190,12 +195,12 @@ function printStyles() {
       margin-bottom: 16px;
     }
     table.data thead th {
-      background: #1e3a5f;
-      color: #ffffff;
+      background: var(--zweck-blue);
+      color: var(--zweck-white);
       font-weight: 600;
       text-align: left;
       padding: 9px 10px;
-      border: 1px solid #1e3a5f;
+      border: 1px solid var(--zweck-blue);
     }
     table.data thead th.num { text-align: right; }
     table.data tbody td {
@@ -203,7 +208,7 @@ function printStyles() {
       padding: 8px 10px;
       vertical-align: middle;
     }
-    table.data tbody tr:nth-child(even) td { background: #f8fafc; }
+    table.data tbody tr:nth-child(even) td { background: #f9f4e5; }
     .num { text-align: right; font-variant-numeric: tabular-nums; }
     table.kv {
       width: 100%;
@@ -212,8 +217,8 @@ function printStyles() {
       margin-bottom: 16px;
     }
     table.kv th {
-      background: #f1f5f9;
-      color: #334155;
+      background: #f9f4e5;
+      color: var(--zweck-blue);
       font-weight: 600;
       text-align: left;
       padding: 8px 10px;
@@ -236,9 +241,9 @@ function printStyles() {
     }
     table.totals td:first-child {
       font-weight: 500;
-      color: #475569;
+      color: var(--zweck-blue);
       width: 58%;
-      background: #fafbfc;
+      background: #f9f4e5;
     }
     .footer {
       margin-top: 24px;
