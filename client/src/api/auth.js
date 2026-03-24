@@ -20,6 +20,11 @@ export async function me() {
   return data;
 }
 
+export async function logout() {
+  const { data } = await api.post("/auth/logout");
+  return data;
+}
+
 export async function forgotPassword(email) {
   const { data } = await api.post("/auth/forgot-password", { email });
   return data;

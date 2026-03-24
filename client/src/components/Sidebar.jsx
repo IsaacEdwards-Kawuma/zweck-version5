@@ -1,5 +1,7 @@
 import { NavLink } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
+import DirectorAvatar from "./DirectorAvatar";
+import { logout as logoutApi } from "../api/auth";
 
 const links = [
   { to: "/", label: "Dashboard", icon: "dashboard" },
@@ -123,8 +125,12 @@ function NavIcon({ name }) {
   }
 }
 
-export default function Sidebar({ mobileOpen, onClose }) {
+export default function Sidebar({ mobileOpen, onClose, me }) {
   const nav = useNavigate();
+  const profileName = me?.director?.name || (me?.email ? String(me.email).split("@")[0] : "Signed in user");
+  const profileSubtitle = me?.email || "No email";
+  const avatarDirector = me?.director || { name: profileName, initials: String(profileName).slice(0, 2).toUpperCase(), avatarUrl: null };
+  const profileTarget = me?.role === "ADMIN" ? "/settings#settings-login-stamps" : "/settings#settings-account";
   return (
     <>
       <button
@@ -180,8 +186,30 @@ export default function Sidebar({ mobileOpen, onClose }) {
       <div className="border-t border-slate-200 px-3 py-3 dark:border-slate-700">
         <button
           type="button"
-          className="w-full rounded-lg border border-brand-200/80 bg-white px-3 py-2 text-sm font-medium text-brand-900 transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-50 hover:shadow-sm dark:border-brand-500/40 dark:bg-slate-800 dark:text-brand-200 dark:hover:bg-slate-700"
+          className="mb-3 w-full rounded-xl border border-slate-200/90 bg-white/90 px-3 py-2.5 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-200 hover:bg-brand-50/60 hover:shadow dark:border-slate-700 dark:bg-slate-800/80 dark:hover:border-brand-500/40 dark:hover:bg-slate-800"
           onClick={() => {
+            onClose?.();
+            nav(profileTarget);
+          }}
+          title="Open account settings"
+        >
+          <div className="flex items-center gap-2.5">
+            <DirectorAvatar director={avatarDirector} size="sm" />
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{profileName}</div>
+              <div className="truncate text-xs text-slate-500 dark:text-slate-400">{profileSubtitle}</div>
+            </div>
+          </div>
+        </button>
+        <button
+          type="button"
+          className="w-full rounded-lg border border-brand-200/80 bg-white px-3 py-2 text-sm font-medium text-brand-900 transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-50 hover:shadow-sm dark:border-brand-500/40 dark:bg-slate-800 dark:text-brand-200 dark:hover:bg-slate-700"
+          onClick={async () => {
+            try {
+              await logoutApi();
+            } catch {
+              // Best effort: token may already be invalid/expired.
+            }
             localStorage.removeItem("zweck_token");
             onClose?.();
             nav("/");

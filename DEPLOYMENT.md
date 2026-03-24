@@ -28,6 +28,8 @@ This guide runs **PostgreSQL on Neon**, the **Express API on Render**, and the *
 | `ALLOWED_ORIGINS` | `https://your-app.vercel.app` (comma-separate multiple URLs) |
 | `CLIENT_ORIGIN` | Optional; same as main Vercel URL if you prefer a single origin |
 | `ALLOW_VERCEL_PREVIEWS` | `true` if you want all `*.vercel.app` preview URLs allowed |
+| `FAILED_LOGIN_BURST_THRESHOLD` | Optional; default `5` failed attempts to trigger burst risk |
+| `FAILED_LOGIN_BURST_WINDOW_MINUTES` | Optional; default `10` minute burst window |
 | `NODE_ENV` | `production` |
 
 4. **Build** runs: `npm install && npm run build && npx prisma migrate deploy` (from `server/` per `rootDir`).
@@ -107,6 +109,8 @@ ALLOWED_ORIGINS="http://localhost:5173"
 # PUBLIC_APP_URL=https://your-app.vercel.app
 # SMTP_HOST=... SMTP_PORT=587 SMTP_USER=... SMTP_PASS=... SMTP_FROM="ZweckOS <noreply@...>"
 # SENTRY_DSN=https://...@sentry.io/...
+# FAILED_LOGIN_BURST_THRESHOLD=5
+# FAILED_LOGIN_BURST_WINDOW_MINUTES=10
 ```
 
 **`client/.env`** (optional locally)

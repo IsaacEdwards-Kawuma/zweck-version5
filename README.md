@@ -112,5 +112,6 @@ GitHub Actions runs lint, unit tests, and build on push/PR (see `.github/workflo
 
 - **Logs**: JSON logs to stdout (`pino`); set `LOG_LEVEL` if needed.
 - **Rate limits**: login and general API limits are configurable via env (see `server/.env.example`).
+- **Failed-login burst detection**: configurable via `FAILED_LOGIN_BURST_THRESHOLD` and `FAILED_LOGIN_BURST_WINDOW_MINUTES`; used for admin login-risk scoring/alerts in **Settings → Login stamps**.
 - **Database backups**: use Neon (or your host) scheduled backups; test restores periodically.
 

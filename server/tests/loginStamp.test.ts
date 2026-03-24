@@ -84,4 +84,34 @@ describe("login stamp", () => {
       }
     });
   });
+
+  it("writes failed login event when password is wrong", async () => {
+    findUniqueMock.mockResolvedValue({
+      id: 10,
+      email: "user@example.com",
+      password: "hashed",
+      role: "USER",
+      directorId: null
+    });
+    compareMock.mockResolvedValue(false);
+
+    const { createApp } = await import("../src/app.js");
+    const app = createApp();
+
+    const res = await request(app)
+      .post("/api/auth/login")
+      .set("User-Agent", "vitest-agent")
+      .send({ email: "user@example.com", password: "wrong-pass" });
+
+    expect(res.status).toBe(401);
+    expect(txMock).not.toHaveBeenCalled();
+    expect(loginEventCreateMock).toHaveBeenCalledWith({
+      data: {
+        userId: 10,
+        success: false,
+        ip: expect.any(String),
+        userAgent: "vitest-agent"
+      }
+    });
+  });
 });

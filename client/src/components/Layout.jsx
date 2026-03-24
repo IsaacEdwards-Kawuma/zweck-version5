@@ -22,7 +22,7 @@ export default function Layout() {
       >
         Skip to content
       </a>
-      <Sidebar mobileOpen={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
+      <Sidebar mobileOpen={mobileNavOpen} onClose={() => setMobileNavOpen(false)} me={qMe.data} />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar onToggleNav={() => setMobileNavOpen((v) => !v)} />
         <main

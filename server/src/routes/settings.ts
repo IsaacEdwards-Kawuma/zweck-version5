@@ -57,6 +57,8 @@ router.get("/", async (req, res) => {
           apiRequestsPerWindow: Number(process.env.RATE_LIMIT_API_MAX || 500),
           loginRequestsPerWindow: Number(process.env.RATE_LIMIT_LOGIN_MAX || 30),
           forgotPasswordPerHour: Number(process.env.RATE_LIMIT_FORGOT_PASSWORD_MAX || 5),
+          failedLoginBurstThreshold: Number(process.env.FAILED_LOGIN_BURST_THRESHOLD || 5),
+          failedLoginBurstWindowMinutes: Number(process.env.FAILED_LOGIN_BURST_WINDOW_MINUTES || 10),
           apiWindowMinutes: 15,
           loginWindowMinutes: 15,
           forgotPasswordWindowMinutes: 60

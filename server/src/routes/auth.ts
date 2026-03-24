@@ -47,7 +47,13 @@ function getSecret(): string {
   return secret;
 }
 
-function signToken(user: { id: number; email: string; role: "ADMIN" | "USER" | "DIRECTOR"; directorId: number | null }) {
+function signToken(user: {
+  id: number;
+  email: string;
+  role: "ADMIN" | "USER" | "DIRECTOR";
+  directorId: number | null;
+  sessionId?: number | null;
+}) {
   const payload: AuthUser = { ...user };
   return jwt.sign(payload, getSecret(), { expiresIn: "7d" });
 }
@@ -75,11 +81,23 @@ router.post(
     if (!user) return res.status(401).json(apiError("Invalid email or password"));
 
     const ok = await bcrypt.compare(password, user.password);
-    if (!ok) return res.status(401).json(apiError("Invalid email or password"));
+    if (!ok) {
+      const ipFail = requestIp(req);
+      const uaFail = req.headers["user-agent"] || null;
+      await prisma.loginEvent.create({
+        data: {
+          userId: user.id,
+          success: false,
+          ip: ipFail,
+          userAgent: typeof uaFail === "string" ? uaFail : null
+        }
+      });
+      return res.status(401).json(apiError("Invalid email or password"));
+    }
 
     const ip = requestIp(req);
     const userAgent = req.headers["user-agent"] || null;
-    await prisma.$transaction([
+    const [, loginEvent] = await prisma.$transaction([
       prisma.user.update({
         where: { id: user.id },
         data: { lastLoginAt: new Date() }
@@ -94,10 +112,32 @@ router.post(
       })
     ]);
 
-    const token = signToken({ id: user.id, email: user.email, role: user.role, directorId: user.directorId ?? null });
+    const token = signToken({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      directorId: user.directorId ?? null,
+      sessionId: (loginEvent as any)?.id ?? null
+    });
     return res.json({ token });
   }
 );
+
+router.post("/logout", requireAuth, async (req, res) => {
+  const sessionId = req.user?.sessionId;
+  if (sessionId && Number.isFinite(sessionId)) {
+    await prisma.loginEvent.updateMany({
+      where: { id: Number(sessionId), userId: req.user!.id, logoutAt: null },
+      data: { logoutAt: new Date() }
+    });
+  } else {
+    await prisma.loginEvent.updateMany({
+      where: { userId: req.user!.id, logoutAt: null },
+      data: { logoutAt: new Date() }
+    });
+  }
+  return res.json({ ok: true });
+});
 
 router.post(
   "/forgot-password",
@@ -263,7 +303,22 @@ async function handleRegister(
 router.get("/me", requireAuth, async (req, res) => {
   const user = await prisma.user.findUnique({
     where: { id: req.user!.id },
-    select: { id: true, email: true, role: true, directorId: true, createdAt: true, lastLoginAt: true }
+    select: {
+      id: true,
+      email: true,
+      role: true,
+      directorId: true,
+      createdAt: true,
+      lastLoginAt: true,
+      director: {
+        select: {
+          id: true,
+          name: true,
+          initials: true,
+          avatarUrl: true
+        }
+      }
+    }
   });
   if (user) return res.json(user);
   if (isAuthDisabled() && req.user) {
