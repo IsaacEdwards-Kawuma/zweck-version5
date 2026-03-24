@@ -1,9 +1,16 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMe } from "../hooks/useMe";
 import ErrorBanner from "../components/ErrorBanner";
 import Loading from "../components/Loading";
-import { createMeeting, deleteMeeting, listMeetings, updateMeeting } from "../api/meetings";
+import {
+  createMeeting,
+  deleteMeeting,
+  downloadMeetingsCalendarIcs,
+  listMeetings,
+  updateMeeting
+} from "../api/meetings";
 
 const STATUS = ["SCHEDULED", "COMPLETED", "CANCELLED", "DRAFT"];
 const MEETING_TYPES = ["Board", "Management", "Project", "Finance", "Operations", "Other"];
@@ -97,7 +104,7 @@ export default function Meetings() {
   });
   const [selectedDate, setSelectedDate] = useState("");
 
-  const rows = Array.isArray(q.data) ? q.data : [];
+  const rows = useMemo(() => (Array.isArray(q.data) ? q.data : []), [q.data]);
 
   const mCreate = useMutation({
     mutationFn: (payload) => createMeeting(payload),
@@ -259,11 +266,26 @@ export default function Meetings() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <div className="text-lg font-semibold ui-page-heading">Meetings</div>
-        <div className="text-sm ui-body-text">
-          Schedule governance meetings, track attendance, keep minutes, and follow up action items.
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-lg font-semibold ui-page-heading">Meetings</div>
+          <div className="text-sm ui-body-text">
+            Schedule governance meetings, track attendance, keep minutes, and follow up action items.
+          </div>
         </div>
+        <button
+          type="button"
+          className="ui-btn-outline text-sm shrink-0"
+          onClick={async () => {
+            try {
+              await downloadMeetingsCalendarIcs();
+            } catch (err) {
+              window.alert(err?.message || "Could not download calendar.");
+            }
+          }}
+        >
+          Download calendar (.ics)
+        </button>
       </div>
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
@@ -365,21 +387,34 @@ export default function Meetings() {
             <div className="mt-2 space-y-2">
               {!upcomingMeetings.length && <div className="text-sm text-slate-500 dark:text-slate-400">No upcoming meetings.</div>}
               {upcomingMeetings.map((r) => (
-                <button
+                <div
                   key={r.id}
-                  type="button"
-                  onClick={() => {
-                    const localDate = parseDateKeyLocal(r.date);
-                    if (localDate) setCalendarMonth(new Date(localDate.getFullYear(), localDate.getMonth(), 1));
-                    setSelectedDate(r.date);
-                  }}
-                  className="w-full rounded-lg border border-slate-200 p-2 text-left transition-colors hover:border-brand-300 hover:bg-brand-50/50 dark:border-slate-700 dark:hover:border-brand-500/50 dark:hover:bg-slate-800/80"
+                  className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700"
                 >
-                  <div className="font-medium text-slate-800 dark:text-slate-100">{r.title}</div>
-                  <div className="text-xs text-slate-500 dark:text-slate-400">
-                    {r.date} {r.time ? `· ${r.time}` : ""} · {r.status}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const localDate = parseDateKeyLocal(r.date);
+                      if (localDate) setCalendarMonth(new Date(localDate.getFullYear(), localDate.getMonth(), 1));
+                      setSelectedDate(r.date);
+                    }}
+                    className="w-full p-2 text-left transition-colors hover:border-brand-300 hover:bg-brand-50/50 dark:hover:border-brand-500/50 dark:hover:bg-slate-800/80"
+                  >
+                    <div className="font-medium text-slate-800 dark:text-slate-100">{r.title}</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">
+                      {r.date} {r.time ? `· ${r.time}` : ""} · {r.status}
+                    </div>
+                  </button>
+                  <div className="border-t border-slate-100 px-2 py-1.5 dark:border-slate-700">
+                    <Link
+                      to="/projects"
+                      state={{ prefillName: `Follow-up: ${r.title}` }}
+                      className="text-xs font-medium text-brand-700 hover:text-brand-800 hover:underline dark:text-brand-300 dark:hover:text-brand-200"
+                    >
+                      Follow-up project
+                    </Link>
                   </div>
-                </button>
+                </div>
               ))}
             </div>
           </div>

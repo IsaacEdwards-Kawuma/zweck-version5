@@ -32,7 +32,7 @@ export default function Documents() {
   const isAdmin = qMe.data?.role === "ADMIN";
 
   const [form, setForm] = useState(EMPTY_FORM);
-  const rows = Array.isArray(q.data) ? q.data : [];
+  const rows = useMemo(() => (Array.isArray(q.data) ? q.data : []), [q.data]);
   const mCreate = useMutation({
     mutationFn: (payload) => createDocument(payload),
     onSuccess: async () => {

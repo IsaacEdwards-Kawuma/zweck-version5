@@ -15,6 +15,10 @@ import {
   aggregateReportByMonth,
   aggregateByTypeTotals,
   reportPeriodKpis,
+  reportRangeLast30Days,
+  reportRangeThisMonth,
+  reportRangeYtd,
+  reportRolling30DayKpis,
   incomeExpenseMix,
   downloadTransactionsCsv
 } from "../lib/reportsAnalytics";
@@ -65,6 +69,20 @@ const PRINT_COMPANY_NAME = "YOUR COMPANY NAME";
 const PRINT_COMPANY_LOCATION = "Your city, Your country";
 const PRINT_PREPARED_BY = "Director Signature:";
 const PRINT_AUTHORISED_BY = "Authorised – Treasurer:";
+const REPORT_CUSTOM_PRESETS_KEY = "zweck_reports_date_presets_v1";
+
+function loadCustomPresets() {
+  try {
+    const raw = localStorage.getItem(REPORT_CUSTOM_PRESETS_KEY);
+    const p = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(p)) return [];
+    return p.filter(
+      (x) => x && typeof x.name === "string" && typeof x.from === "string" && typeof x.to === "string"
+    );
+  } catch {
+    return [];
+  }
+}
 
 function makeStatementRef(statementCode, mode, from, to) {
   const today = new Date().toISOString().slice(0, 10).replaceAll("-", "");
@@ -176,6 +194,7 @@ function openPrintDocument(title, statementName, reportMeta, statementRef, inner
 export default function Reports() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [customPresets, setCustomPresets] = useState(() => loadCustomPresets());
   const [selectedDirectorId, setSelectedDirectorId] = useState("ALL");
   const dark = useDarkClass();
   const gridStroke = dark ? "#475569" : "#e2e8f0";
@@ -194,6 +213,7 @@ export default function Reports() {
   const rawTxs = useMemo(() => txItems(qTx.data), [qTx.data]);
   const txTotal = qTx.data?.total;
   const txs = useMemo(() => filterByDateRange(rawTxs, from, to), [rawTxs, from, to]);
+  const rolling30Kpis = useMemo(() => reportRolling30DayKpis(rawTxs), [rawTxs]);
   const previousRange = useMemo(() => {
     if (!from || !to) return null;
     const start = new Date(`${from}T00:00:00`);
@@ -366,6 +386,29 @@ export default function Reports() {
   function clearRange() {
     setFrom("");
     setTo("");
+  }
+
+  function saveCurrentRangeAsPreset() {
+    if (!from.trim() && !to.trim()) {
+      window.alert("Set at least one date, or use quick presets first.");
+      return;
+    }
+    const name = window.prompt("Name for this range (e.g. Q1 close)");
+    if (!name?.trim()) return;
+    const next = [...customPresets, { name: name.trim(), from: from || "", to: to || "" }];
+    setCustomPresets(next);
+    localStorage.setItem(REPORT_CUSTOM_PRESETS_KEY, JSON.stringify(next));
+  }
+
+  function applyPreset(p) {
+    setFrom(p.from || "");
+    setTo(p.to || "");
+  }
+
+  function removePresetAt(index) {
+    const next = customPresets.filter((_, i) => i !== index);
+    setCustomPresets(next);
+    localStorage.setItem(REPORT_CUSTOM_PRESETS_KEY, JSON.stringify(next));
   }
 
   const rangeLabel =
@@ -736,7 +779,58 @@ export default function Reports() {
             Clear
           </button>
         </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            Quick
+          </span>
+          <button
+            type="button"
+            className="ui-btn-outline-xs"
+            onClick={() => applyPreset(reportRangeLast30Days())}
+          >
+            Last 30 days
+          </button>
+          <button type="button" className="ui-btn-outline-xs" onClick={() => applyPreset(reportRangeThisMonth())}>
+            This month
+          </button>
+          <button type="button" className="ui-btn-outline-xs" onClick={() => applyPreset(reportRangeYtd())}>
+            Year to date
+          </button>
+          <button type="button" className="ui-btn-outline-xs" onClick={saveCurrentRangeAsPreset}>
+            Save current as preset
+          </button>
+        </div>
+        {customPresets.length ? (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Saved
+            </span>
+            {customPresets.map((p, idx) => (
+              <span key={`${p.name}-${idx}`} className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 pl-2 pr-1 text-xs dark:border-slate-600 dark:bg-slate-800/80">
+                <button type="button" className="font-medium text-brand-800 hover:underline dark:text-brand-200" onClick={() => applyPreset(p)}>
+                  {p.name}
+                </button>
+                <button
+                  type="button"
+                  className="rounded-full px-1.5 py-0.5 text-slate-500 hover:bg-slate-200 hover:text-slate-800 dark:hover:bg-slate-700 dark:hover:text-slate-100"
+                  aria-label={`Remove preset ${p.name}`}
+                  onClick={() => removePresetAt(idx)}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        ) : null}
       </div>
+
+      {!from && !to ? (
+        <div className="ui-animate-pop ui-surface rounded-xl p-3 text-sm text-slate-700 print:hidden dark:text-slate-300">
+          <span className="font-semibold">Rolling 30 days</span> snapshot (while date range is empty, charts below use{" "}
+          <strong>all</strong> posted transactions): contributions {eur(rolling30Kpis.contributions)} · net{" "}
+          {eur(rolling30Kpis.net)}
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard label="Contributions (period)" value={eur(kpis.contributions)} />

@@ -35,6 +35,52 @@ router.get("/", async (_req, res) => {
   res.json(rows);
 });
 
+function escapeIcsText(s: string) {
+  return String(s ?? "")
+    .replace(/\\/g, "\\\\")
+    .replace(/;/g, "\\;")
+    .replace(/,/g, "\\,")
+    .replace(/\r?\n/g, "\\n");
+}
+
+function icsDateOnly(yyyyMmDd: string) {
+  const d = String(yyyyMmDd || "").replace(/\D/g, "");
+  return d.length >= 8 ? d.slice(0, 8) : "";
+}
+
+/** Subscribe in Outlook / Google Calendar — excludes cancelled meetings. */
+router.get("/calendar.ics", async (_req, res) => {
+  const rows = await db.meeting.findMany({ orderBy: [{ date: "asc" }, { id: "asc" }] });
+  const active = rows.filter((r: { status?: string | null }) => r.status !== "CANCELLED");
+  const lines: string[] = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//ZweckOS//Meetings//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH"
+  ];
+  const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+  for (const m of active) {
+    const day = icsDateOnly(m.date);
+    if (!day) continue;
+    const uid = `meeting-${m.id}@zweckos`;
+    const loc = m.location ? escapeIcsText(m.location) : "";
+    const desc = [m.agenda, m.notes, m.actionItems].filter(Boolean).join("\\n\\n");
+    lines.push("BEGIN:VEVENT");
+    lines.push(`UID:${uid}`);
+    lines.push(`DTSTAMP:${stamp}`);
+    lines.push(`DTSTART;VALUE=DATE:${day}`);
+    lines.push(`SUMMARY:${escapeIcsText(m.title || "Meeting")}`);
+    if (loc) lines.push(`LOCATION:${loc}`);
+    if (desc) lines.push(`DESCRIPTION:${escapeIcsText(desc)}`);
+    lines.push("END:VEVENT");
+  }
+  lines.push("END:VCALENDAR");
+  res.setHeader("Content-Type", "text/calendar; charset=utf-8");
+  res.setHeader("Content-Disposition", 'attachment; filename="zweck-meetings.ics"');
+  return res.send(lines.join("\r\n"));
+});
+
 router.post("/", requireRole("ADMIN"), validateBody(meetingSchema), async (req, res) => {
   const body = req.body as z.infer<typeof meetingSchema>;
   const uid = req.user?.id ?? null;

@@ -24,10 +24,6 @@ export default function GlobalSearch() {
     return () => document.removeEventListener("mousedown", onDoc);
   }, []);
 
-  useEffect(() => {
-    if (trimmed.length >= 2) setOpen(true);
-  }, [trimmed]);
-
   const d = qSearch.data;
   const hasResults =
     d &&
@@ -44,8 +40,15 @@ export default function GlobalSearch() {
         autoComplete="off"
         placeholder="Search…"
         value={q}
-        onChange={(e) => setQ(e.target.value)}
-        onFocus={() => trimmed.length >= 2 && setOpen(true)}
+        onChange={(e) => {
+          const v = e.target.value;
+          setQ(v);
+          const t = v.trim();
+          setOpen(t.length >= 2);
+        }}
+        onFocus={(e) => {
+          if (e.target.value.trim().length >= 2) setOpen(true);
+        }}
         className="w-full rounded-lg border border-slate-200 bg-white/95 px-3 py-2 text-sm text-slate-800 shadow-sm outline-none ring-brand-500/30 placeholder:text-slate-400 focus:border-brand-400 focus:ring-2 dark:border-slate-600 dark:bg-slate-900/90 dark:text-slate-100 dark:placeholder:text-slate-500"
       />
       {open && trimmed.length >= 2 ? (

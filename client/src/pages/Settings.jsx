@@ -1,12 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Loading from "../components/Loading";
 import ErrorBanner from "../components/ErrorBanner";
 import ThemeSettings from "../components/ThemeSettings";
 import { getHealth, getSettings } from "../api/settings";
-import { listUsers, updateUserRole } from "../api/users";
-import { listLoginEvents } from "../api/users";
+import { listUsers, updateUserRole, listLoginEvents, listMyLoginEvents } from "../api/users";
+import { pingIntegration } from "../api/integrations";
 
 const SECTION = "ui-surface scroll-mt-24 rounded-xl p-5";
 const PREFS_KEY = "zweck_settings_prefs_v1";
@@ -82,6 +82,7 @@ const APP_FEATURES = [
 
 const NAV = [
   { href: "#settings-account", label: "Account" },
+  { href: "#settings-my-logins", label: "My logins" },
   { href: "#settings-workspace", label: "Workspace" },
   { href: "#settings-theme", label: "Theme" },
   { href: "#settings-status", label: "API status" },
@@ -186,6 +187,20 @@ export default function Settings() {
     queryFn: () => listLoginEvents(500),
     enabled: qSettings.data?.session?.role === "ADMIN"
   });
+  const qMyLoginEvents = useQuery({
+    queryKey: ["login_events_mine_settings"],
+    queryFn: () => listMyLoginEvents(50),
+    enabled: Boolean(qSettings.data?.session?.email)
+  });
+  const mPingIntegration = useMutation({
+    mutationFn: () => pingIntegration({ source: "settings-ui", at: new Date().toISOString() })
+  });
+
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNowMs(Date.now()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
 
   const s = qSettings.data;
   const app = s?.app || {};
@@ -253,7 +268,6 @@ export default function Settings() {
   const selectedUserAvgMin = selectedUserRows.length
     ? Math.round(selectedUserRows.reduce((sum, r) => sum + Number(r.sessionDurationMinutes || 0), 0) / selectedUserRows.length)
     : 0;
-  const nowMs = Date.now();
   const inLast24h = (iso) => nowMs - new Date(iso).getTime() <= 24 * 60 * 60 * 1000;
   const inLast7d = (iso) => nowMs - new Date(iso).getTime() <= 7 * 24 * 60 * 60 * 1000;
   const high24h = loginRows.filter((r) => r.riskLevel === "HIGH" && inLast24h(r.createdAt)).length;
@@ -497,6 +511,74 @@ export default function Settings() {
         </div>
       </section>
 
+      <section id="settings-my-logins" className={SECTION}>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          My login activity
+        </h2>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+          Recent sign-ins for your account (IP, outcome, and risk flags). Admins also see the organisation-wide
+          log below.
+        </p>
+        {qMyLoginEvents.isLoading ? (
+          <div className="mt-3 text-sm text-slate-600 dark:text-slate-300">Loading your login history…</div>
+        ) : qMyLoginEvents.error ? (
+          <div className="mt-3">
+            <ErrorBanner error={qMyLoginEvents.error} />
+          </div>
+        ) : (
+          <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+            <table className="min-w-full text-left text-sm">
+              <thead className="bg-slate-50 dark:bg-slate-800/70">
+                <tr>
+                  <th className="px-4 py-2">When</th>
+                  <th className="px-4 py-2">Outcome</th>
+                  <th className="px-4 py-2">IP</th>
+                  <th className="px-4 py-2">Risk</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                {(qMyLoginEvents.data || [])
+                  .slice()
+                  .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                  .map((r) => (
+                  <tr key={r.id} className="text-slate-800 dark:text-slate-200">
+                    <td className="px-4 py-2 whitespace-nowrap">{new Date(r.createdAt).toLocaleString()}</td>
+                    <td className="px-4 py-2 whitespace-nowrap">
+                      {r.success === false ? (
+                        <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-800">
+                          FAILED
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">
+                          SUCCESS
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 whitespace-nowrap">{r.ip || "—"}</td>
+                    <td className="px-4 py-2 whitespace-nowrap">
+                      {r.riskLevel === "HIGH" ? (
+                        <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-800">HIGH</span>
+                      ) : r.riskLevel === "MEDIUM" ? (
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">MEDIUM</span>
+                      ) : (
+                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">LOW</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                {!(qMyLoginEvents.data || []).length ? (
+                  <tr>
+                    <td className="px-4 py-6 text-center text-slate-500 dark:text-slate-400" colSpan={4}>
+                      No login records yet.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
       <ThemeSettings />
 
       {isAdmin ? <section id="settings-status" className={SECTION}>
@@ -597,6 +679,14 @@ export default function Settings() {
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
           OpenAPI spec and interactive Swagger UI (same origin as the app).
         </p>
+        <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
+          <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">GET /api/meetings/calendar.ics</code> serves an
+          authenticated iCalendar feed (cancelled meetings omitted). Use{" "}
+          <Link className="font-medium text-brand-700 hover:underline dark:text-brand-300" to="/meetings">
+            Meetings → Download calendar (.ics)
+          </Link>{" "}
+          in the app, or call the URL with a Bearer token from automation.
+        </p>
         <div className="mt-3 flex flex-wrap gap-3 text-sm">
           <a
             className="font-medium text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
@@ -615,6 +705,33 @@ export default function Settings() {
             openapi.json
           </a>
         </div>
+        {isAdmin ? (
+          <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50/80 p-3 text-sm dark:border-slate-700 dark:bg-slate-900/40">
+            <div className="font-medium text-slate-800 dark:text-slate-200">Integrations</div>
+            <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+              <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">POST /api/integrations/ping</code> writes an audit
+              entry (for Zapier, n8n, or smoke tests).
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                className="ui-btn-outline text-sm"
+                disabled={mPingIntegration.isPending}
+                onClick={() => mPingIntegration.mutate()}
+              >
+                Send test ping
+              </button>
+              {mPingIntegration.isSuccess ? (
+                <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">Logged to audit.</span>
+              ) : null}
+            </div>
+            {mPingIntegration.error ? (
+              <div className="mt-2">
+                <ErrorBanner error={mPingIntegration.error} />
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </section>
 
       {isAdmin ? (

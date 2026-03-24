@@ -17,16 +17,6 @@ const BANK_EFFECT = {
   OTHER_OUT: -1
 };
 
-function toIsoEndOfDay(yyyyMmDd) {
-  if (!yyyyMmDd) return undefined;
-  return new Date(`${yyyyMmDd}T23:59:59.999Z`).toISOString();
-}
-
-function toIsoStartOfDay(yyyyMmDd) {
-  if (!yyyyMmDd) return undefined;
-  return new Date(`${yyyyMmDd}T00:00:00.000Z`).toISOString();
-}
-
 function bankDelta(tx) {
   const dir = BANK_EFFECT[tx.type];
   if (!dir) return 0;
@@ -101,11 +91,25 @@ export default function Reconciliation() {
       })
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    let running = Number(openingBalance || 0);
-    return bankTx.map((t) => {
-      running += t.delta;
-      return { ...t, runningAfter: running, cleared: Boolean((qNote.data?.clearedMap || {})[String(t.id)]) };
-    });
+    const opening = Number(openingBalance || 0);
+    const clearedMap = qNote.data?.clearedMap || {};
+    return bankTx.reduce(
+      (acc, t) => {
+        const nextRunning = acc.running + t.delta;
+        return {
+          running: nextRunning,
+          rows: [
+            ...acc.rows,
+            {
+              ...t,
+              runningAfter: nextRunning,
+              cleared: Boolean(clearedMap[String(t.id)])
+            }
+          ]
+        };
+      },
+      { running: opening, rows: [] }
+    ).rows;
   }, [qPeriod.data, openingBalance, txQuery, directionFilter, qNote.data]);
 
   const visibleRows = useMemo(() => {

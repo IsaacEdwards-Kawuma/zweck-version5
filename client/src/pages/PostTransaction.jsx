@@ -165,6 +165,20 @@ export default function PostTransaction() {
     setSuccess(`Template loaded: ${template.label}`);
   }
 
+  function applyFromLastTransaction() {
+    const list = qRecent.data || [];
+    if (!list.length) return;
+    const t = list[0];
+    const dirId = t.director?.id ?? t.directorId;
+    setType(t.type);
+    setAmount(String(t.amount ?? ""));
+    setDirectorId(dirId != null && dirId !== "" ? String(dirId) : "");
+    setDescription(t.description || "");
+    setDate(new Date().toISOString().slice(0, 10));
+    setSuccess(null);
+    setEditingId(null);
+  }
+
   function exportRecentCsv() {
     const headers = ["date", "type", "director", "amount", "description"];
     const esc = (v) => `"${String(v ?? "").replaceAll('"', '""')}"`;
@@ -200,6 +214,15 @@ export default function PostTransaction() {
               {t.label}
             </button>
           ))}
+          <button
+            type="button"
+            className="ui-btn-outline-xs"
+            disabled={!qRecent.data?.length}
+            onClick={applyFromLastTransaction}
+            title="Copy type, amount, director, and description from the most recent transaction; date set to today"
+          >
+            Use last transaction
+          </button>
         </div>
       </div>
 

@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import DirectorAvatar from "../components/DirectorAvatar";
 import PrintStatementHeader from "../components/PrintStatementHeader";
@@ -21,6 +21,8 @@ const KINDS = Object.keys(PROJECT_KIND);
 const PRIORITIES = Object.keys(PRIORITY);
 
 export default function Projects() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["projects"], queryFn: listProjects });
   const qDirs = useDirectorsAll();
@@ -47,6 +49,15 @@ export default function Projects() {
     contactEmail: "",
     contactPhone: ""
   });
+
+  useEffect(() => {
+    const n = location.state?.prefillName;
+    if (typeof n !== "string" || !n.trim()) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- consume one-shot navigation state for form prefill
+    setForm((f) => ({ ...f, name: n.trim() }));
+    setShowForm(true);
+    navigate(".", { replace: true, state: {} });
+  }, [location.state, navigate]);
 
   const mCreate = useMutation({
     mutationFn: () =>

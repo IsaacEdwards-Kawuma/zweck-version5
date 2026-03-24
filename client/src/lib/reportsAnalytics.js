@@ -1,5 +1,18 @@
 import { TX_TYPE_LABELS } from "./dashboardAnalytics";
 
+/** Legacy Reports classification — keep in sync across aggregateReportByMonth, reportPeriodKpis, incomeExpenseMix. */
+function isContributionType(type) {
+  return type === "CONTRIBUTION";
+}
+
+function isReportIncomeType(type) {
+  return type === "MMF_RETURN" || type === "PENALTY" || type === "LOAN_IN";
+}
+
+function isReportExpenseType(type) {
+  return type === "REGISTRATION" || type === "TX_CHARGE" || type === "LEGAL" || type === "OTHER_OUT";
+}
+
 /**
  * @param {Array<{ date: string }>} transactions
  * @param {string} [fromStr] yyyy-mm-dd
@@ -22,6 +35,51 @@ export function filterByDateRange(transactions, fromStr, toStr) {
   });
 }
 
+/** Local calendar yyyy-mm-dd (matches HTML date inputs and filterByDateRange). */
+export function isoDateOnly(d) {
+  const x = new Date(d);
+  const y = x.getFullYear();
+  const m = String(x.getMonth() + 1).padStart(2, "0");
+  const day = String(x.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * @param {Date} [now]
+ * @returns {{ from: string, to: string }} Inclusive window: today and the prior 29 local days (30 days total).
+ */
+export function reportRangeLast30Days(now = new Date()) {
+  const to = new Date(now);
+  const from = new Date(to);
+  from.setDate(from.getDate() - 29);
+  return { from: isoDateOnly(from), to: isoDateOnly(to) };
+}
+
+/** @param {Date} [now] */
+export function reportRangeThisMonth(now = new Date()) {
+  const d = new Date(now);
+  const from = new Date(d.getFullYear(), d.getMonth(), 1);
+  const to = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+  return { from: isoDateOnly(from), to: isoDateOnly(to) };
+}
+
+/** @param {Date} [now] */
+export function reportRangeYtd(now = new Date()) {
+  const d = new Date(now);
+  const from = new Date(d.getFullYear(), 0, 1);
+  return { from: isoDateOnly(from), to: isoDateOnly(d) };
+}
+
+/**
+ * KPIs for the rolling 30-day window (same rules as {@link reportRangeLast30Days}).
+ * @param {Array<{ date: string, type: string, amount?: number }>} transactions
+ * @param {Date} [now] Reference day (defaults to today); useful for tests.
+ */
+export function reportRolling30DayKpis(transactions, now = new Date()) {
+  const r = reportRangeLast30Days(now);
+  return reportPeriodKpis(filterByDateRange(transactions, r.from, r.to));
+}
+
 /** Same classification rules as the legacy Reports page. */
 export function aggregateReportByMonth(transactions) {
   const mapMonth = new Map();
@@ -34,18 +92,10 @@ export function aggregateReportByMonth(transactions) {
       row = { month: ym, income: 0, expenses: 0, contributions: 0 };
       mapMonth.set(ym, row);
     }
-    if (t.type === "CONTRIBUTION") row.contributions += t.amount;
-    if (t.type === "MMF_RETURN" || t.type === "PENALTY" || t.type === "LOAN_IN") {
-      row.income += t.amount;
-    }
-    if (
-      t.type === "REGISTRATION" ||
-      t.type === "TX_CHARGE" ||
-      t.type === "LEGAL" ||
-      t.type === "OTHER_OUT"
-    ) {
-      row.expenses += t.amount;
-    }
+    const a = Number(t.amount) || 0;
+    if (isContributionType(t.type)) row.contributions += a;
+    if (isReportIncomeType(t.type)) row.income += a;
+    if (isReportExpenseType(t.type)) row.expenses += a;
   }
   return Array.from(mapMonth.values()).sort((a, b) => (a.month > b.month ? 1 : -1));
 }
@@ -70,16 +120,9 @@ export function reportPeriodKpis(transactions) {
   let expenses = 0;
   for (const t of transactions) {
     const a = Number(t.amount) || 0;
-    if (t.type === "CONTRIBUTION") contributions += a;
-    if (t.type === "MMF_RETURN" || t.type === "PENALTY" || t.type === "LOAN_IN") income += a;
-    if (
-      t.type === "REGISTRATION" ||
-      t.type === "TX_CHARGE" ||
-      t.type === "LEGAL" ||
-      t.type === "OTHER_OUT"
-    ) {
-      expenses += a;
-    }
+    if (isContributionType(t.type)) contributions += a;
+    if (isReportIncomeType(t.type)) income += a;
+    if (isReportExpenseType(t.type)) expenses += a;
   }
   return { contributions, income, expenses, net: income - expenses };
 }
@@ -90,15 +133,10 @@ export function incomeExpenseMix(transactions) {
   const exp = {};
   for (const t of transactions) {
     const a = Number(t.amount) || 0;
-    if (t.type === "MMF_RETURN" || t.type === "PENALTY" || t.type === "LOAN_IN") {
+    if (isReportIncomeType(t.type)) {
       inc[t.type] = (inc[t.type] || 0) + a;
     }
-    if (
-      t.type === "REGISTRATION" ||
-      t.type === "TX_CHARGE" ||
-      t.type === "LEGAL" ||
-      t.type === "OTHER_OUT"
-    ) {
+    if (isReportExpenseType(t.type)) {
       exp[t.type] = (exp[t.type] || 0) + a;
     }
   }

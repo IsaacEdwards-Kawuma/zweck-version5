@@ -173,6 +173,10 @@ html.dark ::selection {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+
+  .ui-surface:hover {
+    transform: none !important;
+  }
 }
 
 /* ─── Print: in-app (browser print / Ctrl+P) ─── */

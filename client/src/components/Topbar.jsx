@@ -13,7 +13,15 @@ export default function Topbar({ onToggleNav }) {
           Menu
         </button>
         <div className="min-w-0 flex-1">
-          <GlobalSearch />
+          <div className="flex items-center gap-2">
+            <GlobalSearch />
+            <kbd
+              className="hidden shrink-0 rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-slate-500 lg:inline dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400"
+              title="Focus search"
+            >
+              /
+            </kbd>
+          </div>
         </div>
       </div>
       <div className="hidden shrink-0 text-xs font-medium tracking-wide text-slate-500 sm:block dark:text-slate-400">

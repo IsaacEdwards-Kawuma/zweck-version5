@@ -19,7 +19,9 @@
     { "name": "settings" },
     { "name": "search" },
     { "name": "admin" },
-    { "name": "about-page" }
+    { "name": "about-page" },
+    { "name": "meetings" },
+    { "name": "integrations" }
   ],
   "components": {
     "securitySchemes": {
@@ -296,6 +298,58 @@
         "security": [{ "bearerAuth": [] }],
         "responses": {
           "200": { "description": "JSON attachment" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" }
+        }
+      }
+    },
+    "/meetings/calendar.ics": {
+      "get": {
+        "tags": ["meetings"],
+        "summary": "Meetings as iCalendar feed",
+        "description": "Returns text/calendar; cancelled meetings are omitted. Requires authentication.",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "iCalendar (.ics) document",
+            "content": {
+              "text/calendar": {
+                "schema": { "type": "string", "format": "binary" }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/integrations/ping": {
+      "post": {
+        "tags": ["integrations"],
+        "summary": "Integration test ping (admin)",
+        "description": "Records request body in audit log as INTEGRATION_PING (no other side effects).",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "type": "object", "additionalProperties": true }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Acknowledged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "receivedAt": { "type": "string", "format": "date-time" }
+                  }
+                }
+              }
+            }
+          },
           "401": { "description": "Unauthorized" },
           "403": { "description": "Forbidden" }
         }

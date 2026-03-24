@@ -31,6 +31,18 @@ describe("createApp", () => {
     expect(res.status).toBe(401);
   });
 
+  it("GET /api/meetings/calendar.ics without auth returns 401", async () => {
+    const app = createApp();
+    const res = await request(app).get("/api/meetings/calendar.ics");
+    expect(res.status).toBe(401);
+  });
+
+  it("POST /api/integrations/ping without auth returns 401", async () => {
+    const app = createApp();
+    const res = await request(app).post("/api/integrations/ping").send({ test: true });
+    expect(res.status).toBe(401);
+  });
+
   it("GET /api/documents without auth returns 401", async () => {
     const app = createApp();
     const res = await request(app).get("/api/documents");

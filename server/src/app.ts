@@ -31,6 +31,7 @@ import reportsRoutes from "./routes/reports.js";
 import aboutPageRoutes from "./routes/aboutPage.js";
 import searchRoutes from "./routes/search.js";
 import adminExportRoutes from "./routes/adminExport.js";
+import integrationsRoutes from "./routes/integrations.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const openapiDocument = JSON.parse(readFileSync(join(__dirname, "openapi.json"), "utf8")) as Record<string, unknown>;
@@ -118,6 +119,7 @@ export function createApp(): express.Express {
   app.use("/api/about-page", aboutPageRoutes);
   app.use("/api/search", searchRoutes);
   app.use("/api/admin", adminExportRoutes);
+  app.use("/api/integrations", integrationsRoutes);
 
   app.use((_req, res) => res.status(404).json(apiError("Not found")));
 

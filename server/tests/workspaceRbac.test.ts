@@ -11,6 +11,28 @@ vi.mock("../src/lib/prisma.js", () => ({
       findFirst: findFirstMock
     },
     meeting: {
+      findMany: vi.fn().mockResolvedValue([
+        {
+          id: 1,
+          title: "Board",
+          date: "2026-03-24",
+          status: "SCHEDULED",
+          location: "Room A",
+          agenda: null,
+          notes: null,
+          actionItems: null
+        },
+        {
+          id: 2,
+          title: "Cancelled",
+          date: "2026-03-25",
+          status: "CANCELLED",
+          location: null,
+          agenda: null,
+          notes: null,
+          actionItems: null
+        }
+      ]),
       create: vi.fn().mockResolvedValue({ id: 101, title: "T", date: "2026-03-24" }),
       update: vi.fn().mockResolvedValue({ id: 101, title: "T2", date: "2026-03-24" }),
       delete: vi.fn().mockResolvedValue({}),
@@ -127,5 +149,44 @@ describe("workspace RBAC", () => {
     const res = await request(app).get("/api/users/login-events/all");
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
+  });
+
+  it("GET /api/meetings/calendar.ics returns iCalendar for authenticated user", async () => {
+    const { createApp } = await import("../src/app.js");
+    const app = createApp();
+
+    const res = await request(app).get("/api/meetings/calendar.ics");
+    expect(res.status).toBe(200);
+    expect(String(res.headers["content-type"] || "")).toContain("text/calendar");
+    expect(res.text).toContain("BEGIN:VCALENDAR");
+    expect(res.text).toContain("Board");
+    expect(res.text).not.toContain("Cancelled");
+  });
+
+  it("POST /api/integrations/ping is forbidden for USER", async () => {
+    const { createApp } = await import("../src/app.js");
+    const app = createApp();
+
+    const res = await request(app).post("/api/integrations/ping").send({ hello: "world" });
+    expect(res.status).toBe(403);
+  });
+
+  it("POST /api/integrations/ping succeeds for ADMIN", async () => {
+    findFirstMock.mockResolvedValue({
+      id: 1,
+      email: "admin@example.com",
+      role: "ADMIN",
+      directorId: null
+    });
+
+    const { prisma } = await import("../src/lib/prisma.js");
+    const { createApp } = await import("../src/app.js");
+    const app = createApp();
+
+    const res = await request(app).post("/api/integrations/ping").send({ hello: "world" });
+    expect(res.status).toBe(200);
+    expect(res.body?.ok).toBe(true);
+    expect(res.body?.receivedAt).toBeTruthy();
+    expect(prisma.auditLog.create).toHaveBeenCalled();
   });
 });

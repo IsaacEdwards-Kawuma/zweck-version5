@@ -18,3 +18,15 @@ export async function updateMeeting(id, payload) {
 export async function deleteMeeting(id) {
   await api.delete(`/meetings/${id}`);
 }
+
+/** Download iCalendar feed (authenticated). */
+export async function downloadMeetingsCalendarIcs() {
+  const { data } = await api.get("/meetings/calendar.ics", { responseType: "blob" });
+  const blob = data instanceof Blob ? data : new Blob([data], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "zweck-meetings.ics";
+  a.click();
+  URL.revokeObjectURL(url);
+}
