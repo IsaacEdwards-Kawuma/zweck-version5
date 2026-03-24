@@ -62,7 +62,13 @@ export default function Login() {
       <div className="mx-auto flex min-h-screen w-full max-w-md items-center px-4">
         <div className="ui-surface w-full overflow-hidden rounded-2xl border border-brand-100/80 p-6 shadow-lg shadow-brand-900/10 ring-1 ring-brand-100/50 dark:border-slate-600 dark:shadow-black/30 dark:ring-slate-600/80">
           <div className="h-1 w-full -mx-6 -mt-6 mb-5 bg-gradient-to-r from-brand-500 via-brand-400 to-accent-500" aria-hidden />
-          <div className="text-lg font-semibold text-brand-900 dark:text-brand-200">ZweckOS</div>
+          <div className="flex items-center gap-3">
+            <img src="/zweck-logo.png" alt="Zweck logo" className="h-10 w-auto rounded-lg bg-white p-1 ring-1 ring-brand-200" />
+            <div>
+              <div className="text-lg font-semibold text-brand-900 dark:text-brand-200">ZweckOS</div>
+              <div className="text-xs ui-page-muted">Zweck Tukula Co. Ltd</div>
+            </div>
+          </div>
           {location.state?.resetOk ? (
             <div className="mt-2 rounded-lg bg-accent-50 px-3 py-2 text-sm text-accent-900 ring-1 ring-accent-200/80 dark:bg-accent-950/50 dark:text-accent-200 dark:ring-accent-800/60">
               Password updated. You can sign in now.
