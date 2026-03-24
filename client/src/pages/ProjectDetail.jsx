@@ -60,6 +60,10 @@ export default function ProjectDetail() {
     estimatedCost: "",
     actualCost: ""
   });
+  const [taskQuery, setTaskQuery] = useState("");
+  const [taskPriorityFilter, setTaskPriorityFilter] = useState("");
+  const [taskAssigneeFilter, setTaskAssigneeFilter] = useState("");
+  const [showOverdueOnly, setShowOverdueOnly] = useState(false);
 
   const mUpdate = useMutation({
     mutationFn: () =>
@@ -140,14 +144,39 @@ export default function ProjectDetail() {
     }
   });
 
-  const tasksByStatus = useMemo(() => {
+  const filteredTasks = useMemo(() => {
     const tasks = q.data?.tasks || [];
+    const today = new Date().toISOString().slice(0, 10);
+    return tasks.filter((t) => {
+      if (taskPriorityFilter && t.priority !== taskPriorityFilter) return false;
+      if (taskAssigneeFilter && String(t.assigneeDirectorId || "") !== String(taskAssigneeFilter)) return false;
+      if (showOverdueOnly && !(t.dueDate && t.dueDate.slice(0, 10) < today && t.status !== "DONE")) return false;
+      if (taskQuery.trim()) {
+        const hay = `${t.title || ""} ${t.description || ""} ${t.assignee?.name || ""}`.toLowerCase();
+        if (!hay.includes(taskQuery.toLowerCase().trim())) return false;
+      }
+      return true;
+    });
+  }, [q.data?.tasks, taskPriorityFilter, taskAssigneeFilter, showOverdueOnly, taskQuery]);
+
+  const tasksByStatus = useMemo(() => {
     const map = {};
-    for (const t of tasks) {
+    for (const t of filteredTasks) {
       if (!map[t.status]) map[t.status] = [];
       map[t.status].push(t);
     }
     return map;
+  }, [filteredTasks]);
+
+  const taskStats = useMemo(() => {
+    const all = q.data?.tasks || [];
+    const today = new Date().toISOString().slice(0, 10);
+    return {
+      total: all.length,
+      done: all.filter((t) => t.status === "DONE").length,
+      overdue: all.filter((t) => t.dueDate && t.dueDate.slice(0, 10) < today && t.status !== "DONE").length,
+      blocked: all.filter((t) => t.status === "BLOCKED").length
+    };
   }, [q.data?.tasks]);
 
   if (!Number.isFinite(projectId)) return <Navigate to="/projects" replace />;
@@ -716,6 +745,40 @@ export default function ProjectDetail() {
 
       <div className="print:hidden">
         <div className="text-sm font-semibold text-slate-900">Task board</div>
+        <div className="mt-2 grid grid-cols-2 gap-2 md:grid-cols-4">
+          <MiniStat label="All tasks" value={taskStats.total} />
+          <MiniStat label="Done" value={taskStats.done} />
+          <MiniStat label="Overdue" value={taskStats.overdue} />
+          <MiniStat label="Blocked" value={taskStats.blocked} />
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <input
+            className="ui-input px-2 py-1.5"
+            placeholder="Search task title or assignee..."
+            value={taskQuery}
+            onChange={(e) => setTaskQuery(e.target.value)}
+          />
+          <select className="ui-input px-2 py-1.5" value={taskPriorityFilter} onChange={(e) => setTaskPriorityFilter(e.target.value)}>
+            <option value="">All priorities</option>
+            {Object.keys(PRIORITY).map((x) => (
+              <option key={x} value={x}>
+                {PRIORITY[x]}
+              </option>
+            ))}
+          </select>
+          <select className="ui-input px-2 py-1.5" value={taskAssigneeFilter} onChange={(e) => setTaskAssigneeFilter(e.target.value)}>
+            <option value="">All assignees</option>
+            {directors.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
+          </select>
+          <label className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-900">
+            <input type="checkbox" checked={showOverdueOnly} onChange={(e) => setShowOverdueOnly(e.target.checked)} />
+            Overdue only
+          </label>
+        </div>
         <div className="mt-3 flex gap-3 overflow-x-auto pb-2">
           {TASK_ORDER.map((col) => (
             <div key={col} className="w-72 shrink-0 rounded-xl border border-slate-200 bg-slate-50/80 p-2">
@@ -803,6 +866,15 @@ export default function ProjectDetail() {
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+function MiniStat({ label, value }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900">
+      <div className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</div>
+      <div className="text-lg font-semibold text-slate-900 dark:text-slate-100">{value}</div>
     </div>
   );
 }

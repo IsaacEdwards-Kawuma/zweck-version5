@@ -30,6 +30,9 @@ export default function Directors() {
 
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("total");
+  const [activeFilter, setActiveFilter] = useState("ALL");
+  const [minTotal, setMinTotal] = useState("");
+  const [showTopOnly, setShowTopOnly] = useState(false);
 
   const [form, setForm] = useState({
     name: "",
@@ -105,17 +108,26 @@ export default function Directors() {
           (d.initials || "").toLowerCase().includes(qv)
       );
     }
+    if (activeFilter === "ACTIVE") list = list.filter((d) => d.active);
+    if (activeFilter === "INACTIVE") list = list.filter((d) => !d.active);
+    if (minTotal !== "") {
+      const n = Number(minTotal);
+      if (!Number.isNaN(n)) list = list.filter((d) => Number(d.total || 0) >= n);
+    }
     const sorted = [...list];
     if (sortBy === "name") sorted.sort((a, b) => a.name.localeCompare(b.name));
     else if (sortBy === "total") sorted.sort((a, b) => (b.total || 0) - (a.total || 0));
     else if (sortBy === "round") sorted.sort((a, b) => (a.joinedRound || 0) - (b.joinedRound || 0));
-    return sorted;
-  }, [directors, search, sortBy]);
+    return showTopOnly ? sorted.slice(0, 10) : sorted;
+  }, [directors, search, sortBy, activeFilter, minTotal, showTopOnly]);
 
   const stats = useMemo(() => {
     const active = directors.filter((d) => d.active).length;
     const sum = directors.reduce((s, d) => s + (d.total || 0), 0);
-    return { count: directors.length, active, sum };
+    const inactive = directors.length - active;
+    const withPhotos = directors.filter((d) => Boolean(d.avatarUrl)).length;
+    const withContact = directors.filter((d) => Boolean(d.phone || d.email)).length;
+    return { count: directors.length, active, inactive, withPhotos, withContact, sum };
   }, [directors]);
 
   const chartData = useMemo(() => {
@@ -126,6 +138,44 @@ export default function Directors() {
   }, [filtered]);
 
   const maxTotal = Math.max(0, ...directors.map((d) => d.total || 0));
+
+  function resetForm() {
+    setEditingId(null);
+    setForm({
+      name: "",
+      initials: "",
+      email: "",
+      phone: "",
+      idNumber: "",
+      occupation: "",
+      address: "",
+      nextOfKinName: "",
+      nextOfKinPhone: "",
+      notes: "",
+      joinedRound: "",
+      active: true
+    });
+  }
+
+  function toggleActive(director) {
+    mUpdate.mutate({
+      id: director.id,
+      payload: {
+        name: director.name,
+        initials: director.initials,
+        email: director.email,
+        phone: director.phone ?? "",
+        idNumber: director.idNumber ?? "",
+        occupation: director.occupation ?? "",
+        address: director.address ?? "",
+        nextOfKinName: director.nextOfKinName ?? "",
+        nextOfKinPhone: director.nextOfKinPhone ?? "",
+        notes: director.notes ?? "",
+        joinedRound: director.joinedRound,
+        active: !director.active
+      }
+    });
+  }
 
   if (q.isLoading) return <Loading label="Loading directors..." />;
   if (q.error) return <ErrorBanner error={q.error} />;
@@ -148,9 +198,12 @@ export default function Directors() {
         ) : null}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-6">
         <MetricCard label="Directors" value={String(stats.count)} sub="In roster" />
         <MetricCard label="Active" value={String(stats.active)} sub="Marked active" />
+        <MetricCard label="Inactive" value={String(stats.inactive)} sub="Not active" />
+        <MetricCard label="With photos" value={String(stats.withPhotos)} sub="Avatar uploaded" />
+        <MetricCard label="With contact" value={String(stats.withContact)} sub="Email or phone" />
         <MetricCard label="Combined total" value={eur(stats.sum)} sub="Capital + side fund" />
       </div>
 
@@ -181,9 +234,41 @@ export default function Directors() {
               <option value="round">Joined round (low → high)</option>
             </select>
           </div>
-          {search ? (
-            <button type="button" className="ui-btn-outline py-2 text-slate-700" onClick={() => setSearch("")}>
-              Clear search
+          <div>
+            <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Status</label>
+            <select className="ui-input mt-1 px-3 py-2" value={activeFilter} onChange={(e) => setActiveFilter(e.target.value)}>
+              <option value="ALL">All</option>
+              <option value="ACTIVE">Active</option>
+              <option value="INACTIVE">Inactive</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Min total</label>
+            <input
+              className="ui-input mt-1 w-36 px-3 py-2"
+              inputMode="decimal"
+              placeholder="0"
+              value={minTotal}
+              onChange={(e) => setMinTotal(e.target.value)}
+            />
+          </div>
+          <label className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-900">
+            <input type="checkbox" checked={showTopOnly} onChange={(e) => setShowTopOnly(e.target.checked)} />
+            Top 10 only
+          </label>
+          {(search || activeFilter !== "ALL" || minTotal !== "" || showTopOnly) ? (
+            <button
+              type="button"
+              className="ui-btn-outline py-2 text-slate-700"
+              onClick={() => {
+                setSearch("");
+                setSortBy("total");
+                setActiveFilter("ALL");
+                setMinTotal("");
+                setShowTopOnly(false);
+              }}
+            >
+              Reset filters
             </button>
           ) : null}
         </div>
@@ -353,21 +438,7 @@ export default function Directors() {
                   type="button"
                   className="ui-btn-outline-xs font-medium"
                   onClick={() => {
-                    setEditingId(null);
-                    setForm({
-                      name: "",
-                      initials: "",
-                      email: "",
-                      phone: "",
-                      idNumber: "",
-                      occupation: "",
-                      address: "",
-                      nextOfKinName: "",
-                      nextOfKinPhone: "",
-                      notes: "",
-                      joinedRound: "",
-                      active: true
-                    });
+                    resetForm();
                   }}
                 >
                   Cancel
@@ -411,6 +482,13 @@ export default function Directors() {
                   }}
                 >
                   Edit
+                </button>
+                <button
+                  className="ui-btn-outline-xs font-medium py-1"
+                  disabled={mUpdate.isPending}
+                  onClick={() => toggleActive(d)}
+                >
+                  {d.active ? "Deactivate" : "Activate"}
                 </button>
                 <button
                   className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-50"

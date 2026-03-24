@@ -17,6 +17,11 @@ const TX_ACCOUNT_MAP = {
   LOAN_IN: { debit: "bank", credit: "loan_liability", needsDirector: false },
   OTHER_OUT: { debit: "other_exp", credit: "bank", needsDirector: false }
 };
+const TEMPLATES = [
+  { id: "monthly-fee", label: "Monthly charges", type: "TX_CHARGE", amount: "25", description: "Monthly bank/service charges" },
+  { id: "registration", label: "Registration fee", type: "REGISTRATION", amount: "50", description: "Member registration charge" },
+  { id: "legal", label: "Legal filing", type: "LEGAL", amount: "120", description: "Legal/compliance filing fee" }
+];
 
 export default function PostTransaction() {
   const qc = useQueryClient();
@@ -37,6 +42,9 @@ export default function PostTransaction() {
   const [description, setDescription] = useState("");
   const [success, setSuccess] = useState(null);
   const [editingId, setEditingId] = useState(null);
+  const [recentQuery, setRecentQuery] = useState("");
+  const [recentType, setRecentType] = useState("ALL");
+  const [showOnlyDirectorTx, setShowOnlyDirectorTx] = useState(false);
 
   const map = TX_ACCOUNT_MAP[type];
   const needsDirector = map?.needsDirector;
@@ -98,6 +106,15 @@ export default function PostTransaction() {
     };
   }, [amount, map]);
 
+  const validation = useMemo(() => {
+    const n = Number(amount);
+    if (amount === "") return "Enter amount.";
+    if (Number.isNaN(n)) return "Amount must be numeric.";
+    if (n <= 0) return "Amount must be greater than zero.";
+    if (needsDirector && !directorId) return "Select director for this transaction type.";
+    return "";
+  }, [amount, needsDirector, directorId]);
+
   const selectedDirector = useMemo(() => {
     if (!needsDirector || !directorId) return null;
     const id = Number(directorId);
@@ -129,6 +146,41 @@ export default function PostTransaction() {
     }
   }
 
+  const recentFiltered = useMemo(() => {
+    const q = recentQuery.trim().toLowerCase();
+    return (qRecent.data || [])
+      .filter((t) => (recentType === "ALL" ? true : t.type === recentType))
+      .filter((t) => (showOnlyDirectorTx ? Boolean(t.director?.id) : true))
+      .filter((t) => {
+        if (!q) return true;
+        const hay = `${t.type} ${t.description || ""} ${t.director?.name || ""}`.toLowerCase();
+        return hay.includes(q);
+      });
+  }, [qRecent.data, recentQuery, recentType, showOnlyDirectorTx]);
+
+  function applyTemplate(template) {
+    setType(template.type);
+    setAmount(template.amount);
+    setDescription(template.description);
+    setSuccess(`Template loaded: ${template.label}`);
+  }
+
+  function exportRecentCsv() {
+    const headers = ["date", "type", "director", "amount", "description"];
+    const esc = (v) => `"${String(v ?? "").replaceAll('"', '""')}"`;
+    const lines = [
+      headers.join(","),
+      ...recentFiltered.map((t) => [esc(fmtDate(t.date)), esc(t.type), esc(t.director?.name || ""), esc(t.amount), esc(t.description || "")].join(","))
+    ];
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "recent-transactions.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="max-w-2xl space-y-4">
       <div>
@@ -139,6 +191,17 @@ export default function PostTransaction() {
       {success ? (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{success}</div>
       ) : null}
+
+      <div className="rounded-xl ui-surface p-4">
+        <div className="text-sm font-semibold text-slate-900">Quick templates</div>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {TEMPLATES.map((t) => (
+            <button key={t.id} type="button" className="ui-btn-outline-xs" onClick={() => applyTemplate(t)}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <form onSubmit={onSubmit} className="space-y-4 rounded-xl ui-surface p-4">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -211,6 +274,9 @@ export default function PostTransaction() {
             by <span className="font-semibold">{eur(preview.amount)}</span>.
           </div>
         </div>
+        {validation ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">{validation}</div>
+        ) : null}
 
         <div className="flex items-center gap-2">
           {editingId && (
@@ -230,7 +296,7 @@ export default function PostTransaction() {
             </button>
           )}
           <button
-            disabled={mPost.isPending || mUpdate.isPending || (needsDirector && !directorId)}
+            disabled={Boolean(validation) || mPost.isPending || mUpdate.isPending || (needsDirector && !directorId)}
             className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
           >
             {editingId
@@ -245,7 +311,32 @@ export default function PostTransaction() {
       </form>
 
       <div className="space-y-2">
-        <div className="text-sm font-semibold text-slate-900">Recent transactions</div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="text-sm font-semibold text-slate-900">Recent transactions</div>
+          <div className="flex flex-wrap gap-2">
+            <input
+              className="ui-input px-2 py-1.5 text-sm"
+              placeholder="Search recent..."
+              value={recentQuery}
+              onChange={(e) => setRecentQuery(e.target.value)}
+            />
+            <select className="ui-input px-2 py-1.5 text-sm" value={recentType} onChange={(e) => setRecentType(e.target.value)}>
+              <option value="ALL">All types</option>
+              {Object.keys(TX_ACCOUNT_MAP).map((k) => (
+                <option key={k} value={k}>
+                  {k.replaceAll("_", " ")}
+                </option>
+              ))}
+            </select>
+            <label className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-2 py-1.5 text-xs">
+              <input type="checkbox" checked={showOnlyDirectorTx} onChange={(e) => setShowOnlyDirectorTx(e.target.checked)} />
+              Director-only
+            </label>
+            <button type="button" className="ui-btn-outline-xs" onClick={exportRecentCsv}>
+              Export visible CSV
+            </button>
+          </div>
+        </div>
         {qRecent.isLoading ? (
           <div className="text-sm text-slate-500">Loading…</div>
         ) : qRecent.error ? (
@@ -263,7 +354,7 @@ export default function PostTransaction() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {(qRecent.data || []).map((t) => (
+                {recentFiltered.map((t) => (
                   <tr key={t.id}>
                     <td className="px-3 py-2 whitespace-nowrap">{fmtDate(t.date)}</td>
                     <td className="px-3 py-2 whitespace-nowrap text-xs font-semibold">
@@ -314,10 +405,10 @@ export default function PostTransaction() {
                     </td>
                   </tr>
                 ))}
-                {(qRecent.data || []).length === 0 && (
+                {recentFiltered.length === 0 && (
                   <tr>
                     <td className="px-3 py-4 text-center text-slate-500" colSpan={5}>
-                      No transactions yet.
+                      No transactions match this filter.
                     </td>
                   </tr>
                 )}

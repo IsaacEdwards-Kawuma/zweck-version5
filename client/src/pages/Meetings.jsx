@@ -6,6 +6,9 @@ import Loading from "../components/Loading";
 const STORAGE_KEY = "zweck_meetings_v1";
 
 const STATUS = ["SCHEDULED", "COMPLETED", "CANCELLED", "DRAFT"];
+const MEETING_TYPES = ["Board", "Management", "Project", "Finance", "Operations", "Other"];
+const PRIORITIES = ["Low", "Medium", "High", "Critical"];
+const RECURRENCE = ["NONE", "WEEKLY", "MONTHLY", "QUARTERLY"];
 
 const EMPTY_FORM = {
   title: "",
@@ -14,6 +17,12 @@ const EMPTY_FORM = {
   location: "",
   chairperson: "",
   attendees: "",
+  attendanceCount: "",
+  expectedAttendees: "",
+  meetingType: "Board",
+  priority: "Medium",
+  recurrence: "NONE",
+  reminderDays: "1",
   agenda: "",
   actionItems: "",
   notes: "",
@@ -78,22 +87,76 @@ export default function Meetings() {
   const [editingId, setEditingId] = useState(null);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [typeFilter, setTypeFilter] = useState("ALL");
+  const [priorityFilter, setPriorityFilter] = useState("ALL");
+  const [showUpcomingOnly, setShowUpcomingOnly] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  });
+  const [selectedDate, setSelectedDate] = useState("");
 
   const filtered = useMemo(() => {
     return rows
       .filter((r) => (statusFilter === "ALL" ? true : r.status === statusFilter))
+      .filter((r) => (typeFilter === "ALL" ? true : (r.meetingType || "Other") === typeFilter))
+      .filter((r) => (priorityFilter === "ALL" ? true : (r.priority || "Medium") === priorityFilter))
+      .filter((r) => (showUpcomingOnly ? r.date >= new Date().toISOString().slice(0, 10) : true))
       .filter((r) => {
-        const hay = `${r.title} ${r.location} ${r.chairperson} ${r.attendees}`.toLowerCase();
+        const hay = `${r.title} ${r.location} ${r.chairperson} ${r.attendees} ${r.meetingType || ""}`.toLowerCase();
         return hay.includes(query.toLowerCase().trim());
       })
       .sort((a, b) => String(b.date).localeCompare(String(a.date)));
-  }, [rows, query, statusFilter]);
+  }, [rows, query, statusFilter, typeFilter, priorityFilter, showUpcomingOnly]);
 
   const stats = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
     const scheduled = rows.filter((r) => r.status === "SCHEDULED").length;
     const completed = rows.filter((r) => r.status === "COMPLETED").length;
     const cancelled = rows.filter((r) => r.status === "CANCELLED").length;
-    return { scheduled, completed, cancelled, total: rows.length };
+    const upcoming = rows.filter((r) => r.status === "SCHEDULED" && r.date >= today).length;
+    const highPriority = rows.filter((r) => ["High", "Critical"].includes(r.priority || "")).length;
+    return { scheduled, completed, cancelled, total: rows.length, upcoming, highPriority };
+  }, [rows]);
+
+  const meetingsByDate = useMemo(() => {
+    return rows.reduce((acc, row) => {
+      if (!row.date) return acc;
+      acc[row.date] = acc[row.date] || [];
+      acc[row.date].push(row);
+      return acc;
+    }, {});
+  }, [rows]);
+
+  const calendarDays = useMemo(() => {
+    const year = calendarMonth.getFullYear();
+    const month = calendarMonth.getMonth();
+    const start = new Date(year, month, 1);
+    const end = new Date(year, month + 1, 0);
+    const leading = start.getDay();
+    const total = end.getDate();
+    const cells = [];
+    for (let i = 0; i < leading; i += 1) cells.push(null);
+    for (let d = 1; d <= total; d += 1) {
+      const dt = new Date(year, month, d);
+      cells.push(dt.toISOString().slice(0, 10));
+    }
+    while (cells.length % 7 !== 0) cells.push(null);
+    return cells;
+  }, [calendarMonth]);
+
+  const selectedDayRows = useMemo(() => {
+    if (!selectedDate) return [];
+    const dayRows = meetingsByDate[selectedDate] || [];
+    return [...dayRows].sort((a, b) => String(a.time || "").localeCompare(String(b.time || "")));
+  }, [meetingsByDate, selectedDate]);
+
+  const upcomingMeetings = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return rows
+      .filter((r) => r.date >= today && r.status !== "CANCELLED")
+      .sort((a, b) => `${a.date} ${a.time || ""}`.localeCompare(`${b.date} ${b.time || ""}`))
+      .slice(0, 5);
   }, [rows]);
 
   if (qMe.isLoading) return <Loading label="Loading meetings..." />;
@@ -140,6 +203,12 @@ export default function Meetings() {
       location: r.location || "",
       chairperson: r.chairperson || "",
       attendees: r.attendees || "",
+      attendanceCount: r.attendanceCount || "",
+      expectedAttendees: r.expectedAttendees || "",
+      meetingType: r.meetingType || "Board",
+      priority: r.priority || "Medium",
+      recurrence: r.recurrence || "NONE",
+      reminderDays: r.reminderDays || "1",
       agenda: r.agenda || "",
       actionItems: r.actionItems || "",
       notes: r.notes || "",
@@ -156,6 +225,25 @@ export default function Meetings() {
     if (editingId === id) resetForm();
   }
 
+  function goMonth(delta) {
+    setCalendarMonth((d) => new Date(d.getFullYear(), d.getMonth() + delta, 1));
+  }
+
+  function jumpToToday() {
+    const now = new Date();
+    const dateKey = now.toISOString().slice(0, 10);
+    setCalendarMonth(new Date(now.getFullYear(), now.getMonth(), 1));
+    setSelectedDate(dateKey);
+  }
+
+  function setMeetingStatus(id, status) {
+    if (!isAdmin) return;
+    const now = new Date().toISOString();
+    const next = rows.map((r) => (r.id === id ? { ...r, status, updatedAt: now } : r));
+    setRows(next);
+    saveMeetings(next);
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -165,11 +253,123 @@ export default function Meetings() {
         </div>
       </div>
 
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
         <StatCard label="Total" value={stats.total} />
         <StatCard label="Scheduled" value={stats.scheduled} />
         <StatCard label="Completed" value={stats.completed} />
         <StatCard label="Cancelled" value={stats.cancelled} />
+        <StatCard label="Upcoming" value={stats.upcoming} />
+        <StatCard label="High priority" value={stats.highPriority} />
+      </section>
+
+      <section className="ui-surface rounded-2xl p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="text-sm font-semibold ui-page-heading">Meeting calendar</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400">
+              Click a day to view meetings. Days with meetings show a badge.
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className="ui-btn-outline-xs" onClick={() => goMonth(-1)}>
+              Previous
+            </button>
+            <button type="button" className="ui-btn-outline-xs" onClick={jumpToToday}>
+              Today
+            </button>
+            <button type="button" className="ui-btn-outline-xs" onClick={() => goMonth(1)}>
+              Next
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-3 text-sm font-semibold text-slate-800 dark:text-slate-200">
+          {calendarMonth.toLocaleString(undefined, { month: "long", year: "numeric" })}
+        </div>
+
+        <div className="mt-2 grid grid-cols-7 gap-1 text-center text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+            <div key={d} className="py-1">
+              {d}
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-7 gap-1">
+          {calendarDays.map((dateKey, idx) => {
+            if (!dateKey) return <div key={`empty-${idx}`} className="h-20 rounded-lg border border-transparent" />;
+            const dayNum = Number(dateKey.slice(-2));
+            const count = (meetingsByDate[dateKey] || []).length;
+            const isSelected = selectedDate === dateKey;
+            const isToday = dateKey === new Date().toISOString().slice(0, 10);
+            return (
+              <button
+                key={dateKey}
+                type="button"
+                onClick={() => setSelectedDate(dateKey)}
+                className={[
+                  "h-20 rounded-lg border p-2 text-left transition-colors",
+                  isSelected
+                    ? "border-brand-500 bg-brand-50 dark:border-brand-400 dark:bg-brand-900/30"
+                    : "border-slate-200 hover:border-brand-300 hover:bg-brand-50/50 dark:border-slate-700 dark:hover:border-brand-500/50 dark:hover:bg-slate-800/80"
+                ].join(" ")}
+              >
+                <div className="flex items-center justify-between">
+                  <span className={isToday ? "rounded bg-accent-100 px-1.5 py-0.5 text-[11px] font-semibold text-accent-900 dark:bg-accent-900/40 dark:text-accent-100" : "text-xs text-slate-700 dark:text-slate-300"}>
+                    {dayNum}
+                  </span>
+                  {count > 0 ? (
+                    <span className="rounded-full bg-brand-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">{count}</span>
+                  ) : null}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+          <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Selected day</div>
+            <div className="mt-1 text-sm font-medium text-slate-800 dark:text-slate-100">{selectedDate || "No day selected"}</div>
+            <div className="mt-2 space-y-2">
+              {!selectedDate && <div className="text-sm text-slate-500 dark:text-slate-400">Select a date from the calendar.</div>}
+              {!!selectedDate && !selectedDayRows.length && (
+                <div className="text-sm text-slate-500 dark:text-slate-400">No meetings for this day.</div>
+              )}
+              {selectedDayRows.map((r) => (
+                <div key={r.id} className="rounded-lg border border-slate-200 p-2 text-sm dark:border-slate-700">
+                  <div className="font-medium text-slate-800 dark:text-slate-100">{r.title}</div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400">
+                    {r.time || "No time"} · {r.location || "No location"} · {r.status}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Upcoming meetings</div>
+            <div className="mt-2 space-y-2">
+              {!upcomingMeetings.length && <div className="text-sm text-slate-500 dark:text-slate-400">No upcoming meetings.</div>}
+              {upcomingMeetings.map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => {
+                    setCalendarMonth(new Date(`${r.date}T00:00:00`));
+                    setSelectedDate(r.date);
+                  }}
+                  className="w-full rounded-lg border border-slate-200 p-2 text-left transition-colors hover:border-brand-300 hover:bg-brand-50/50 dark:border-slate-700 dark:hover:border-brand-500/50 dark:hover:bg-slate-800/80"
+                >
+                  <div className="font-medium text-slate-800 dark:text-slate-100">{r.title}</div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400">
+                    {r.date} {r.time ? `· ${r.time}` : ""} · {r.status}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
       </section>
 
       {!isAdmin ? (
@@ -187,6 +387,66 @@ export default function Meetings() {
           <LabeledInput label="Location" value={form.location} onChange={(v) => onChange("location", v)} />
           <LabeledInput label="Chairperson" value={form.chairperson} onChange={(v) => onChange("chairperson", v)} />
           <LabeledInput label="Attendees" value={form.attendees} onChange={(v) => onChange("attendees", v)} />
+          <LabeledInput
+            label="Attendance count"
+            type="number"
+            value={form.attendanceCount}
+            onChange={(v) => onChange("attendanceCount", v)}
+          />
+          <LabeledInput
+            label="Expected attendees"
+            type="number"
+            value={form.expectedAttendees}
+            onChange={(v) => onChange("expectedAttendees", v)}
+          />
+          <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            Meeting type
+            <select
+              className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-900"
+              value={form.meetingType}
+              onChange={(e) => onChange("meetingType", e.target.value)}
+            >
+              {MEETING_TYPES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            Priority
+            <select
+              className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-900"
+              value={form.priority}
+              onChange={(e) => onChange("priority", e.target.value)}
+            >
+              {PRIORITIES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            Recurrence
+            <select
+              className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-900"
+              value={form.recurrence}
+              onChange={(e) => onChange("recurrence", e.target.value)}
+            >
+              {RECURRENCE.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </label>
+          <LabeledInput
+            label="Reminder days before"
+            type="number"
+            value={form.reminderDays}
+            onChange={(v) => onChange("reminderDays", v)}
+          />
           <LabeledInput
             label="Next meeting date"
             type="date"
@@ -254,6 +514,34 @@ export default function Meetings() {
                 </option>
               ))}
             </select>
+            <select
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-900"
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+            >
+              <option value="ALL">All types</option>
+              {MEETING_TYPES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+            <select
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-900"
+              value={priorityFilter}
+              onChange={(e) => setPriorityFilter(e.target.value)}
+            >
+              <option value="ALL">All priorities</option>
+              {PRIORITIES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+            <label className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
+              <input type="checkbox" checked={showUpcomingOnly} onChange={(e) => setShowUpcomingOnly(e.target.checked)} />
+              Upcoming only
+            </label>
             <button type="button" className="ui-btn-outline" onClick={() => toCsv(filtered)}>
               Export CSV
             </button>
@@ -265,7 +553,9 @@ export default function Meetings() {
               <tr>
                 <th className="px-3 py-2">Title</th>
                 <th className="px-3 py-2">Date</th>
+                <th className="px-3 py-2">Type / Priority</th>
                 <th className="px-3 py-2">Status</th>
+                <th className="px-3 py-2">Attendance</th>
                 <th className="px-3 py-2">Chairperson</th>
                 <th className="px-3 py-2">Location</th>
                 <th className="px-3 py-2">Actions</th>
@@ -281,17 +571,40 @@ export default function Meetings() {
                   <td className="px-3 py-2 text-slate-700 dark:text-slate-300">
                     {r.date} {r.time ? `· ${r.time}` : ""}
                   </td>
+                  <td className="px-3 py-2 text-slate-700 dark:text-slate-300">
+                    <div>{r.meetingType || "Other"}</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">{r.priority || "Medium"}</div>
+                  </td>
                   <td className="px-3 py-2">
                     <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs font-semibold text-brand-700 dark:bg-brand-900/30 dark:text-brand-200">
                       {r.status}
                     </span>
                   </td>
+                  <td className="px-3 py-2 text-slate-700 dark:text-slate-300">
+                    {r.attendanceCount || "—"} / {r.expectedAttendees || "—"}
+                  </td>
                   <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{r.chairperson || "—"}</td>
                   <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{r.location || "—"}</td>
                   <td className="px-3 py-2">
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <button type="button" className="ui-btn-outline-xs" onClick={() => onEdit(r)} disabled={!isAdmin}>
                         Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="ui-btn-outline-xs"
+                        onClick={() => setMeetingStatus(r.id, "COMPLETED")}
+                        disabled={!isAdmin}
+                      >
+                        Mark completed
+                      </button>
+                      <button
+                        type="button"
+                        className="ui-btn-outline-xs"
+                        onClick={() => setMeetingStatus(r.id, "CANCELLED")}
+                        disabled={!isAdmin}
+                      >
+                        Cancel
                       </button>
                       <button type="button" className="ui-btn-outline-xs" onClick={() => onDelete(r.id)} disabled={!isAdmin}>
                         Delete
@@ -302,7 +615,7 @@ export default function Meetings() {
               ))}
               {!filtered.length && (
                 <tr>
-                  <td className="px-3 py-8 text-center text-slate-500 dark:text-slate-400" colSpan={6}>
+                  <td className="px-3 py-8 text-center text-slate-500 dark:text-slate-400" colSpan={8}>
                     No meetings found.
                   </td>
                 </tr>

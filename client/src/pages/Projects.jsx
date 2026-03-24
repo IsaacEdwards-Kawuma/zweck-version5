@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import DirectorAvatar from "../components/DirectorAvatar";
@@ -18,6 +18,7 @@ import {
 
 const STATUSES = Object.keys(PROJECT_STATUS);
 const KINDS = Object.keys(PROJECT_KIND);
+const PRIORITIES = Object.keys(PRIORITY);
 
 export default function Projects() {
   const qc = useQueryClient();
@@ -25,6 +26,10 @@ export default function Projects() {
   const qDirs = useDirectorsAll();
   const [filter, setFilter] = useState("");
   const [kindFilter, setKindFilter] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState("");
+  const [query, setQuery] = useState("");
+  const [sortBy, setSortBy] = useState("UPDATED_DESC");
+  const [overBudgetOnly, setOverBudgetOnly] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
     name: "",
@@ -86,21 +91,95 @@ export default function Projects() {
   if (q.isLoading) return <Loading label="Loading projects..." />;
   if (q.error) return <ErrorBanner error={q.error} />;
 
-  const rows = (q.data || []).filter((p) => {
-    if (filter && p.status !== filter) return false;
-    if (kindFilter && p.projectKind !== kindFilter) return false;
-    return true;
-  });
+  const rows = useMemo(() => {
+    let out = (q.data || []).filter((p) => {
+      if (filter && p.status !== filter) return false;
+      if (kindFilter && p.projectKind !== kindFilter) return false;
+      if (priorityFilter && p.priority !== priorityFilter) return false;
+      if (overBudgetOnly && !isOverBudget(p)) return false;
+      if (query.trim()) {
+        const hay = `${p.code || ""} ${p.name || ""} ${p.description || ""} ${p.contactName || ""}`.toLowerCase();
+        if (!hay.includes(query.toLowerCase().trim())) return false;
+      }
+      return true;
+    });
+
+    if (sortBy === "UPDATED_DESC") {
+      out = out.sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")));
+    } else if (sortBy === "PROGRESS_DESC") {
+      out = out.sort((a, b) => Number(b.progress || 0) - Number(a.progress || 0));
+    } else if (sortBy === "BUDGET_DESC") {
+      out = out.sort((a, b) => Number(b.budget || 0) - Number(a.budget || 0));
+    } else if (sortBy === "NAME_ASC") {
+      out = out.sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+    }
+    return out;
+  }, [q.data, filter, kindFilter, priorityFilter, overBudgetOnly, query, sortBy]);
+
+  const stats = useMemo(() => {
+    const all = q.data || [];
+    return {
+      total: all.length,
+      active: all.filter((p) => p.status === "IN_PROGRESS").length,
+      complete: all.filter((p) => p.status === "COMPLETED").length,
+      overBudget: all.filter((p) => isOverBudget(p)).length,
+      highPriority: all.filter((p) => p.priority === "HIGH" || p.priority === "CRITICAL").length
+    };
+  }, [q.data]);
 
   const directors = qDirs.data || [];
 
+  function exportCsv() {
+    const headers = ["code", "name", "program", "status", "priority", "budget", "budgetSpent", "progress", "tasksDone", "tasksTotal", "updatedAt"];
+    const esc = (v) => `"${String(v ?? "").replaceAll('"', '""')}"`;
+    const lines = [
+      headers.join(","),
+      ...rows.map((p) =>
+        [
+          esc(p.code),
+          esc(p.name),
+          esc(PROJECT_KIND[p.projectKind] || p.projectKind),
+          esc(PROJECT_STATUS[p.status] || p.status),
+          esc(PRIORITY[p.priority] || p.priority),
+          esc(p.budget),
+          esc(maxSpend(p)),
+          esc(p.progress ?? 0),
+          esc(p.doneCount ?? 0),
+          esc(p.taskCount ?? 0),
+          esc(p.updatedAt)
+        ].join(",")
+      )
+    ];
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "projects-portfolio.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="space-y-6">
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5 print:hidden">
+        <StatCard label="Total projects" value={stats.total} />
+        <StatCard label="In progress" value={stats.active} />
+        <StatCard label="Completed" value={stats.complete} />
+        <StatCard label="Over budget" value={stats.overBudget} />
+        <StatCard label="High priority" value={stats.highPriority} />
+      </section>
+
       <div className="flex flex-wrap items-start justify-between gap-4 print:hidden">
         <div className="text-sm text-slate-600">
           Create projects, set leaders, contacts, budgets, then open a project for tasks and spend tracking.
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <input
+            className="ui-input px-2 py-1.5"
+            placeholder="Search code, name, contact..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
           <select
             className="ui-input px-2 py-1.5"
             value={kindFilter}
@@ -110,6 +189,18 @@ export default function Projects() {
             {KINDS.map((k) => (
               <option key={k} value={k}>
                 {PROJECT_KIND[k]}
+              </option>
+            ))}
+          </select>
+          <select
+            className="ui-input px-2 py-1.5"
+            value={priorityFilter}
+            onChange={(e) => setPriorityFilter(e.target.value)}
+          >
+            <option value="">All priorities</option>
+            {PRIORITIES.map((p) => (
+              <option key={p} value={p}>
+                {PRIORITY[p]}
               </option>
             ))}
           </select>
@@ -125,6 +216,19 @@ export default function Projects() {
               </option>
             ))}
           </select>
+          <select className="ui-input px-2 py-1.5" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+            <option value="UPDATED_DESC">Sort: Recently updated</option>
+            <option value="PROGRESS_DESC">Sort: Progress high-low</option>
+            <option value="BUDGET_DESC">Sort: Budget high-low</option>
+            <option value="NAME_ASC">Sort: Name A-Z</option>
+          </select>
+          <label className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-900">
+            <input type="checkbox" checked={overBudgetOnly} onChange={(e) => setOverBudgetOnly(e.target.checked)} />
+            Over budget only
+          </label>
+          <button type="button" className="ui-btn-outline" onClick={exportCsv}>
+            Export CSV
+          </button>
           <button
             type="button"
             className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-700"
@@ -360,6 +464,7 @@ export default function Projects() {
                   </td>
                   <td className="px-4 py-3 text-xs text-slate-700">
                     {p.budget != null ? `${Number(p.budget).toLocaleString()} ${p.budgetCurrency || "EUR"}` : "—"}
+                    {isOverBudget(p) ? <div className="text-[10px] font-semibold text-rose-700">Over budget</div> : null}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
@@ -400,6 +505,24 @@ export default function Projects() {
           Print portfolio
         </button>
       </div>
+    </div>
+  );
+}
+
+function maxSpend(project) {
+  return Math.max(Number(project?.budgetSpent || 0), Number(project?.spentFromTasks || 0));
+}
+
+function isOverBudget(project) {
+  if (project?.budget == null) return false;
+  return maxSpend(project) > Number(project.budget);
+}
+
+function StatCard({ label, value }) {
+  return (
+    <div className="ui-surface rounded-xl p-4">
+      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</div>
+      <div className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100">{value}</div>
     </div>
   );
 }

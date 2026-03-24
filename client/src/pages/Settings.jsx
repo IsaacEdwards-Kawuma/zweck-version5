@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Loading from "../components/Loading";
@@ -8,6 +8,7 @@ import { getHealth, getSettings } from "../api/settings";
 import { listUsers, updateUserRole } from "../api/users";
 
 const SECTION = "ui-surface scroll-mt-24 rounded-xl p-5";
+const PREFS_KEY = "zweck_settings_prefs_v1";
 
 function formatUptime(sec) {
   const h = Math.floor(sec / 3600);
@@ -78,6 +79,7 @@ const APP_FEATURES = [
 
 const NAV = [
   { href: "#settings-account", label: "Account" },
+  { href: "#settings-workspace", label: "Workspace" },
   { href: "#settings-theme", label: "Theme" },
   { href: "#settings-status", label: "API status" },
   { href: "#settings-deployment", label: "Deployment" },
@@ -86,12 +88,29 @@ const NAV = [
   { href: "#settings-api-docs", label: "API docs" },
   { href: "#settings-user-roles", label: "User roles" },
   { href: "#settings-features", label: "Features" },
-  { href: "#settings-security", label: "Security" }
+  { href: "#settings-security", label: "Security" },
+  { href: "#settings-export", label: "Export" }
 ];
+
+function loadPrefs() {
+  try {
+    const raw = localStorage.getItem(PREFS_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return {
+      defaultLanding: parsed.defaultLanding || "/",
+      compactTables: Boolean(parsed.compactTables),
+      autoRefreshSec: Number(parsed.autoRefreshSec || 60)
+    };
+  } catch {
+    return { defaultLanding: "/", compactTables: false, autoRefreshSec: 60 };
+  }
+}
 
 export default function Settings() {
   const qc = useQueryClient();
   const [copyMsg, setCopyMsg] = useState("");
+  const [sectionQuery, setSectionQuery] = useState("");
+  const [prefs, setPrefs] = useState(() => loadPrefs());
   const qSettings = useQuery({ queryKey: ["settings"], queryFn: getSettings });
   const qHealth = useQuery({ queryKey: ["health"], queryFn: getHealth, refetchInterval: 60_000 });
   const qUsers = useQuery({
@@ -118,6 +137,18 @@ export default function Settings() {
   const docsUrl = `${origin}/api/docs`;
   const openapiUrl = `${origin}/api/openapi.json`;
   const healthUrl = `${origin}/api/health`;
+  const filteredNav = useMemo(() => {
+    const q = sectionQuery.trim().toLowerCase();
+    if (!q) return NAV;
+    return NAV.filter((n) => n.label.toLowerCase().includes(q));
+  }, [sectionQuery]);
+
+  function savePrefs(next) {
+    setPrefs(next);
+    localStorage.setItem(PREFS_KEY, JSON.stringify(next));
+    setCopyMsg("Local preferences saved.");
+    setTimeout(() => setCopyMsg(""), 1800);
+  }
 
   async function refreshAll() {
     setCopyMsg("");
@@ -187,7 +218,13 @@ export default function Settings() {
         aria-label="Settings sections"
         className="flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-sm dark:border-slate-700 dark:bg-slate-900/60"
       >
-        {NAV.map((n) => (
+        <input
+          className="ui-input min-w-[200px] px-3 py-1.5"
+          placeholder="Find section..."
+          value={sectionQuery}
+          onChange={(e) => setSectionQuery(e.target.value)}
+        />
+        {filteredNav.map((n) => (
           <a
             key={n.href}
             href={n.href}
@@ -197,6 +234,48 @@ export default function Settings() {
           </a>
         ))}
       </nav>
+
+      <section id="settings-workspace" className={SECTION}>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Workspace preferences</h2>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          Local-only productivity preferences for this browser/device.
+        </p>
+        <div className="mt-3 grid gap-3 md:grid-cols-3">
+          <label className="text-xs font-medium text-slate-700 dark:text-slate-300">
+            Default landing page
+            <select
+              className="ui-input mt-1 w-full"
+              value={prefs.defaultLanding}
+              onChange={(e) => savePrefs({ ...prefs, defaultLanding: e.target.value })}
+            >
+              <option value="/">Dashboard</option>
+              <option value="/reports">Reports</option>
+              <option value="/ledger">Ledger</option>
+              <option value="/projects">Projects</option>
+              <option value="/directors">Directors</option>
+            </select>
+          </label>
+          <label className="text-xs font-medium text-slate-700 dark:text-slate-300">
+            Health refresh interval (sec)
+            <input
+              className="ui-input mt-1 w-full"
+              type="number"
+              min={15}
+              step={5}
+              value={prefs.autoRefreshSec}
+              onChange={(e) => savePrefs({ ...prefs, autoRefreshSec: Number(e.target.value || 60) })}
+            />
+          </label>
+          <label className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 dark:border-slate-700 dark:text-slate-300">
+            <input
+              type="checkbox"
+              checked={prefs.compactTables}
+              onChange={(e) => savePrefs({ ...prefs, compactTables: e.target.checked })}
+            />
+            Compact table density (future pages)
+          </label>
+        </div>
+      </section>
 
       <section id="settings-account" className={SECTION}>
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Your account</h2>
@@ -470,6 +549,37 @@ export default function Settings() {
           <li>Production: configure SMTP and public app URL for password reset emails.</li>
           <li>Optional: Sentry DSN on server and Vite build for error monitoring.</li>
         </ul>
+      </section>
+
+      <section id="settings-export" className={SECTION}>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Export diagnostics</h2>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          Download a redacted environment snapshot for support and troubleshooting.
+        </p>
+        <button
+          type="button"
+          className="mt-3 ui-btn-outline"
+          onClick={() => {
+            const payload = {
+              generatedAt: new Date().toISOString(),
+              app: s.app,
+              runtime: s.runtime,
+              deployment: s.deployment,
+              monitoring: s.monitoring,
+              rateLimits: s.rateLimits,
+              localPreferences: prefs
+            };
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8;" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "zweck-settings-diagnostics.json";
+            a.click();
+            URL.revokeObjectURL(url);
+          }}
+        >
+          Download diagnostics JSON
+        </button>
       </section>
     </div>
   );
