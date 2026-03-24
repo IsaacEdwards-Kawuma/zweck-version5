@@ -92,6 +92,14 @@ const NAV = [
   { href: "#settings-export", label: "Export" },
   { href: "#settings-readiness", label: "Readiness" }
 ];
+const ADMIN_MONITORING_NAV = new Set([
+  "#settings-status",
+  "#settings-deployment",
+  "#settings-monitoring",
+  "#settings-limits",
+  "#settings-export",
+  "#settings-readiness"
+]);
 
 function loadPrefs() {
   try {
@@ -143,7 +151,8 @@ export default function Settings() {
   const openapiUrl = `${origin}/api/openapi.json`;
   const healthUrl = `${origin}/api/health`;
   const navQuery = sectionQuery.trim().toLowerCase();
-  const filteredNav = navQuery ? NAV.filter((n) => n.label.toLowerCase().includes(navQuery)) : NAV;
+  const visibleNav = isAdmin ? NAV : NAV.filter((n) => !ADMIN_MONITORING_NAV.has(n.href));
+  const filteredNav = navQuery ? visibleNav.filter((n) => n.label.toLowerCase().includes(navQuery)) : visibleNav;
 
   if (qSettings.isLoading) return <Loading label="Loading settings..." />;
   if (qSettings.error) return <ErrorBanner error={qSettings.error} />;
@@ -180,7 +189,9 @@ export default function Settings() {
         <div>
           <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Settings</h1>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-            Account summary, shortcuts, application map, and server monitoring (read-only).
+            {isAdmin
+              ? "Account summary, shortcuts, application map, and server monitoring (read-only)."
+              : "Account summary, shortcuts, and application map."}
           </p>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
             Last updated:{" "}
@@ -342,7 +353,7 @@ export default function Settings() {
 
       <ThemeSettings />
 
-      <section id="settings-status" className={SECTION}>
+      {isAdmin ? <section id="settings-status" className={SECTION}>
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">API &amp; live status</h2>
         {qHealth.error ? (
           <p className="mt-2 text-sm text-rose-700">Health check failed — API may be unreachable.</p>
@@ -363,9 +374,9 @@ export default function Settings() {
             </a>
           </div>
         )}
-      </section>
+      </section> : null}
 
-      <section id="settings-deployment" className={SECTION}>
+      {isAdmin ? <section id="settings-deployment" className={SECTION}>
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
           Deployment readiness
         </h2>
@@ -380,9 +391,9 @@ export default function Settings() {
           <StatusDot ok={deployment.allowedOriginsConfigured} label="Allowed origins configured" />
           <StatusDot ok={deployment.vercelPreviewOriginsEnabled} label="Vercel preview origins enabled" />
         </div>
-      </section>
+      </section> : null}
 
-      <section id="settings-monitoring" className={SECTION}>
+      {isAdmin ? <section id="settings-monitoring" className={SECTION}>
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Server monitoring</h2>
         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
           API {app.version || "—"} · {runtime.nodeEnv || "—"} · up {formatUptime(runtime.uptimeSeconds || 0)} · heap{" "}
@@ -406,9 +417,9 @@ export default function Settings() {
           Log level (server):{" "}
           <code className="rounded bg-slate-100 px-1 dark:bg-slate-900 dark:text-slate-200">{monitoring.logLevel || "—"}</code>
         </p>
-      </section>
+      </section> : null}
 
-      <section id="settings-limits" className={SECTION}>
+      {isAdmin ? <section id="settings-limits" className={SECTION}>
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Rate limits (server)</h2>
         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
           Configured via environment variables; values shown are active limits, not live usage.
@@ -433,7 +444,7 @@ export default function Settings() {
             </dd>
           </div>
         </dl>
-      </section>
+      </section> : null}
 
       <section id="settings-api-docs" className={SECTION}>
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">API documentation</h2>
@@ -562,7 +573,7 @@ export default function Settings() {
         </ul>
       </section>
 
-      <section id="settings-export" className={SECTION}>
+      {isAdmin ? <section id="settings-export" className={SECTION}>
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Export diagnostics</h2>
         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
           Download a redacted environment snapshot for support and troubleshooting.
@@ -591,9 +602,9 @@ export default function Settings() {
         >
           Download diagnostics JSON
         </button>
-      </section>
+      </section> : null}
 
-      <section id="settings-readiness" className={SECTION}>
+      {isAdmin ? <section id="settings-readiness" className={SECTION}>
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Production readiness</h2>
         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
           High-level rollout checklist for persistence, monitoring, and operations.
@@ -611,7 +622,7 @@ export default function Settings() {
           <code className="rounded bg-slate-100 px-1 dark:bg-slate-900">SENTRY_ALERT_EMAIL</code>,{" "}
           <code className="rounded bg-slate-100 px-1 dark:bg-slate-900">INCIDENT_RUNBOOK_URL</code>.
         </p>
-      </section>
+      </section> : null}
     </div>
   );
 }
