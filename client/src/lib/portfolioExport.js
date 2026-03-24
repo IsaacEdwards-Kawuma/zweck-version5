@@ -372,7 +372,7 @@ export function printDirectorStatement(d, p, members) {
       <tbody>
         <tr><td>Total member equity</td><td class="num">${eurPlain(members.totalEquity)} €</td></tr>
         <tr><td>Total contributed capital</td><td class="num">${eurPlain(members.totalCapital)} €</td></tr>
-        <tr><td>Total assets (Bank + MMF + YPA)</td><td class="num">${eurPlain(p.totalAssets)} €</td></tr>
+        <tr><td>Total assets (Bank and project-linked assets)</td><td class="num">${eurPlain(p.totalAssets)} €</td></tr>
       </tbody>
     </table>
   `;

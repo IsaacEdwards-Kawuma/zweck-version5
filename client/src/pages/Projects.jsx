@@ -98,8 +98,7 @@ export default function Projects() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4 print:hidden">
         <div className="text-sm text-slate-600">
-          Create projects (General, MMF, or YPA), set leaders, contacts, budgets, then open a project for
-          tasks and spend tracking.
+          Create projects, set leaders, contacts, budgets, then open a project for tasks and spend tracking.
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <select

@@ -196,16 +196,8 @@ export default function Portfolio() {
   const p = q.data;
   const total = p.totalAssets || 0;
 
-  const target = {
-    bank: 0.5,
-    mmf: 0.3,
-    ypa: 0.2
-  };
-
   const currentAlloc = [
-    { asset: "Bank", key: "bank", target: target.bank, actual: total ? p.assets.bank / total : 0 },
-    { asset: "MMF", key: "mmf", target: target.mmf, actual: total ? p.assets.mmf / total : 0 },
-    { asset: "YPA", key: "ypa", target: target.ypa, actual: total ? p.assets.ypa / total : 0 }
+    { asset: "Bank", key: "bank", target: 1, actual: total ? p.assets.bank / total : 0 }
   ];
 
   const radarData = currentAlloc.map((row) => ({
@@ -215,25 +207,16 @@ export default function Portfolio() {
   }));
 
   const scenario = (() => {
-    const move = Number(scenarioAmount || 0);
-    if (!move || move <= 0 || move > p.assets.bank) {
-      return null;
-    }
-    const newBank = p.assets.bank - move;
-    const newMMF = p.assets.mmf + move;
-    const t = newBank + newMMF + p.assets.ypa;
+    const reserve = Number(scenarioAmount || 0);
+    if (!reserve || reserve <= 0 || reserve > p.assets.bank) return null;
     return {
-      bank: newBank,
-      mmf: newMMF,
-      ypa: p.assets.ypa,
-      total: t
+      bank: reserve,
+      total: p.totalAssets || 0
     };
   })();
 
   const trendData = [
-    { name: "Bank", value: p.assets.bank },
-    { name: "MMF", value: p.assets.mmf },
-    { name: "YPA", value: p.assets.ypa }
+    { name: "Bank", value: p.assets.bank }
   ];
 
   const barHeight = Math.min(520, Math.max(220, (barData.length || 1) * 40));
@@ -289,13 +272,7 @@ export default function Portfolio() {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <AssetCard title="Bank Account" value={p.assets.bank} pct={p.percent.bank} />
-        <AssetCard
-          title="MMF Investment"
-          value={p.assets.mmf}
-          pct={p.percent.mmf}
-          sub={`Returns earned: ${eur(p.mmfReturns || 0)}`}
-        />
-        <AssetCard title="YPA Goats Project" value={p.assets.ypa} pct={p.percent.ypa} />
+        <AssetCard title="Total Assets" value={p.totalAssets} pct={1} />
       </div>
 
       {members && (
@@ -327,7 +304,7 @@ export default function Portfolio() {
             <div className="rounded-xl ui-surface p-4">
               <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Total assets</div>
               <div className="mt-1 text-xl font-semibold ui-page-heading">{eur(p.totalAssets)}</div>
-              <div className="mt-1 text-xs text-slate-500">Bank + MMF + YPA</div>
+              <div className="mt-1 text-xs text-slate-500">Bank and project-linked assets</div>
             </div>
           </div>
 
@@ -433,21 +410,19 @@ export default function Portfolio() {
             </ResponsiveContainer>
           </div>
           <div className="mt-3 text-xs text-slate-600">
-            Targets: Bank 50%, MMF 30%, YPA 20%. Adjust these ratios in the portfolio page if your policy
-            changes.
+            Bank share versus overall assets. Expand this chart when new asset categories are introduced.
           </div>
         </div>
 
         <div className="space-y-4">
           <div className="rounded-2xl ui-surface p-4 print:hidden">
-            <div className="text-sm font-semibold ui-page-heading">Scenario: move from Bank to MMF</div>
+            <div className="text-sm font-semibold ui-page-heading">Scenario: planned bank reserve</div>
             <div className="mt-3 text-sm text-slate-600">
-              Explore deploying additional cash from the bank into MMF. Front-end only; no transaction is
-              posted.
+              Explore maintaining a reserve from current bank assets. Front-end only; no transaction is posted.
             </div>
             <div className="mt-3 flex items-end gap-2">
               <div className="flex-1">
-                <div className="text-xs font-medium text-slate-700">Amount to move (€)</div>
+                <div className="text-xs font-medium text-slate-700">Reserve amount (€)</div>
                 <input
                   className="mt-1 w-full rounded-lg border-slate-300"
                   inputMode="decimal"
@@ -467,12 +442,12 @@ export default function Portfolio() {
                   <div className="font-semibold">{eur(scenario.bank)}</div>
                 </div>
                 <div>
-                  <div className="text-slate-500">MMF after</div>
-                  <div className="font-semibold">{eur(scenario.mmf)}</div>
-                </div>
-                <div>
                   <div className="text-slate-500">Total assets</div>
                   <div className="font-semibold">{eur(scenario.total)}</div>
+                </div>
+                <div>
+                  <div className="text-slate-500">Coverage</div>
+                  <div className="font-semibold">{pct01(scenario.total ? scenario.bank / scenario.total : 0)}</div>
                 </div>
               </div>
             )}

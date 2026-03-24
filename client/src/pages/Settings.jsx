@@ -47,7 +47,7 @@ const APP_FEATURES = [
   {
     title: "Post transaction",
     to: "/post",
-    description: "Create double-entry postings (contributions, MMF, charges, etc.)."
+    description: "Create double-entry postings (contributions, charges, and operations)."
   },
   {
     title: "Ledger",
@@ -72,7 +72,7 @@ const APP_FEATURES = [
   {
     title: "Projects",
     to: "/projects",
-    description: "Projects, tasks, MMF tracker, and YPA workspace."
+    description: "Projects and task workspace."
   }
 ];
 

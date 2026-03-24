@@ -76,9 +76,7 @@ export default function Dashboard() {
   const totalAssets = portfolio?.totalAssets || 0;
 
   const portfolioData = [
-    { name: "Bank", key: "bank", value: portfolio?.assets?.bank || 0 },
-    { name: "MMF", key: "mmf", value: portfolio?.assets?.mmf || 0 },
-    { name: "YPA", key: "ypa", value: portfolio?.assets?.ypa || 0 }
+    { name: "Bank", key: "bank", value: portfolio?.assets?.bank || 0 }
   ].filter((d) => d.value !== 0 || totalAssets === 0);
 
   const incomeExpenseData = [
@@ -106,7 +104,7 @@ export default function Dashboard() {
           <MetricCard label="Total Director Capital" value={eur(totalDirectorCapital)} />
         </div>
         <div className="transition-transform duration-300 hover:-translate-y-0.5">
-          <MetricCard label="Total Assets" value={eur(totalAssets)} sub="Bank · MMF · YPA" />
+          <MetricCard label="Total Assets" value={eur(totalAssets)} sub="Bank and project-linked assets" />
         </div>
         <div className="transition-transform duration-300 hover:-translate-y-0.5">
           <MetricCard label="Transaction Count" value={String(count)} />

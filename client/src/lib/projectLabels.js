@@ -1,7 +1,5 @@
 export const PROJECT_KIND = {
-  GENERAL: "General",
-  MMF: "Money market (MMF)",
-  YPA: "YPA (Goats)"
+  GENERAL: "General"
 };
 
 export const PROJECT_STATUS = {

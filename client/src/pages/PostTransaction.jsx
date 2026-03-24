@@ -10,9 +10,6 @@ import { eur, fmtDate } from "../lib/format";
 const TX_ACCOUNT_MAP = {
   CONTRIBUTION: { debit: "bank", credit: "capital", needsDirector: true },
   SIDE_FUND: { debit: "bank", credit: "side_fund", needsDirector: true },
-  MMF_DEPLOY: { debit: "mmf", credit: "bank", needsDirector: false },
-  MMF_RETURN: { debit: "bank", credit: "mmf_income", needsDirector: false },
-  YPA_INVEST: { debit: "ypa", credit: "bank", needsDirector: false },
   REGISTRATION: { debit: "reg_costs", credit: "bank", needsDirector: false },
   TX_CHARGE: { debit: "tx_charge", credit: "bank", needsDirector: false },
   LEGAL: { debit: "legal", credit: "bank", needsDirector: false },

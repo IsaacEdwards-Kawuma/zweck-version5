@@ -13,9 +13,6 @@ import { eur } from "../lib/format";
 const TX_ACCOUNT_MAP = {
   CONTRIBUTION: { debit: "bank", credit: "capital" },
   SIDE_FUND: { debit: "bank", credit: "side_fund" },
-  MMF_DEPLOY: { debit: "mmf", credit: "bank" },
-  MMF_RETURN: { debit: "bank", credit: "mmf_income" },
-  YPA_INVEST: { debit: "ypa", credit: "bank" },
   REGISTRATION: { debit: "reg_costs", credit: "bank" },
   TX_CHARGE: { debit: "tx_charge", credit: "bank" },
   LEGAL: { debit: "legal", credit: "bank" },
@@ -174,9 +171,6 @@ export default function Ledger() {
               <option value="">All</option>
               <option value="CONTRIBUTION">CONTRIBUTION</option>
               <option value="SIDE_FUND">SIDE_FUND</option>
-              <option value="MMF_DEPLOY">MMF_DEPLOY</option>
-              <option value="MMF_RETURN">MMF_RETURN</option>
-              <option value="YPA_INVEST">YPA_INVEST</option>
               <option value="REGISTRATION">REGISTRATION</option>
               <option value="TX_CHARGE">TX_CHARGE</option>
               <option value="LEGAL">LEGAL</option>

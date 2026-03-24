@@ -130,7 +130,7 @@ export default function Reports() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard label="Contributions (period)" value={eur(kpis.contributions)} />
-        <MetricCard label="Income (period)" value={eur(kpis.income)} sub="MMF return, penalty, loan" />
+        <MetricCard label="Income (period)" value={eur(kpis.income)} sub="Project returns, penalties, loan" />
         <MetricCard label="Expenses (period)" value={eur(kpis.expenses)} sub="Reg, charges, legal, other" />
         <MetricCard
           label="Net (income − expenses)"
@@ -195,7 +195,7 @@ export default function Reports() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="ui-surface rounded-2xl p-4">
           <div className="text-sm font-semibold ui-page-heading">Income mix</div>
-          <p className="text-xs ui-page-muted">MMF return, penalties, loan repayments.</p>
+          <p className="text-xs ui-page-muted">Project returns, penalties, loan repayments.</p>
           <div className="mt-2 h-64">
             {mix.incomeRows.length ? (
               <ResponsiveContainer width="100%" height="100%">
