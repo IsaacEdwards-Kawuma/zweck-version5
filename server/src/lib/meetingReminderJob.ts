@@ -21,6 +21,13 @@ export function subtractDaysYmd(yyyyMmDd: string, days: number): string | null {
   return dt.toISOString().slice(0, 10);
 }
 
+function meetingReminderBodyLines(date: string, time: string | null, location: string | null): string {
+  const when = [date, time].filter(Boolean).join(" · ");
+  const parts = [`When: ${when}`];
+  if (location) parts.push(`Location: ${location}`);
+  return parts.join("\n");
+}
+
 export type MeetingReminderJobResult = {
   checked: number;
   sent: number;
@@ -31,6 +38,7 @@ export type MeetingReminderJobResult = {
 /**
  * Send one reminder email per eligible meeting when today (UTC date) equals
  * meeting.date minus reminderDays. Recipients: opted-in admins, directors, and the meeting creator (if any).
+ * In-app notifications use the same audience with inAppMeetingReminders.
  */
 export async function runMeetingReminderJob(): Promise<MeetingReminderJobResult> {
   const today = utcTodayYmd();
@@ -58,20 +66,27 @@ export async function runMeetingReminderJob(): Promise<MeetingReminderJobResult>
       continue;
     }
 
-    const recipients = await prisma.user.findMany({
+    const users = await prisma.user.findMany({
       where: {
-        emailMeetingReminders: true,
         OR: [
           { role: "ADMIN" },
           { role: "DIRECTOR" },
           ...(meeting.createdById != null ? [{ id: meeting.createdById }] : [])
         ]
       },
-      select: { email: true }
+      select: {
+        id: true,
+        email: true,
+        emailMeetingReminders: true,
+        inAppMeetingReminders: true
+      }
     });
 
-    const emails = [...new Set(recipients.map((r) => r.email.toLowerCase()))];
-    if (emails.length === 0) {
+    const emailList = [...new Set(users.filter((u) => u.emailMeetingReminders).map((u) => u.email.toLowerCase()))];
+
+    const inAppUsers = users.filter((u) => u.inAppMeetingReminders);
+
+    if (emailList.length === 0 && inAppUsers.length === 0) {
       await prisma.meetingReminderSent.create({ data: { meetingId: meeting.id } });
       skipped += 1;
       continue;
@@ -80,16 +95,34 @@ export async function runMeetingReminderJob(): Promise<MeetingReminderJobResult>
     const appUrl = getPublicAppUrl() || "http://localhost:5173";
 
     try {
-      await sendMeetingReminderEmail(emails, {
-        title: meeting.title,
-        date: meeting.date,
-        time: meeting.time,
-        location: meeting.location,
-        meetingsUrl: `${appUrl}/meetings`
-      });
+      if (emailList.length > 0) {
+        await sendMeetingReminderEmail(emailList, {
+          title: meeting.title,
+          date: meeting.date,
+          time: meeting.time,
+          location: meeting.location,
+          meetingsUrl: `${appUrl}/meetings`
+        });
+      }
+      if (inAppUsers.length > 0) {
+        const body = meetingReminderBodyLines(meeting.date, meeting.time, meeting.location);
+        await prisma.notification.createMany({
+          data: inAppUsers.map((u) => ({
+            userId: u.id,
+            type: "MEETING_REMINDER",
+            title: `Reminder: ${meeting.title}`,
+            body,
+            link: "/meetings",
+            meetingId: meeting.id
+          }))
+        });
+      }
       await prisma.meetingReminderSent.create({ data: { meetingId: meeting.id } });
       sent += 1;
-      logger.info({ meetingId: meeting.id, toCount: emails.length }, "[meeting-reminders] sent");
+      logger.info(
+        { meetingId: meeting.id, emailCount: emailList.length, inAppCount: inAppUsers.length },
+        "[meeting-reminders] sent"
+      );
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       errors.push(`meeting ${meeting.id}: ${msg}`);

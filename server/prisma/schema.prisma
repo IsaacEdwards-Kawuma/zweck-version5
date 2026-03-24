@@ -42,12 +42,31 @@ model User {
   lastLoginAt DateTime?
   /** When true, user may receive meeting reminder emails (admins, directors, and meeting creator). */
   emailMeetingReminders Boolean @default(true)
+  /** When true, user receives in-app notifications for meeting reminders (same audience rules as email). */
+  inAppMeetingReminders Boolean @default(true)
   createdAt  DateTime  @default(now())
 
+  notifications Notification[]
   projectsCreated Project[]     @relation("ProjectCreator")
   tasksCreated    ProjectTask[] @relation("TaskCreator")
   passwordResetTokens PasswordResetToken[]
   loginEvents LoginEvent[]
+}
+
+model Notification {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String    @db.VarChar(64)
+  title     String
+  body      String?
+  link      String?
+  meetingId Int?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
 }
 
 model LoginEvent {

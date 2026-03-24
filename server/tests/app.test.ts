@@ -29,6 +29,12 @@ describe("createApp", () => {
     expect(res.status).toBe(401);
   });
 
+  it("GET /api/notifications without auth returns 401", async () => {
+    const app = createApp();
+    const res = await request(app).get("/api/notifications");
+    expect(res.status).toBe(401);
+  });
+
   it("GET /api/meetings without auth returns 401", async () => {
     const app = createApp();
     const res = await request(app).get("/api/meetings");

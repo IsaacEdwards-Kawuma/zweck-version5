@@ -16,7 +16,7 @@ router.get("/", async (req, res) => {
   const isAdmin = user.role === "ADMIN";
   const dbUser = await prisma.user.findUnique({
     where: { id: user.id },
-    select: { lastLoginAt: true, emailMeetingReminders: true }
+    select: { lastLoginAt: true, emailMeetingReminders: true, inAppMeetingReminders: true }
   });
   res.json({
     app: {
@@ -48,6 +48,7 @@ router.get("/", async (req, res) => {
       ? {
           sentryServer: Boolean(process.env.SENTRY_DSN?.trim()),
           smtpConfigured: Boolean(process.env.SMTP_HOST?.trim()),
+          cronSecretConfigured: Boolean(process.env.CRON_SECRET?.trim()),
           publicAppUrlConfigured: Boolean(getPublicAppUrl()),
           avatarStorage: isS3AvatarStorageConfigured() ? "s3" : "local",
           logLevel: process.env.LOG_LEVEL || "info",
@@ -100,16 +101,29 @@ router.get("/", async (req, res) => {
 
 router.patch("/notifications", async (req, res) => {
   const user = req.user!;
-  const raw = req.body?.emailMeetingReminders;
-  if (typeof raw !== "boolean") {
-    return res.status(400).json(apiError("emailMeetingReminders must be a boolean"));
+  const body = req.body || {};
+  const data: { emailMeetingReminders?: boolean; inAppMeetingReminders?: boolean } = {};
+  if ("emailMeetingReminders" in body) {
+    if (typeof body.emailMeetingReminders !== "boolean") {
+      return res.status(400).json(apiError("emailMeetingReminders must be a boolean"));
+    }
+    data.emailMeetingReminders = body.emailMeetingReminders;
+  }
+  if ("inAppMeetingReminders" in body) {
+    if (typeof body.inAppMeetingReminders !== "boolean") {
+      return res.status(400).json(apiError("inAppMeetingReminders must be a boolean"));
+    }
+    data.inAppMeetingReminders = body.inAppMeetingReminders;
+  }
+  if (Object.keys(data).length === 0) {
+    return res.status(400).json(apiError("Provide emailMeetingReminders and/or inAppMeetingReminders"));
   }
   const updated = await prisma.user.update({
     where: { id: user.id },
-    data: { emailMeetingReminders: raw },
-    select: { emailMeetingReminders: true }
+    data,
+    select: { emailMeetingReminders: true, inAppMeetingReminders: true }
   });
-  res.json({ emailMeetingReminders: updated.emailMeetingReminders });
+  res.json(updated);
 });
 
 export default router;

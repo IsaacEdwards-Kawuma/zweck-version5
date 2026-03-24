@@ -196,6 +196,14 @@ export default function Settings() {
   const mPingIntegration = useMutation({
     mutationFn: () => pingIntegration({ source: "settings-ui", at: new Date().toISOString() })
   });
+  const mNotifications = useMutation({
+    mutationFn: (partial) => updateNotificationPreferences(partial),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["settings"] });
+      setCopyMsg("Notification preference saved.");
+      setTimeout(() => setCopyMsg(""), 2500);
+    }
+  });
 
   const [nowMs, setNowMs] = useState(() => Date.now());
   useEffect(() => {
@@ -514,11 +522,11 @@ export default function Settings() {
 
       <section id="settings-notifications" className={SECTION}>
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-          Email notifications
+          Notifications
         </h2>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-          Meeting reminders go to opted-in administrators, directors, and the person who created the meeting. Turn this off
-          if you do not want these emails at your address.
+          Meeting reminders target administrators, directors, and whoever created the meeting. You can turn off email, in-app
+          alerts, or both.
         </p>
         <label className="mt-4 inline-flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/40">
           <input
@@ -526,13 +534,28 @@ export default function Settings() {
             className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
             checked={session.emailMeetingReminders !== false}
             disabled={mNotifications.isPending}
-            onChange={(e) => mNotifications.mutate(e.target.checked)}
+            onChange={(e) => mNotifications.mutate({ emailMeetingReminders: e.target.checked })}
           />
           <span>
             <span className="font-medium text-slate-900 dark:text-slate-100">Meeting reminder emails</span>
             <span className="mt-1 block text-xs text-slate-600 dark:text-slate-400">
               Requires SMTP on the server. A daily scheduled job sends reminders when a meeting&apos;s date minus reminder
               days matches today (UTC).
+            </span>
+          </span>
+        </label>
+        <label className="mt-3 inline-flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/40">
+          <input
+            type="checkbox"
+            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+            checked={session.inAppMeetingReminders !== false}
+            disabled={mNotifications.isPending}
+            onChange={(e) => mNotifications.mutate({ inAppMeetingReminders: e.target.checked })}
+          />
+          <span>
+            <span className="font-medium text-slate-900 dark:text-slate-100">In-app meeting reminders</span>
+            <span className="mt-1 block text-xs text-slate-600 dark:text-slate-400">
+              Bell icon in the header when the same job runs; messages stay until you mark them read.
             </span>
           </span>
         </label>

@@ -1,4 +1,5 @@
 import GlobalSearch from "./GlobalSearch";
+import NotificationBell from "./NotificationBell";
 
 export default function Topbar({ onToggleNav }) {
   return (
@@ -24,8 +25,11 @@ export default function Topbar({ onToggleNav }) {
           </div>
         </div>
       </div>
-      <div className="hidden shrink-0 text-xs font-medium tracking-wide text-slate-500 sm:block dark:text-slate-400">
-        ZweckOS Workspace
+      <div className="flex shrink-0 items-center gap-2">
+        <NotificationBell />
+        <div className="hidden text-xs font-medium tracking-wide text-slate-500 sm:block dark:text-slate-400">
+          ZweckOS Workspace
+        </div>
       </div>
     </header>
   );

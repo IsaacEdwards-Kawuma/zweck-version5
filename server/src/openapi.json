@@ -22,7 +22,8 @@
     { "name": "about-page" },
     { "name": "meetings" },
     { "name": "integrations" },
-    { "name": "jobs" }
+    { "name": "jobs" },
+    { "name": "notifications" }
   ],
   "components": {
     "securitySchemes": {
@@ -291,7 +292,7 @@
     "/settings/notifications": {
       "patch": {
         "tags": ["settings"],
-        "summary": "Update email notification preferences",
+        "summary": "Update notification preferences (email and/or in-app)",
         "security": [{ "bearerAuth": [] }],
         "requestBody": {
           "required": true,
@@ -299,11 +300,15 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["emailMeetingReminders"],
+                "minProperties": 1,
                 "properties": {
                   "emailMeetingReminders": {
                     "type": "boolean",
-                    "description": "When true, eligible users may receive meeting reminder emails (admins, directors, meeting creator)."
+                    "description": "Meeting reminder emails for eligible users."
+                  },
+                  "inAppMeetingReminders": {
+                    "type": "boolean",
+                    "description": "In-app meeting reminders (bell) for eligible users."
                   }
                 }
               }
@@ -312,18 +317,102 @@
         },
         "responses": {
           "200": {
-            "description": "Updated preference",
+            "description": "Updated preferences",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": { "emailMeetingReminders": { "type": "boolean" } }
+                  "properties": {
+                    "emailMeetingReminders": { "type": "boolean" },
+                    "inAppMeetingReminders": { "type": "boolean" }
+                  }
                 }
               }
             }
           },
           "400": { "description": "Invalid body" },
           "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/notifications": {
+      "get": {
+        "tags": ["notifications"],
+        "summary": "List notifications (in-app inbox)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 30 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Unread count and recent items",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "unreadCount": { "type": "integer" },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "integer" },
+                          "type": { "type": "string" },
+                          "title": { "type": "string" },
+                          "body": { "type": "string", "nullable": true },
+                          "link": { "type": "string", "nullable": true },
+                          "meetingId": { "type": "integer", "nullable": true },
+                          "readAt": { "type": "string", "format": "date-time", "nullable": true },
+                          "createdAt": { "type": "string", "format": "date-time" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/notifications/read-all": {
+      "post": {
+        "tags": ["notifications"],
+        "summary": "Mark all notifications as read",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Count updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "updated": { "type": "integer" } }
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/notifications/{id}/read": {
+      "patch": {
+        "tags": ["notifications"],
+        "summary": "Mark one notification as read",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": {
+          "200": { "description": "OK" },
+          "400": { "description": "Invalid id" },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "Not found" }
         }
       }
     },

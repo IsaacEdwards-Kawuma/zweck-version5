@@ -24,6 +24,7 @@ import usersRoutes from "./routes/users.js";
 import projectsRoutes from "./routes/projects.js";
 import auditRoutes from "./routes/audit.js";
 import settingsRoutes from "./routes/settings.js";
+import notificationsRoutes from "./routes/notifications.js";
 import meetingsRoutes from "./routes/meetings.js";
 import documentsRoutes from "./routes/documents.js";
 import reconciliationRoutes from "./routes/reconciliation.js";
@@ -116,6 +117,7 @@ export function createApp(): express.Express {
   app.use("/api/projects", projectsRoutes);
   app.use("/api/audit", auditRoutes);
   app.use("/api/settings", settingsRoutes);
+  app.use("/api/notifications", notificationsRoutes);
   app.use("/api/meetings", meetingsRoutes);
   app.use("/api/documents", documentsRoutes);
   app.use("/api/reconciliation", reconciliationRoutes);

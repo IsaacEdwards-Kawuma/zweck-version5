@@ -11,7 +11,8 @@ export async function getHealth() {
   return data;
 }
 
-export async function updateNotificationPreferences({ emailMeetingReminders }) {
-  const { data } = await api.patch("/settings/notifications", { emailMeetingReminders });
+/** PATCH accepts any subset of { emailMeetingReminders, inAppMeetingReminders }. */
+export async function updateNotificationPreferences(partial) {
+  const { data } = await api.patch("/settings/notifications", partial);
   return data;
 }
