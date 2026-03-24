@@ -10,6 +10,21 @@ const MEETING_TYPES = ["Board", "Management", "Project", "Finance", "Operations"
 const PRIORITIES = ["Low", "Medium", "High", "Critical"];
 const RECURRENCE = ["NONE", "WEEKLY", "MONTHLY", "QUARTERLY"];
 
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
+
+function dateKeyFromLocalDate(d) {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function parseDateKeyLocal(dateKey) {
+  if (!dateKey) return null;
+  const [y, m, d] = String(dateKey).split("-").map((v) => Number(v));
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return null;
+  return new Date(y, m - 1, d);
+}
+
 const EMPTY_FORM = {
   title: "",
   date: "",
@@ -104,11 +119,12 @@ export default function Meetings() {
   });
 
   const filtered = useMemo(() => {
+    const todayKey = dateKeyFromLocalDate(new Date());
     return rows
       .filter((r) => (statusFilter === "ALL" ? true : r.status === statusFilter))
       .filter((r) => (typeFilter === "ALL" ? true : (r.meetingType || "Other") === typeFilter))
       .filter((r) => (priorityFilter === "ALL" ? true : (r.priority || "Medium") === priorityFilter))
-      .filter((r) => (showUpcomingOnly ? r.date >= new Date().toISOString().slice(0, 10) : true))
+      .filter((r) => (showUpcomingOnly ? r.date >= todayKey : true))
       .filter((r) => {
         const hay = `${r.title} ${r.location} ${r.chairperson} ${r.attendees} ${r.meetingType || ""}`.toLowerCase();
         return hay.includes(query.toLowerCase().trim());
@@ -117,7 +133,7 @@ export default function Meetings() {
   }, [rows, query, statusFilter, typeFilter, priorityFilter, showUpcomingOnly]);
 
   const stats = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = dateKeyFromLocalDate(new Date());
     const scheduled = rows.filter((r) => r.status === "SCHEDULED").length;
     const completed = rows.filter((r) => r.status === "COMPLETED").length;
     const cancelled = rows.filter((r) => r.status === "CANCELLED").length;
@@ -146,7 +162,7 @@ export default function Meetings() {
     for (let i = 0; i < leading; i += 1) cells.push(null);
     for (let d = 1; d <= total; d += 1) {
       const dt = new Date(year, month, d);
-      cells.push(dt.toISOString().slice(0, 10));
+      cells.push(dateKeyFromLocalDate(dt));
     }
     while (cells.length % 7 !== 0) cells.push(null);
     return cells;
@@ -159,7 +175,7 @@ export default function Meetings() {
   }, [meetingsByDate, selectedDate]);
 
   const upcomingMeetings = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = dateKeyFromLocalDate(new Date());
     return rows
       .filter((r) => r.date >= today && r.status !== "CANCELLED")
       .sort((a, b) => `${a.date} ${a.time || ""}`.localeCompare(`${b.date} ${b.time || ""}`))
@@ -231,7 +247,7 @@ export default function Meetings() {
 
   function jumpToToday() {
     const now = new Date();
-    const dateKey = now.toISOString().slice(0, 10);
+    const dateKey = dateKeyFromLocalDate(now);
     setCalendarMonth(new Date(now.getFullYear(), now.getMonth(), 1));
     setSelectedDate(dateKey);
   }
@@ -298,7 +314,7 @@ export default function Meetings() {
             const dayNum = Number(dateKey.slice(-2));
             const count = (meetingsByDate[dateKey] || []).length;
             const isSelected = selectedDate === dateKey;
-            const isToday = dateKey === new Date().toISOString().slice(0, 10);
+            const isToday = dateKey === dateKeyFromLocalDate(new Date());
             return (
               <button
                 key={dateKey}
@@ -353,7 +369,8 @@ export default function Meetings() {
                   key={r.id}
                   type="button"
                   onClick={() => {
-                    setCalendarMonth(new Date(`${r.date}T00:00:00`));
+                    const localDate = parseDateKeyLocal(r.date);
+                    if (localDate) setCalendarMonth(new Date(localDate.getFullYear(), localDate.getMonth(), 1));
                     setSelectedDate(r.date);
                   }}
                   className="w-full rounded-lg border border-slate-200 p-2 text-left transition-colors hover:border-brand-300 hover:bg-brand-50/50 dark:border-slate-700 dark:hover:border-brand-500/50 dark:hover:bg-slate-800/80"
