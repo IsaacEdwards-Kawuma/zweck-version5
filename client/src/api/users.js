@@ -10,3 +10,8 @@ export async function getUser(id) {
   return data;
 }
 
+export async function updateUserRole(id, role) {
+  const { data } = await api.patch(`/users/${id}/role`, { role });
+  return data;
+}
+

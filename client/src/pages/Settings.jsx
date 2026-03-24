@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Loading from "../components/Loading";
 import ErrorBanner from "../components/ErrorBanner";
 import ThemeSettings from "../components/ThemeSettings";
 import { getHealth, getSettings } from "../api/settings";
+import { listUsers, updateUserRole } from "../api/users";
 
 const SECTION = "ui-surface scroll-mt-24 rounded-xl p-5";
 
@@ -82,6 +83,7 @@ const NAV = [
   { href: "#settings-monitoring", label: "Monitoring" },
   { href: "#settings-limits", label: "Rate limits" },
   { href: "#settings-api-docs", label: "API docs" },
+  { href: "#settings-user-roles", label: "User roles" },
   { href: "#settings-features", label: "Features" },
   { href: "#settings-security", label: "Security" }
 ];
@@ -91,11 +93,25 @@ export default function Settings() {
   const [copyMsg, setCopyMsg] = useState("");
   const qSettings = useQuery({ queryKey: ["settings"], queryFn: getSettings });
   const qHealth = useQuery({ queryKey: ["health"], queryFn: getHealth, refetchInterval: 60_000 });
+  const qUsers = useQuery({
+    queryKey: ["users"],
+    queryFn: listUsers,
+    enabled: qSettings.data?.session?.role === "ADMIN"
+  });
+  const mRole = useMutation({
+    mutationFn: ({ id, role }) => updateUserRole(id, role),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["users"] });
+      setCopyMsg("User role updated.");
+      setTimeout(() => setCopyMsg(""), 2500);
+    }
+  });
 
   if (qSettings.isLoading) return <Loading label="Loading settings..." />;
   if (qSettings.error) return <ErrorBanner error={qSettings.error} />;
 
   const s = qSettings.data;
+  const isAdmin = s.session.role === "ADMIN";
   const clientSentry = Boolean(import.meta.env.VITE_SENTRY_DSN?.trim());
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const docsUrl = `${origin}/api/docs`;
@@ -335,6 +351,73 @@ export default function Settings() {
           </a>
         </div>
       </section>
+
+      {isAdmin ? (
+        <section id="settings-user-roles" className={SECTION}>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            User role management
+          </h2>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+            Admins can change roles for other users. Your own role cannot be changed here.
+          </p>
+
+          {qUsers.isLoading ? (
+            <div className="mt-3 text-sm text-slate-600 dark:text-slate-300">Loading users…</div>
+          ) : qUsers.error ? (
+            <div className="mt-3">
+              <ErrorBanner error={qUsers.error} />
+            </div>
+          ) : (
+            <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-slate-50 dark:bg-slate-800/70">
+                  <tr>
+                    <th className="px-4 py-2">Email</th>
+                    <th className="px-4 py-2">Current role</th>
+                    <th className="px-4 py-2">Set role</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                  {(qUsers.data || []).map((u) => {
+                    const isSelf = u.id === s.session.userId;
+                    return (
+                      <tr key={u.id} className="text-slate-800 dark:text-slate-200">
+                        <td className="px-4 py-2">{u.email}</td>
+                        <td className="px-4 py-2">{u.role}</td>
+                        <td className="px-4 py-2">
+                          <select
+                            className="ui-input max-w-[180px]"
+                            value={u.role}
+                            disabled={isSelf || mRole.isPending}
+                            onChange={(e) => {
+                              const nextRole = e.target.value;
+                              if (nextRole === u.role) return;
+                              mRole.mutate({ id: u.id, role: nextRole });
+                            }}
+                          >
+                            <option value="USER">USER</option>
+                            <option value="DIRECTOR">DIRECTOR</option>
+                            <option value="ADMIN">ADMIN</option>
+                          </select>
+                          {isSelf ? (
+                            <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">You</div>
+                          ) : null}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {mRole.error ? (
+            <div className="mt-3">
+              <ErrorBanner error={mRole.error} />
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       <section id="settings-features" className={SECTION}>
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Application features</h2>
