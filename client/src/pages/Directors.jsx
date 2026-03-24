@@ -103,8 +103,8 @@ export default function Directors() {
     if (qv) {
       list = list.filter(
         (d) =>
-          d.name.toLowerCase().includes(qv) ||
-          d.email.toLowerCase().includes(qv) ||
+          String(d.name || "").toLowerCase().includes(qv) ||
+          String(d.email || "").toLowerCase().includes(qv) ||
           (d.initials || "").toLowerCase().includes(qv)
       );
     }
@@ -132,7 +132,7 @@ export default function Directors() {
 
   const chartData = useMemo(() => {
     return filtered.slice(0, 14).map((d) => ({
-      name: d.name.length > 16 ? `${d.name.slice(0, 14)}…` : d.name,
+      name: String(d.name || "").length > 16 ? `${String(d.name || "").slice(0, 14)}…` : String(d.name || "—"),
       total: d.total || 0
     }));
   }, [filtered]);

@@ -131,7 +131,14 @@ export default function Settings() {
   if (qSettings.error) return <ErrorBanner error={qSettings.error} />;
 
   const s = qSettings.data;
-  const isAdmin = s.session.role === "ADMIN";
+  const app = s?.app || {};
+  const runtime = s?.runtime || {};
+  const runtimeMemory = runtime?.memory || {};
+  const deployment = s?.deployment || {};
+  const monitoring = s?.monitoring || {};
+  const rateLimits = s?.rateLimits || {};
+  const session = s?.session || {};
+  const isAdmin = session.role === "ADMIN";
   const clientSentry = Boolean(import.meta.env.VITE_SENTRY_DSN?.trim());
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const docsUrl = `${origin}/api/docs`;
@@ -203,7 +210,7 @@ export default function Settings() {
           </button>
           <button
             type="button"
-            onClick={() => copyText(s.app.version || "", "API version copied.")}
+            onClick={() => copyText(app.version || "", "API version copied.")}
             className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
           >
             Copy API version
@@ -281,18 +288,18 @@ export default function Settings() {
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Your account</h2>
         <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
           Signed in as{" "}
-          <span className="font-medium text-brand-900 dark:text-brand-200">{s.session.email}</span>
+          <span className="font-medium text-brand-900 dark:text-brand-200">{session.email || "—"}</span>
           <span
             className={[
               "ml-2 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide align-middle",
-              s.session.role === "ADMIN"
+              session.role === "ADMIN"
                 ? "bg-violet-100 text-violet-800 ring-1 ring-violet-200/80"
-                : s.session.role === "DIRECTOR"
+                : session.role === "DIRECTOR"
                   ? "bg-accent-100 text-accent-800 ring-1 ring-accent-200/80"
                   : "bg-slate-100 text-slate-700 ring-1 ring-slate-200/80"
             ].join(" ")}
           >
-            {s.session.role}
+            {session.role || "USER"}
           </span>
         </p>
         <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
@@ -302,7 +309,7 @@ export default function Settings() {
           >
             Password reset
           </Link>
-          {s.session.role === "ADMIN" ? (
+          {session.role === "ADMIN" ? (
             <>
               <Link
                 to="/users"
@@ -318,9 +325,9 @@ export default function Settings() {
               </Link>
             </>
           ) : null}
-          {s.session.role === "DIRECTOR" && s.session.directorId != null ? (
+          {session.role === "DIRECTOR" && session.directorId != null ? (
             <Link
-              to={`/directors/${s.session.directorId}`}
+              to={`/directors/${session.directorId}`}
               className="rounded-full bg-accent-100 px-3 py-1 text-xs font-semibold text-accent-900 ring-1 ring-accent-200/80 hover:bg-accent-200"
             >
               My director profile
@@ -362,38 +369,38 @@ export default function Settings() {
           Fast checks for production configuration and security posture.
         </p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <StatusDot ok={s.deployment.jwtConfigured} label="JWT secret configured" />
-          <StatusDot ok={!s.deployment.authDisabled} label="Auth enabled" />
-          <StatusDot ok={s.deployment.databaseUrlConfigured} label="Database URL configured" />
-          <StatusDot ok={s.deployment.directUrlConfigured} label="Direct DB URL configured" />
-          <StatusDot ok={s.deployment.allowedOriginsConfigured} label="Allowed origins configured" />
-          <StatusDot ok={s.deployment.vercelPreviewOriginsEnabled} label="Vercel preview origins enabled" />
+          <StatusDot ok={deployment.jwtConfigured} label="JWT secret configured" />
+          <StatusDot ok={!deployment.authDisabled} label="Auth enabled" />
+          <StatusDot ok={deployment.databaseUrlConfigured} label="Database URL configured" />
+          <StatusDot ok={deployment.directUrlConfigured} label="Direct DB URL configured" />
+          <StatusDot ok={deployment.allowedOriginsConfigured} label="Allowed origins configured" />
+          <StatusDot ok={deployment.vercelPreviewOriginsEnabled} label="Vercel preview origins enabled" />
         </div>
       </section>
 
       <section id="settings-monitoring" className={SECTION}>
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Server monitoring</h2>
         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          API {s.app.version} · {s.runtime.nodeEnv} · up {formatUptime(s.runtime.uptimeSeconds)} · heap{" "}
-          {s.runtime.memory.heapUsedMb} MB · RSS {s.runtime.memory.rssMb} MB
+          API {app.version || "—"} · {runtime.nodeEnv || "—"} · up {formatUptime(runtime.uptimeSeconds || 0)} · heap{" "}
+          {runtimeMemory.heapUsedMb ?? "—"} MB · RSS {runtimeMemory.rssMb ?? "—"} MB
         </p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <StatusDot ok={s.monitoring.structuredLogging} label="Structured logs (pino)" />
-          <StatusDot ok={s.monitoring.sentryServer} label="Sentry (server)" />
+          <StatusDot ok={monitoring.structuredLogging} label="Structured logs (pino)" />
+          <StatusDot ok={monitoring.sentryServer} label="Sentry (server)" />
           <StatusDot ok={clientSentry} label="Sentry (browser build)" />
-          <StatusDot ok={s.monitoring.smtpConfigured} label="SMTP (password reset email)" />
-          <StatusDot ok={s.monitoring.publicAppUrlConfigured} label="Public app URL for reset links" />
+          <StatusDot ok={monitoring.smtpConfigured} label="SMTP (password reset email)" />
+          <StatusDot ok={monitoring.publicAppUrlConfigured} label="Public app URL for reset links" />
           <div className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
             <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-sky-500 shadow-sm shadow-sky-500/30" aria-hidden />
             <span>
               Director avatars:{" "}
-              <strong>{s.monitoring.avatarStorage === "s3" ? "S3 / object storage" : "Local disk"}</strong>
+              <strong>{monitoring.avatarStorage === "s3" ? "S3 / object storage" : "Local disk"}</strong>
             </span>
           </div>
         </div>
         <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
           Log level (server):{" "}
-          <code className="rounded bg-slate-100 px-1 dark:bg-slate-900 dark:text-slate-200">{s.monitoring.logLevel}</code>
+          <code className="rounded bg-slate-100 px-1 dark:bg-slate-900 dark:text-slate-200">{monitoring.logLevel || "—"}</code>
         </p>
       </section>
 
@@ -406,19 +413,19 @@ export default function Settings() {
           <div>
             <dt className="text-slate-500 dark:text-slate-400">General API (per IP, per window)</dt>
             <dd className="font-medium text-slate-900 dark:text-slate-100">
-              {s.rateLimits.apiRequestsPerWindow} / {s.rateLimits.apiWindowMinutes} min
+              {rateLimits.apiRequestsPerWindow ?? "—"} / {rateLimits.apiWindowMinutes ?? "—"} min
             </dd>
           </div>
           <div>
             <dt className="text-slate-500 dark:text-slate-400">Login &amp; reset password attempts</dt>
             <dd className="font-medium text-slate-900 dark:text-slate-100">
-              {s.rateLimits.loginRequestsPerWindow} / {s.rateLimits.loginWindowMinutes} min (login)
+              {rateLimits.loginRequestsPerWindow ?? "—"} / {rateLimits.loginWindowMinutes ?? "—"} min (login)
             </dd>
           </div>
           <div>
             <dt className="text-slate-500 dark:text-slate-400">Forgot-password requests</dt>
             <dd className="font-medium text-slate-900 dark:text-slate-100">
-              {s.rateLimits.forgotPasswordPerHour} / {s.rateLimits.forgotPasswordWindowMinutes} min
+              {rateLimits.forgotPasswordPerHour ?? "—"} / {rateLimits.forgotPasswordWindowMinutes ?? "—"} min
             </dd>
           </div>
         </dl>
@@ -476,7 +483,7 @@ export default function Settings() {
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                   {(qUsers.data || []).map((u) => {
-                    const isSelf = u.id === s.session.userId;
+                    const isSelf = u.id === session.userId;
                     return (
                       <tr key={u.id} className="text-slate-800 dark:text-slate-200">
                         <td className="px-4 py-2">{u.email}</td>
@@ -562,11 +569,11 @@ export default function Settings() {
           onClick={() => {
             const payload = {
               generatedAt: new Date().toISOString(),
-              app: s.app,
-              runtime: s.runtime,
-              deployment: s.deployment,
-              monitoring: s.monitoring,
-              rateLimits: s.rateLimits,
+              app,
+              runtime,
+              deployment,
+              monitoring,
+              rateLimits,
               localPreferences: prefs
             };
             const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8;" });

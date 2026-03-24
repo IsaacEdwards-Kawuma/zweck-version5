@@ -10,52 +10,63 @@ body,
 
 body {
   @apply min-h-full bg-gradient-to-br from-slate-50 via-brand-50/35 to-accent-50/50 text-slate-900;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 html.dark body {
   @apply bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100;
 }
 
+::selection {
+  background: rgba(31, 79, 151, 0.22);
+}
+
+html.dark ::selection {
+  background: rgba(96, 165, 250, 0.3);
+}
+
 /* Shared surfaces & controls — use with rounded-* / padding as needed */
 @layer components {
   .ui-surface {
-    @apply border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800/90;
+    @apply border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/85;
   }
 
   .ui-surface-inset {
-    @apply rounded-xl border border-slate-200 bg-white/95 text-slate-900 backdrop-blur dark:border-slate-600 dark:bg-slate-900/95 dark:text-slate-100;
+    @apply rounded-xl border border-slate-200 bg-white/95 text-slate-900 backdrop-blur dark:border-slate-700 dark:bg-slate-900/95 dark:text-slate-100;
   }
 
   .ui-table-wrap {
-    @apply overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800/90;
+    @apply overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/85;
   }
 
   .ui-table-head {
-    @apply border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-600 dark:border-slate-600 dark:bg-slate-900/80 dark:text-slate-400;
+    @apply border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-600 dark:border-slate-700 dark:bg-slate-800/85 dark:text-slate-300;
   }
 
   .ui-table-divide {
-    @apply divide-y divide-slate-200 dark:divide-slate-600/80;
+    @apply divide-y divide-slate-200 dark:divide-slate-700/90;
   }
 
   .ui-table-row-hover {
-    @apply hover:bg-slate-50 dark:hover:bg-slate-700/40;
+    @apply hover:bg-slate-50 dark:hover:bg-slate-800/80;
   }
 
   .ui-btn-outline {
-    @apply rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700;
+    @apply rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800;
   }
 
   .ui-btn-outline-xs {
-    @apply rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700;
+    @apply rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800;
   }
 
   .ui-input {
-    @apply rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100;
+    @apply rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-brand-400 dark:focus:ring-brand-400/20;
   }
 
   .ui-page-heading {
-    @apply text-slate-900 dark:text-slate-100;
+    @apply text-slate-900 dark:text-slate-50;
   }
 
   .ui-page-muted {
@@ -63,11 +74,23 @@ html.dark body {
   }
 
   .ui-body-text {
-    @apply text-slate-600 dark:text-slate-300;
+    @apply text-slate-700 dark:text-slate-200;
+  }
+
+  .ui-text-strong {
+    @apply text-slate-900 dark:text-slate-50;
+  }
+
+  .ui-text-normal {
+    @apply text-slate-700 dark:text-slate-200;
+  }
+
+  .ui-text-soft {
+    @apply text-slate-500 dark:text-slate-400;
   }
 
   .ui-stat-strip {
-    @apply border border-slate-100 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/60;
+    @apply border border-slate-100 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/75;
   }
 }
 
