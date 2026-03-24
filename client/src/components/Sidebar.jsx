@@ -2,19 +2,126 @@ import { NavLink } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 
 const links = [
-  { to: "/", label: "Dashboard" },
-  { to: "/reports", label: "Reports" },
-  { to: "/meetings", label: "Meetings" },
-  { to: "/documents", label: "Documents" },
-  { to: "/post", label: "Post Transaction" },
-  { to: "/ledger", label: "Ledger" },
-  { to: "/reconciliation", label: "Reconciliation" },
-  { to: "/accounts", label: "Chart of Accounts" },
-  { to: "/directors", label: "Directors" },
-  { to: "/portfolio", label: "Portfolio" },
-  { to: "/projects", label: "Projects" },
-  { to: "/settings", label: "Settings" }
+  { to: "/", label: "Dashboard", icon: "dashboard" },
+  { to: "/reports", label: "Reports", icon: "reports" },
+  { to: "/meetings", label: "Meetings", icon: "meetings" },
+  { to: "/documents", label: "Documents", icon: "documents" },
+  { to: "/post", label: "Post Transaction", icon: "post" },
+  { to: "/ledger", label: "Ledger", icon: "ledger" },
+  { to: "/reconciliation", label: "Reconciliation", icon: "reconcile" },
+  { to: "/accounts", label: "Chart of Accounts", icon: "accounts" },
+  { to: "/directors", label: "Directors", icon: "directors" },
+  { to: "/portfolio", label: "Portfolio", icon: "portfolio" },
+  { to: "/projects", label: "Projects", icon: "projects" },
+  { to: "/settings", label: "Settings", icon: "settings" }
 ];
+
+function NavIcon({ name }) {
+  const common = {
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "1.8",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    className: "h-4 w-4 shrink-0"
+  };
+  switch (name) {
+    case "dashboard":
+      return (
+        <svg {...common}>
+          <rect x="3" y="3" width="7" height="7" />
+          <rect x="14" y="3" width="7" height="5" />
+          <rect x="14" y="11" width="7" height="10" />
+          <rect x="3" y="13" width="7" height="8" />
+        </svg>
+      );
+    case "reports":
+      return (
+        <svg {...common}>
+          <path d="M5 3h10l4 4v14H5z" />
+          <path d="M15 3v5h5" />
+          <path d="M8 13h8M8 17h8M8 9h4" />
+        </svg>
+      );
+    case "meetings":
+      return (
+        <svg {...common}>
+          <rect x="3" y="5" width="18" height="16" rx="2" />
+          <path d="M16 3v4M8 3v4M3 11h18" />
+        </svg>
+      );
+    case "documents":
+      return (
+        <svg {...common}>
+          <path d="M6 2h9l5 5v15H6z" />
+          <path d="M15 2v5h5M9 12h8M9 16h8" />
+        </svg>
+      );
+    case "post":
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 8v8M8 12h8" />
+        </svg>
+      );
+    case "ledger":
+      return (
+        <svg {...common}>
+          <rect x="4" y="3" width="16" height="18" rx="2" />
+          <path d="M8 8h8M8 12h8M8 16h5" />
+        </svg>
+      );
+    case "reconcile":
+      return (
+        <svg {...common}>
+          <path d="M3 7h13M3 12h10M3 17h7" />
+          <path d="m14 15 2 2 5-5" />
+        </svg>
+      );
+    case "accounts":
+      return (
+        <svg {...common}>
+          <path d="M4 7h16M4 12h16M4 17h16" />
+          <circle cx="7" cy="7" r="1" />
+          <circle cx="7" cy="12" r="1" />
+          <circle cx="7" cy="17" r="1" />
+        </svg>
+      );
+    case "directors":
+      return (
+        <svg {...common}>
+          <circle cx="9" cy="8" r="3" />
+          <path d="M3 20a6 6 0 0 1 12 0" />
+          <circle cx="18" cy="9" r="2" />
+          <path d="M15 20a4.5 4.5 0 0 1 6 0" />
+        </svg>
+      );
+    case "portfolio":
+      return (
+        <svg {...common}>
+          <path d="M3 20h18" />
+          <path d="M7 16V9M12 16V5M17 16v-3" />
+        </svg>
+      );
+    case "projects":
+      return (
+        <svg {...common}>
+          <rect x="3" y="4" width="18" height="14" rx="2" />
+          <path d="M8 4v14M3 9h18" />
+        </svg>
+      );
+    case "settings":
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V20a2 2 0 1 1-4 0v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H4a2 2 0 1 1 0-4h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a2 2 0 0 1 2.8-2.8l.1.1a1 1 0 0 0 1.1.2h.1a1 1 0 0 0 .6-.9V4a2 2 0 1 1 4 0v.2a1 1 0 0 0 .6.9h.1a1 1 0 0 0 1.1-.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1 1 0 0 0-.2 1.1v.1a1 1 0 0 0 .9.6H20a2 2 0 1 1 0 4h-.2a1 1 0 0 0-.9.6z" />
+        </svg>
+      );
+    default:
+      return null;
+  }
+}
 
 export default function Sidebar({ mobileOpen, onClose }) {
   const nav = useNavigate();
@@ -61,7 +168,10 @@ export default function Sidebar({ mobileOpen, onClose }) {
               ].join(" ")
             }
           >
-            {l.label}
+            <span className="flex items-center gap-2">
+              <NavIcon name={l.icon} />
+              <span>{l.label}</span>
+            </span>
           </NavLink>
         ))}
       </nav>
