@@ -10,6 +10,7 @@ const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const PostTransaction = lazy(() => import("./pages/PostTransaction"));
 const Ledger = lazy(() => import("./pages/Ledger"));
+const Reconciliation = lazy(() => import("./pages/Reconciliation"));
 const ChartOfAccounts = lazy(() => import("./pages/ChartOfAccounts"));
 const Directors = lazy(() => import("./pages/Directors"));
 const DirectorDetail = lazy(() => import("./pages/DirectorDetail"));
@@ -41,6 +42,7 @@ export default function App() {
             <Route path="/settings" element={<Settings />} />
             <Route path="/post" element={<PostTransaction />} />
             <Route path="/ledger" element={<Ledger />} />
+            <Route path="/reconciliation" element={<Reconciliation />} />
             <Route path="/accounts" element={<ChartOfAccounts />} />
             <Route path="/directors" element={<Directors />} />
             <Route path="/directors/:id" element={<DirectorDetail />} />

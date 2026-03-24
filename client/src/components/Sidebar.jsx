@@ -5,6 +5,7 @@ const links = [
   { to: "/reports", label: "Reports" },
   { to: "/post", label: "Post Transaction" },
   { to: "/ledger", label: "Ledger" },
+  { to: "/reconciliation", label: "Reconciliation" },
   { to: "/accounts", label: "Chart of Accounts" },
   { to: "/directors", label: "Directors" },
   { to: "/portfolio", label: "Portfolio" },
