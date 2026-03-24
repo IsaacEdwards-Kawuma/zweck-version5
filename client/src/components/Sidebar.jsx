@@ -138,7 +138,7 @@ export default function Sidebar({ mobileOpen, onClose }) {
       />
       <aside
         className={[
-          "fixed inset-y-0 left-0 z-40 flex h-full w-64 flex-col border-r border-brand-100/80 bg-white/95 shadow-sm shadow-brand-900/5 transition-transform print:hidden dark:border-slate-700 dark:bg-slate-900/95 dark:shadow-black/20",
+          "fixed inset-y-0 left-0 z-40 flex h-full w-64 flex-col border-r border-brand-100/80 bg-white/95 shadow-sm shadow-brand-900/5 transition-transform duration-300 print:hidden dark:border-slate-700 dark:bg-slate-900/95 dark:shadow-black/20",
           mobileOpen ? "translate-x-0" : "-translate-x-full",
           "lg:static lg:z-auto lg:translate-x-0"
         ].join(" ")}
@@ -161,15 +161,17 @@ export default function Sidebar({ mobileOpen, onClose }) {
             onClick={onClose}
             className={({ isActive }) =>
               [
-                "block rounded-lg border-l-[3px] px-3 py-2 text-sm font-medium transition-colors",
+                "group block rounded-lg border-l-[3px] px-3 py-2 text-sm font-medium transition-all duration-200",
                 isActive
-                  ? "border-brand-500 bg-gradient-to-r from-brand-50 to-accent-50 text-brand-800 dark:border-brand-400 dark:from-brand-950/90 dark:to-slate-800/90 dark:text-brand-100"
-                  : "border-transparent text-slate-700 hover:border-brand-200 hover:bg-brand-50/60 hover:text-brand-800 dark:text-slate-300 dark:hover:border-brand-500/40 dark:hover:bg-slate-800/90 dark:hover:text-brand-200"
+                  ? "border-brand-500 bg-gradient-to-r from-brand-50 to-accent-50 text-brand-800 shadow-sm dark:border-brand-400 dark:from-brand-950/90 dark:to-slate-800/90 dark:text-brand-100"
+                  : "border-transparent text-slate-700 hover:translate-x-1 hover:border-brand-200 hover:bg-brand-50/60 hover:text-brand-800 dark:text-slate-300 dark:hover:border-brand-500/40 dark:hover:bg-slate-800/90 dark:hover:text-brand-200"
               ].join(" ")
             }
           >
             <span className="flex items-center gap-2">
-              <NavIcon name={l.icon} />
+              <span className="transition-transform duration-200 group-hover:scale-110">
+                <NavIcon name={l.icon} />
+              </span>
               <span>{l.label}</span>
             </span>
           </NavLink>
@@ -178,7 +180,7 @@ export default function Sidebar({ mobileOpen, onClose }) {
       <div className="border-t border-slate-200 px-3 py-3 dark:border-slate-700">
         <button
           type="button"
-          className="w-full rounded-lg border border-brand-200/80 bg-white px-3 py-2 text-sm font-medium text-brand-900 hover:bg-brand-50 dark:border-brand-500/40 dark:bg-slate-800 dark:text-brand-200 dark:hover:bg-slate-700"
+          className="w-full rounded-lg border border-brand-200/80 bg-white px-3 py-2 text-sm font-medium text-brand-900 transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-50 hover:shadow-sm dark:border-brand-500/40 dark:bg-slate-800 dark:text-brand-200 dark:hover:bg-slate-700"
           onClick={() => {
             localStorage.removeItem("zweck_token");
             onClose?.();
