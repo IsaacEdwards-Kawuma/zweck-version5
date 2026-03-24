@@ -1,6 +1,23 @@
 #!/usr/bin/env sh
-# Retry prisma migrate deploy for transient P1002 (advisory lock timeout) on Neon/Render.
+# Runs prisma migrate deploy with retries. Neon/Render often hit P1002 (advisory lock timeout).
+#
+# Prisma supports PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK for DBs where locks are unreliable (see Prisma docs).
+# Disabling the lock is safe when only one migration runs at a time (normal single-branch deploy).
+# To keep advisory locking (e.g. debugging), set in Render: PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=0
+#
 # Usage (from server/): sh scripts/migrate-deploy.sh
+
+case "${PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK}" in
+  0 | false | FALSE)
+    unset PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK
+    echo "[migrate-deploy] advisory locking enabled (PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=0)"
+    ;;
+  *)
+    export PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=1
+    echo "[migrate-deploy] PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=1 (Neon/Render P1002 workaround)"
+    ;;
+esac
+
 attempt=1
 max=5
 while [ "$attempt" -le "$max" ]; do

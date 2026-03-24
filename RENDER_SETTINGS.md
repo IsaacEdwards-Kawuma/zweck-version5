@@ -36,7 +36,9 @@ Use these when you create a **Web Service** (or Blueprint) on [Render](https://r
 | **Build Command** | `npm install && npm run build:render` |
 | **Start Command** | `npm start` |
 
-`build:render` runs `npm run build` then `sh scripts/migrate-deploy.sh`, which retries `prisma migrate deploy` up to five times with backoff. That reduces **P1002** (advisory lock timeout) failures on Neon during deploy.
+`build:render` runs `npm run build` then `sh scripts/migrate-deploy.sh`. The script sets **`PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=1`** for the migrate step (Prisma’s supported workaround when `pg_advisory_lock` cannot be acquired in time on Neon/serverless). It also retries up to five times with backoff. Do **not** run two API deploys at the same time if you rely on this. To force the default locking instead, set **`PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=0`** in Render (only if you know migrations still work).
+
+Still set **`DIRECT_URL`** to Neon’s **direct** URL — the app and Prisma expect it in `schema.prisma`.
 
 > Render sets **`PORT`** automatically — do **not** set `PORT` in the dashboard unless you know you need a fixed value. The app uses `process.env.PORT`.
 
@@ -90,7 +92,7 @@ Local copies go in `server/.env` (gitignored) — see `server/.env.example`.
 - **Vercel `RENDER_API_URL`:** `https://<your-service-name>.onrender.com` (no `/api` — used by the Edge proxy in `client/api/`)
 - **Optional Vercel `VITE_API_URL`:** `https://<your-service-name>.onrender.com/api` only if you skip the proxy and call the API directly from the browser
 
-If **`prisma migrate deploy` fails with P1002** (advisory lock timeout): add **`DIRECT_URL`** (Neon direct URL), ensure only **one** deploy runs at a time, redeploy. As a last resort, Neon support sometimes suggests `PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=1` for migrate-only environments (avoid concurrent migrations).
+If **`prisma migrate deploy` fails with P1002**: add **`DIRECT_URL`** (Neon direct URL), ensure only **one** deploy runs at a time, and use the repo’s **`migrate-deploy.sh`** (it sets `PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=1` automatically). If you previously set `PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=0` in Render, remove it or the script will respect `0` and locks may time out again.
 
 If build fails with Prisma migration state errors (`P3009`, `P3018`), follow:
 
