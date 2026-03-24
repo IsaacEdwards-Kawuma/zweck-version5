@@ -1,9 +1,7 @@
 import { NavLink, Outlet } from "react-router-dom";
 
 const tabs = [
-  { to: "/projects", end: true, label: "All projects" },
-  { to: "/projects/mmf", end: false, label: "Money market (MMF)" },
-  { to: "/projects/ypa", end: false, label: "YPA (Goats)" }
+  { to: "/projects", end: true, label: "All projects" }
 ];
 
 export default function ProjectsLayout() {
@@ -12,7 +10,7 @@ export default function ProjectsLayout() {
       <div>
         <div className="text-lg font-semibold text-slate-900">Projects workspace</div>
         <div className="text-sm text-slate-600">
-          Operational projects, MMF program tracking, and YPA — budgets, leaders, and contacts per project.
+          Operational projects — budgets, leaders, and contacts per project.
         </div>
       </div>
       <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-2">

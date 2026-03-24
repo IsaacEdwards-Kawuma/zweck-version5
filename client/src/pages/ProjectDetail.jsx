@@ -450,17 +450,7 @@ export default function ProjectDetail() {
         <div>
           <div className="text-xs uppercase tracking-wide text-slate-500">Program workspace</div>
           <div className="mt-0.5 text-sm">
-            {p.projectKind === "MMF" ? (
-              <Link className="font-medium text-brand-700 hover:underline" to="/projects/mmf">
-                Open MMF tracker
-              </Link>
-            ) : p.projectKind === "YPA" ? (
-              <Link className="font-medium text-brand-700 hover:underline" to="/projects/ypa">
-                Open YPA workspace
-              </Link>
-            ) : (
-              <span className="text-slate-500">—</span>
-            )}
+            <span className="text-slate-500">—</span>
           </div>
         </div>
       </div>

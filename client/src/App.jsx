@@ -11,10 +11,8 @@ import ChartOfAccounts from "./pages/ChartOfAccounts";
 import Directors from "./pages/Directors";
 import DirectorDetail from "./pages/DirectorDetail";
 import Portfolio from "./pages/Portfolio";
-import MMFTracker from "./pages/MMFTracker";
 import ProjectsLayout from "./pages/ProjectsLayout";
 import Projects from "./pages/Projects";
-import YPAWorkspace from "./pages/YPAWorkspace";
 import ProjectDetail from "./pages/ProjectDetail";
 import Reports from "./pages/Reports";
 import NotFound from "./pages/NotFound";
@@ -45,11 +43,10 @@ export default function App() {
           <Route path="/portfolio" element={<Portfolio />} />
           <Route path="/projects" element={<ProjectsLayout />}>
             <Route index element={<Projects />} />
-            <Route path="mmf" element={<MMFTracker />} />
-            <Route path="ypa" element={<YPAWorkspace />} />
           </Route>
           <Route path="/project/:id" element={<ProjectDetail />} />
-          <Route path="/mmf" element={<Navigate to="/projects/mmf" replace />} />
+          <Route path="/mmf" element={<Navigate to="/projects" replace />} />
+          <Route path="/ypa" element={<Navigate to="/projects" replace />} />
           <Route path="*" element={<NotFound />} />
         </Route>
       </Route>
