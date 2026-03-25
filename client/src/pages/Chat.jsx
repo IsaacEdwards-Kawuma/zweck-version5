@@ -69,8 +69,10 @@ export default function Chat() {
   const navigate = useNavigate();
   const [filter, setFilter] = useState("");
   const [kindFilter, setKindFilter] = useState("ALL");
+  const [sortMode, setSortMode] = useState("recent");
   const [showDmModal, setShowDmModal] = useState(false);
   const [dmEmail, setDmEmail] = useState("");
+  const [dmUserSearch, setDmUserSearch] = useState("");
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [groupTitle, setGroupTitle] = useState("");
   const [groupMembersSelected, setGroupMembersSelected] = useState([]);
@@ -80,6 +82,12 @@ export default function Chat() {
     queryKey: ["chat_users"],
     queryFn: listChatUsers,
     enabled: showGroupModal
+  });
+
+  const qUsersDm = useQuery({
+    queryKey: ["chat_users_dm"],
+    queryFn: listChatUsers,
+    enabled: showDmModal
   });
 
   const qRooms = useQuery({
@@ -113,9 +121,6 @@ export default function Chat() {
     [rooms]
   );
 
-  if (qRooms.isLoading) return <Loading label="Loading chat rooms..." />;
-  if (qRooms.error) return <ErrorBanner error={qRooms.error} />;
-
   const mCreateDm = useMutation({
     mutationFn: (payload) => createDmRoomByEmail(payload),
     onSuccess: (data) => {
@@ -142,6 +147,9 @@ export default function Chat() {
       await qc.invalidateQueries({ queryKey: ["chat_rooms"] });
     }
   });
+
+  if (qRooms.isLoading) return <Loading label="Loading chat rooms..." />;
+  if (qRooms.error) return <ErrorBanner error={qRooms.error} />;
 
   return (
     <div className="space-y-4">
