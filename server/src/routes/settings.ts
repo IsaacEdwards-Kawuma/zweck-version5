@@ -16,7 +16,12 @@ router.get("/", async (req, res) => {
   const isAdmin = user.role === "ADMIN";
   const dbUser = await prisma.user.findUnique({
     where: { id: user.id },
-    select: { lastLoginAt: true, emailMeetingReminders: true, inAppMeetingReminders: true }
+    select: {
+      lastLoginAt: true,
+      emailMeetingReminders: true,
+      inAppMeetingReminders: true,
+      inAppChatMessages: true
+    }
   });
   res.json({
     app: {
@@ -102,7 +107,7 @@ router.get("/", async (req, res) => {
 router.patch("/notifications", async (req, res) => {
   const user = req.user!;
   const body = req.body || {};
-  const data: { emailMeetingReminders?: boolean; inAppMeetingReminders?: boolean } = {};
+  const data: { emailMeetingReminders?: boolean; inAppMeetingReminders?: boolean; inAppChatMessages?: boolean } = {};
   if ("emailMeetingReminders" in body) {
     if (typeof body.emailMeetingReminders !== "boolean") {
       return res.status(400).json(apiError("emailMeetingReminders must be a boolean"));
@@ -115,13 +120,21 @@ router.patch("/notifications", async (req, res) => {
     }
     data.inAppMeetingReminders = body.inAppMeetingReminders;
   }
+  if ("inAppChatMessages" in body) {
+    if (typeof body.inAppChatMessages !== "boolean") {
+      return res.status(400).json(apiError("inAppChatMessages must be a boolean"));
+    }
+    data.inAppChatMessages = body.inAppChatMessages;
+  }
   if (Object.keys(data).length === 0) {
-    return res.status(400).json(apiError("Provide emailMeetingReminders and/or inAppMeetingReminders"));
+    return res.status(400).json(
+      apiError("Provide emailMeetingReminders, inAppMeetingReminders, and/or inAppChatMessages")
+    );
   }
   const updated = await prisma.user.update({
     where: { id: user.id },
     data,
-    select: { emailMeetingReminders: true, inAppMeetingReminders: true }
+    select: { emailMeetingReminders: true, inAppMeetingReminders: true, inAppChatMessages: true }
   });
   res.json(updated);
 });

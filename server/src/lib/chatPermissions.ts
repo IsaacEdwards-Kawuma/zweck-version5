@@ -8,22 +8,33 @@ export type ChatRoomForAuth = {
   roomKey: string;
   meetingId: number | null;
   projectId: number | null;
+  createdById: number | null;
 };
 
 export function getChatRoomKey(kind: string, id: number): string {
   return `${kind}:${id}`;
 }
 
+const MAX_BODY = 5000;
+
 export function normalizeChatBody(body: unknown): string | null {
   if (typeof body !== "string") return null;
   const t = body.trim();
   if (!t) return null;
-  if (t.length > 5000) return null;
+  if (t.length > MAX_BODY) return null;
+  return t;
+}
+
+/** Body for send/edit: empty allowed when sending with an attachment only. */
+export function normalizeChatBodyWithAttachment(body: unknown, hasAttachment: boolean): string | null {
+  if (typeof body !== "string") return null;
+  const t = body.trim();
+  if (t.length > MAX_BODY) return null;
+  if (!t && !hasAttachment) return null;
   return t;
 }
 
 function parseDmRoomKey(roomKey: string): { a: number; b: number } | null {
-  // Expected: DM:<low>:<high>
   const m = /^DM:(\d+):(\d+)$/.exec(roomKey);
   if (!m) return null;
   const a = Number(m[1]);
@@ -33,7 +44,6 @@ function parseDmRoomKey(roomKey: string): { a: number; b: number } | null {
 }
 
 export async function assertUserCanAccessChatRoom(user: AuthUser, room: ChatRoomForAuth): Promise<void> {
-  // Meetings + Projects are public discussion rooms (everyone can join/send).
   if (room.kind === "MEETING" || room.kind === "PROJECT") return;
 
   if (room.kind === "DM") {
@@ -54,3 +64,14 @@ export async function assertUserCanAccessChatRoom(user: AuthUser, room: ChatRoom
   throw apiError("Forbidden", "chatRoom");
 }
 
+/** GROUP room: creator or ADMIN can add/remove members. If creator unknown (legacy), only ADMIN. */
+export async function assertUserCanManageGroupMembers(user: AuthUser, room: ChatRoomForAuth): Promise<void> {
+  if (room.kind !== "GROUP") throw apiError("Forbidden", "chatRoom");
+  if (user.role === "ADMIN") return;
+  if (room.createdById != null && room.createdById === user.id) return;
+  throw apiError("Forbidden", "chatRoom");
+}
+
+export function assertUserOwnsMessage(user: AuthUser, senderId: number): void {
+  if (senderId !== user.id) throw apiError("Forbidden", "message");
+}

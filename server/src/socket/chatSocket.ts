@@ -4,7 +4,13 @@ import { Server as SocketIOServer } from "socket.io";
 import { prisma } from "../lib/prisma.js";
 import { isAuthDisabled } from "../middleware/auth.js";
 import type { AuthUser } from "../middleware/auth.js";
-import { assertUserCanAccessChatRoom, normalizeChatBody } from "../lib/chatPermissions.js";
+import { assertUserCanAccessChatRoom, normalizeChatBodyWithAttachment } from "../lib/chatPermissions.js";
+
+let chatIoSingleton: SocketIOServer | null = null;
+
+export function getChatIo(): SocketIOServer | null {
+  return chatIoSingleton;
+}
 
 function getAllowedOriginsForSocket(): string[] {
   const raw = process.env.ALLOWED_ORIGINS || process.env.CLIENT_ORIGIN || "";
@@ -36,8 +42,17 @@ async function resolveSocketUser(): Promise<AuthUser | null> {
   const secret = process.env.JWT_SECRET?.trim();
   if (!secret) return null;
 
-  return null; // resolved in middleware once we have a token
+  return null;
 }
+
+const roomSelect = {
+  id: true,
+  kind: true,
+  roomKey: true,
+  meetingId: true,
+  projectId: true,
+  createdById: true
+} as const;
 
 export function setupChatSocket(httpServer: http.Server): SocketIOServer {
   const allowedOrigins = getAllowedOriginsForSocket();
@@ -47,6 +62,7 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
       credentials: true
     }
   });
+  chatIoSingleton = io;
 
   io.use(async (socket, next) => {
     try {
@@ -93,7 +109,7 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
 
         const room = await prisma.chatRoom.findUnique({
           where: { id: roomId },
-          select: { id: true, kind: true, roomKey: true, meetingId: true, projectId: true }
+          select: roomSelect
         });
         if (!room) throw new Error("Room not found");
 
@@ -111,24 +127,77 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
       }
     });
 
-    socket.on("chat:sendMessage", async (payload: unknown, ack) => {
+    socket.on("chat:typing", async (payload: unknown, ack) => {
       try {
-        const obj = payload as { roomId?: unknown; body?: unknown };
+        const obj = payload as { roomId?: unknown; typing?: unknown };
         const roomId = Number(obj.roomId);
-        const body = normalizeChatBody(obj.body);
+        const typing = Boolean(obj.typing);
         if (!Number.isFinite(roomId) || roomId <= 0) throw new Error("Invalid roomId");
-        if (!body) throw new Error("Message body required");
 
         const room = await prisma.chatRoom.findUnique({
           where: { id: roomId },
-          select: { id: true, kind: true, roomKey: true, meetingId: true, projectId: true }
+          select: roomSelect
+        });
+        if (!room) throw new Error("Room not found");
+        await assertUserCanAccessChatRoom(user, room);
+
+        socket.to(String(roomId)).emit("chat:typing", {
+          roomId,
+          userId: user.id,
+          userEmail: user.email,
+          typing
+        });
+        ack?.({ ok: true });
+      } catch (e) {
+        ack?.({ ok: false, message: e instanceof Error ? e.message : "Typing failed" });
+      }
+    });
+
+    socket.on("chat:sendMessage", async (payload: unknown, ack) => {
+      try {
+        const obj = payload as {
+          roomId?: unknown;
+          body?: unknown;
+          attachmentUrl?: unknown;
+          attachmentKind?: unknown;
+          attachmentName?: unknown;
+          attachmentSize?: unknown;
+        };
+        const roomId = Number(obj.roomId);
+        const attachmentUrl =
+          typeof obj.attachmentUrl === "string" && obj.attachmentUrl.trim() ? obj.attachmentUrl.trim() : null;
+        const attachmentKind =
+          typeof obj.attachmentKind === "string" && (obj.attachmentKind === "IMAGE" || obj.attachmentKind === "FILE")
+            ? obj.attachmentKind
+            : null;
+        const attachmentName =
+          typeof obj.attachmentName === "string" && obj.attachmentName.trim() ? obj.attachmentName.trim().slice(0, 255) : null;
+        const attachmentSize =
+          typeof obj.attachmentSize === "number" && Number.isFinite(obj.attachmentSize) ? Math.floor(obj.attachmentSize) : null;
+
+        const hasAttachment = Boolean(attachmentUrl && attachmentKind);
+        const body = normalizeChatBodyWithAttachment(obj.body, hasAttachment);
+        if (!Number.isFinite(roomId) || roomId <= 0) throw new Error("Invalid roomId");
+        if (!body && !hasAttachment) throw new Error("Message body or attachment required");
+
+        const room = await prisma.chatRoom.findUnique({
+          where: { id: roomId },
+          select: roomSelect
         });
         if (!room) throw new Error("Room not found");
 
         await assertUserCanAccessChatRoom(user, room);
 
         const message = await prisma.chatMessage.create({
-          data: { roomId, senderId: user.id, body },
+          data: {
+            roomId,
+            senderId: user.id,
+            body: body ?? "",
+            attachmentUrl,
+            attachmentKind,
+            attachmentName,
+            attachmentSize
+          },
           include: { sender: { select: { email: true } } }
         });
 
@@ -139,12 +208,15 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
           senderEmail: (message.sender?.email as string | undefined) ?? null,
           body: message.body,
           createdAt: message.createdAt,
-          editedAt: message.editedAt ?? null
+          editedAt: message.editedAt ?? null,
+          deletedAt: message.deletedAt ?? null,
+          attachmentUrl: message.attachmentUrl ?? null,
+          attachmentKind: message.attachmentKind ?? null,
+          attachmentName: message.attachmentName ?? null,
+          attachmentSize: message.attachmentSize ?? null,
+          reactions: [] as Array<{ emoji: string; userId: number; userEmail: string | null }>
         };
 
-        // Create in-app notifications for recipients.
-        // - For MEETING/PROJECT (public rooms): notify everyone (except sender).
-        // - For DM/GROUP: notify other members in the room.
         const recipients =
           room.kind === "MEETING" || room.kind === "PROJECT"
             ? await prisma.user.findMany({
@@ -156,10 +228,19 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
                 select: { userId: true }
               });
 
-        const recipientUserIds = recipients.map((r: any) => (r.id != null ? r.id : r.userId)).filter((id: any) => id != null);
+        const recipientUserIds = recipients
+          .map((r: { id?: number; userId?: number }) => (r.id != null ? r.id : r.userId))
+          .filter((id: number | undefined): id is number => id != null);
 
         if (recipientUserIds.length) {
+          const prefs = await prisma.user.findMany({
+            where: { id: { in: recipientUserIds } },
+            select: { id: true, inAppChatMessages: true }
+          });
+          const allowed = new Set(prefs.filter((p) => p.inAppChatMessages).map((p) => p.id));
+
           const senderLabel = out.senderEmail ? `from ${out.senderEmail}` : "new message";
+          const preview = body?.slice(0, 200) || (hasAttachment ? "[attachment]" : "");
           const title =
             room.kind === "DM"
               ? `DM ${senderLabel}`
@@ -167,16 +248,19 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
                 ? `New group message ${senderLabel}`
                 : `New message ${senderLabel}`;
 
-          await prisma.notification.createMany({
-            data: recipientUserIds.map((uid) => ({
-              userId: uid,
-              type: "CHAT_MESSAGE",
-              title,
-              body,
-              link: `/chat/rooms/${roomId}`,
-              meetingId: null
-            }))
-          });
+          const toNotify = recipientUserIds.filter((id) => allowed.has(id));
+          if (toNotify.length) {
+            await prisma.notification.createMany({
+              data: toNotify.map((uid) => ({
+                userId: uid,
+                type: "CHAT_MESSAGE",
+                title,
+                body: preview || null,
+                link: `/chat/rooms/${roomId}`,
+                meetingId: null
+              }))
+            });
+          }
         }
 
         io.to(String(roomId)).emit("chat:messageCreated", out);
@@ -196,7 +280,7 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
 
         const room = await prisma.chatRoom.findUnique({
           where: { id: roomId },
-          select: { id: true, kind: true, roomKey: true, meetingId: true, projectId: true }
+          select: roomSelect
         });
         if (!room) throw new Error("Room not found");
         await assertUserCanAccessChatRoom(user, room);
@@ -225,4 +309,3 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
 
   return io;
 }
-

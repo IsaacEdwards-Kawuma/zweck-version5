@@ -559,6 +559,21 @@ export default function Settings() {
             </span>
           </span>
         </label>
+        <label className="mt-3 inline-flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/40">
+          <input
+            type="checkbox"
+            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+            checked={session.inAppChatMessages !== false}
+            disabled={mNotifications.isPending}
+            onChange={(e) => mNotifications.mutate({ inAppChatMessages: e.target.checked })}
+          />
+          <span>
+            <span className="font-medium text-slate-900 dark:text-slate-100">In-app chat message alerts</span>
+            <span className="mt-1 block text-xs text-slate-600 dark:text-slate-400">
+              Bell notifications when someone sends a message in a chat you can access (DM, group, or meeting/project rooms).
+            </span>
+          </span>
+        </label>
         {mNotifications.error ? (
           <div className="mt-3">
             <ErrorBanner error={mNotifications.error} />

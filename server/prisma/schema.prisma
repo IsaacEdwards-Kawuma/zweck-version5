@@ -44,10 +44,14 @@ model User {
   emailMeetingReminders Boolean @default(true)
   /** When true, user receives in-app notifications for meeting reminders (same audience rules as email). */
   inAppMeetingReminders Boolean @default(true)
+  /** When true, user receives in-app notifications for new chat messages (bell/inbox). */
+  inAppChatMessages Boolean @default(true)
   createdAt  DateTime  @default(now())
 
   notifications Notification[]
   chatRoomMembers ChatRoomMember[]
+  chatRoomsCreated ChatRoom[] @relation("ChatRoomCreator")
+  chatMessageReactions ChatMessageReaction[]
   projectsCreated Project[]     @relation("ProjectCreator")
   tasksCreated    ProjectTask[] @relation("TaskCreator")
   chatMessages    ChatMessage[]
@@ -80,6 +84,9 @@ model ChatRoom {
   roomKey   String   @unique @db.VarChar(80)
   kind      String   @db.VarChar(16) // "MEETING" | "PROJECT"
   title     String?
+
+  createdById Int?
+  creator     User?  @relation("ChatRoomCreator", fields: [createdById], references: [id], onDelete: SetNull)
 
   meetingId Int?
   meeting   Meeting? @relation("MeetingChatRooms", fields: [meetingId], references: [id], onDelete: Cascade)
@@ -117,9 +124,28 @@ model ChatMessage {
   body      String
   editedAt  DateTime?
   deletedAt DateTime?
+  attachmentUrl   String?
+  attachmentKind  String?  @db.VarChar(16)
+  attachmentName  String?  @db.VarChar(255)
+  attachmentSize  Int?
   createdAt DateTime  @default(now())
 
+  reactions ChatMessageReaction[]
+
   @@index([roomId, createdAt])
+}
+
+model ChatMessageReaction {
+  id        Int         @id @default(autoincrement())
+  messageId Int
+  message   ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId    Int
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emoji     String      @db.VarChar(32)
+  createdAt DateTime    @default(now())
+
+  @@unique([messageId, userId, emoji])
+  @@index([messageId])
 }
 
 model LoginEvent {
