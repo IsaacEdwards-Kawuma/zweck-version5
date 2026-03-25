@@ -43,6 +43,29 @@ function parseDmRoomKey(roomKey: string): { a: number; b: number } | null {
   return { a, b };
 }
 
+/** Other participant in a DM room, or null if not a DM / invalid key. */
+export function getOtherDmUserId(roomKey: string, userId: number): number | null {
+  const parsed = parseDmRoomKey(roomKey);
+  if (!parsed) return null;
+  if (parsed.a !== userId && parsed.b !== userId) return null;
+  return parsed.a === userId ? parsed.b : parsed.a;
+}
+
+export async function assertDmNotBlocked(userId: number, room: ChatRoomForAuth): Promise<void> {
+  if (room.kind !== "DM") return;
+  const otherId = getOtherDmUserId(room.roomKey, userId);
+  if (otherId == null) return;
+  const block = await prisma.userBlock.findFirst({
+    where: {
+      OR: [
+        { blockerId: userId, blockedId: otherId },
+        { blockerId: otherId, blockedId: userId }
+      ]
+    }
+  });
+  if (block) throw apiError("This conversation is blocked", "chatBlock");
+}
+
 export async function assertUserCanAccessChatRoom(user: AuthUser, room: ChatRoomForAuth): Promise<void> {
   if (room.kind === "MEETING" || room.kind === "PROJECT") return;
 
@@ -50,6 +73,7 @@ export async function assertUserCanAccessChatRoom(user: AuthUser, room: ChatRoom
     const parsed = parseDmRoomKey(room.roomKey);
     if (!parsed) throw apiError("Forbidden", "chatRoom");
     if (parsed.a !== user.id && parsed.b !== user.id) throw apiError("Forbidden", "chatRoom");
+    await assertDmNotBlocked(user.id, room);
     return;
   }
 

@@ -11,7 +11,9 @@ import {
   assertUserCanDeleteMessage,
   assertUserCanManageGroupMembers,
   assertUserOwnsMessage,
+  assertDmNotBlocked,
   getChatRoomKey,
+  getOtherDmUserId,
   normalizeChatBody,
   normalizeChatBodyWithAttachment
 } from "../lib/chatPermissions.js";
@@ -157,8 +159,18 @@ function emitRoom(roomId: number, event: string, payload: unknown) {
   io?.to(String(roomId)).emit(event, payload);
 }
 
+async function getMemberClearedBeforeAt(userId: number, roomId: number): Promise<Date | null> {
+  const m = await prisma.chatRoomMember.findUnique({
+    where: { roomId_userId: { roomId, userId } },
+    select: { clearedBeforeAt: true }
+  });
+  return m?.clearedBeforeAt ?? null;
+}
+
 router.get("/rooms", async (req, res) => {
   const user = req.user!;
+  const includeArchived =
+    req.query.includeArchived === "1" || String(req.query.includeArchived).toLowerCase() === "true";
 
   const meetings = await prisma.meeting.findMany({
     where: { status: { not: "CANCELLED" } },
@@ -235,21 +247,59 @@ router.get("/rooms", async (req, res) => {
   const roomIds = rooms.map((r) => r.id);
   const memberRows = await prisma.chatRoomMember.findMany({
     where: { userId: user.id, roomId: { in: roomIds } },
-    select: { roomId: true, lastReadAt: true, createdAt: true }
+    select: { roomId: true, lastReadAt: true, createdAt: true, archivedAt: true, clearedBeforeAt: true }
   });
-  const memberByRoomId = new Map(memberRows.map((m) => [m.roomId, { lastReadAt: m.lastReadAt, createdAt: m.createdAt }]));
+  const memberByRoomId = new Map(
+    memberRows.map((m) => [
+      m.roomId,
+      { lastReadAt: m.lastReadAt, createdAt: m.createdAt, archivedAt: m.archivedAt, clearedBeforeAt: m.clearedBeforeAt }
+    ])
+  );
+
+  const blockRows = await prisma.userBlock.findMany({
+    where: { OR: [{ blockerId: user.id }, { blockedId: user.id }] },
+    select: { blockerId: true, blockedId: true }
+  });
+  const blockedPeerIds = new Set<number>();
+  for (const b of blockRows) {
+    blockedPeerIds.add(b.blockerId === user.id ? b.blockedId : b.blockerId);
+  }
 
   const out = [];
   for (const r of rooms) {
     const member = memberByRoomId.get(r.id) ?? null;
-    const since = member?.lastReadAt ?? member?.createdAt ?? new Date(0);
+    const archived = Boolean(member?.archivedAt);
+    if (includeArchived) {
+      if (!archived) continue;
+    } else {
+      if (archived) continue;
+    }
+
+    if (r.kind === "DM") {
+      const other = getOtherDmUserId(r.roomKey, user.id);
+      if (other != null && blockedPeerIds.has(other)) continue;
+    }
+
+    const cleared = member?.clearedBeforeAt ?? null;
+    const lastRead = member?.lastReadAt ?? member?.createdAt ?? new Date(0);
+    const effectiveUnreadSince = new Date(
+      Math.max(lastRead.getTime(), cleared ? cleared.getTime() : 0)
+    );
 
     const unreadCount = await prisma.chatMessage.count({
-      where: { roomId: r.id, deletedAt: null, createdAt: { gt: since } }
+      where: {
+        roomId: r.id,
+        deletedAt: null,
+        createdAt: { gt: effectiveUnreadSince }
+      }
     });
 
     const lastMessage = await prisma.chatMessage.findFirst({
-      where: { roomId: r.id, deletedAt: null },
+      where: {
+        roomId: r.id,
+        deletedAt: null,
+        ...(cleared ? { createdAt: { gt: cleared } } : {})
+      },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
@@ -267,6 +317,7 @@ router.get("/rooms", async (req, res) => {
       title: r.title,
       meetingId: r.meetingId,
       projectId: r.projectId,
+      archived,
       unreadCount,
       lastMessage: lastMessage
         ? {
@@ -307,6 +358,19 @@ router.post("/rooms/dm", async (req, res) => {
     update: { kind: "DM", title },
     create: { roomKey, kind: "DM", title }
   });
+
+  try {
+    await assertDmNotBlocked(user.id, {
+      id: room.id,
+      kind: "DM",
+      roomKey: room.roomKey,
+      meetingId: room.meetingId,
+      projectId: room.projectId,
+      createdById: room.createdById
+    });
+  } catch (e) {
+    return res.status(403).json(e);
+  }
 
   await prisma.chatRoomMember.createMany({
     data: [
@@ -368,6 +432,132 @@ router.post("/rooms/read-all", async (req, res) => {
   res.json({ updated: result.count });
 });
 
+const blockBodySchema = z.object({ userId: z.number().int().positive() });
+
+router.get("/blocks", async (req, res) => {
+  const user = req.user!;
+  const rows = await prisma.userBlock.findMany({
+    where: { blockerId: user.id },
+    select: {
+      blockedId: true,
+      blocked: { select: { email: true } }
+    },
+    orderBy: { id: "desc" }
+  });
+  res.json({
+    blocks: rows.map((r) => ({ userId: r.blockedId, email: r.blocked.email }))
+  });
+});
+
+router.post("/blocks", async (req, res) => {
+  const user = req.user!;
+  const parsed = blockBodySchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json(apiError("Invalid body", "userId"));
+  const targetId = parsed.data.userId;
+  if (targetId === user.id) return res.status(400).json(apiError("Cannot block yourself"));
+  await prisma.userBlock.upsert({
+    where: { blockerId_blockedId: { blockerId: user.id, blockedId: targetId } },
+    create: { blockerId: user.id, blockedId: targetId },
+    update: {}
+  });
+  res.json({ ok: true });
+});
+
+router.delete("/blocks/:userId", async (req, res) => {
+  const user = req.user!;
+  const targetId = Number(req.params.userId);
+  if (!Number.isFinite(targetId) || targetId <= 0) return res.status(400).json(apiError("Invalid user id"));
+  await prisma.userBlock.deleteMany({
+    where: { blockerId: user.id, blockedId: targetId }
+  });
+  res.json({ ok: true });
+});
+
+router.post("/rooms/:roomId/archive", async (req, res) => {
+  const user = req.user!;
+  const roomId = Number(req.params.roomId);
+  if (!Number.isFinite(roomId) || roomId <= 0) return res.status(400).json(apiError("Invalid room id"));
+  const room = await prisma.chatRoom.findUnique({ where: { id: roomId }, select: roomSelectAuth });
+  if (!room) return res.status(404).json(apiError("Room not found"));
+  try {
+    await assertUserCanAccessChatRoom(user, room);
+  } catch (e) {
+    return res.status(403).json(e);
+  }
+  const member = await prisma.chatRoomMember.findUnique({
+    where: { roomId_userId: { roomId, userId: user.id } }
+  });
+  if (!member) return res.status(404).json(apiError("Not a member"));
+  await prisma.chatRoomMember.update({
+    where: { id: member.id },
+    data: { archivedAt: new Date() }
+  });
+  res.json({ ok: true });
+});
+
+router.post("/rooms/:roomId/unarchive", async (req, res) => {
+  const user = req.user!;
+  const roomId = Number(req.params.roomId);
+  if (!Number.isFinite(roomId) || roomId <= 0) return res.status(400).json(apiError("Invalid room id"));
+  const room = await prisma.chatRoom.findUnique({ where: { id: roomId }, select: roomSelectAuth });
+  if (!room) return res.status(404).json(apiError("Room not found"));
+  try {
+    await assertUserCanAccessChatRoom(user, room);
+  } catch (e) {
+    return res.status(403).json(e);
+  }
+  const member = await prisma.chatRoomMember.findUnique({
+    where: { roomId_userId: { roomId, userId: user.id } }
+  });
+  if (!member) return res.status(404).json(apiError("Not a member"));
+  await prisma.chatRoomMember.update({
+    where: { id: member.id },
+    data: { archivedAt: null }
+  });
+  res.json({ ok: true });
+});
+
+router.post("/rooms/:roomId/clear", async (req, res) => {
+  const user = req.user!;
+  const roomId = Number(req.params.roomId);
+  if (!Number.isFinite(roomId) || roomId <= 0) return res.status(400).json(apiError("Invalid room id"));
+  const room = await prisma.chatRoom.findUnique({ where: { id: roomId }, select: roomSelectAuth });
+  if (!room) return res.status(404).json(apiError("Room not found"));
+  try {
+    await assertUserCanAccessChatRoom(user, room);
+  } catch (e) {
+    return res.status(403).json(e);
+  }
+  const member = await prisma.chatRoomMember.findUnique({
+    where: { roomId_userId: { roomId, userId: user.id } }
+  });
+  if (!member) return res.status(404).json(apiError("Not a member"));
+  const now = new Date();
+  await prisma.chatRoomMember.update({
+    where: { id: member.id },
+    data: { clearedBeforeAt: now, lastReadAt: now }
+  });
+  res.json({ ok: true });
+});
+
+router.delete("/rooms/:roomId/membership", async (req, res) => {
+  const user = req.user!;
+  const roomId = Number(req.params.roomId);
+  if (!Number.isFinite(roomId) || roomId <= 0) return res.status(400).json(apiError("Invalid room id"));
+  const room = await prisma.chatRoom.findUnique({ where: { id: roomId }, select: roomSelectAuth });
+  if (!room) return res.status(404).json(apiError("Room not found"));
+  try {
+    await assertUserCanAccessChatRoom(user, room);
+  } catch (e) {
+    return res.status(403).json(e);
+  }
+  if (room.kind === "MEETING" || room.kind === "PROJECT") {
+    return res.status(400).json(apiError("Archive this room instead of leaving", "leave"));
+  }
+  await prisma.chatRoomMember.deleteMany({ where: { roomId, userId: user.id } });
+  res.json({ ok: true });
+});
+
 router.get("/users", async (req, res) => {
   const user = req.user!;
   const users = await prisma.user.findMany({
@@ -416,7 +606,20 @@ router.get("/rooms/:roomId/summary", async (req, res) => {
     return res.status(403).json(e);
   }
 
-  return res.json({ room });
+  const membership = await prisma.chatRoomMember.findUnique({
+    where: { roomId_userId: { roomId, userId: user.id } },
+    select: { archivedAt: true, clearedBeforeAt: true }
+  });
+
+  const otherUserId = room.kind === "DM" ? getOtherDmUserId(room.roomKey, user.id) : null;
+
+  return res.json({
+    room: {
+      ...room,
+      membership: membership ?? { archivedAt: null, clearedBeforeAt: null },
+      otherUserId
+    }
+  });
 });
 
 const pinBodySchema = z.object({
@@ -668,11 +871,14 @@ router.get("/rooms/:roomId/messages/search", async (req, res) => {
   const cursor = parsed.data.cursor ?? null;
   const q = parsed.data.q.trim();
 
+  const clearedBefore = await getMemberClearedBeforeAt(user.id, roomId);
+
   const rowsDesc = await prisma.chatMessage.findMany({
     where: {
       roomId,
       deletedAt: null,
-      body: { contains: q, mode: "insensitive" }
+      body: { contains: q, mode: "insensitive" },
+      ...(clearedBefore ? { createdAt: { gt: clearedBefore } } : {})
     },
     orderBy: { id: "desc" },
     take: limit + 1,
@@ -939,10 +1145,13 @@ router.get("/rooms/:roomId/messages", async (req, res) => {
     return res.status(403).json(e);
   }
 
+  const clearedBefore = await getMemberClearedBeforeAt(user.id, roomId);
+
   const rowsDesc = await prisma.chatMessage.findMany({
     where: {
       roomId,
       deletedAt: null,
+      ...(clearedBefore ? { createdAt: { gt: clearedBefore } } : {}),
       ...(cursor ? { id: { lt: cursor } } : {})
     },
     orderBy: { id: "desc" },

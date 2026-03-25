@@ -1,15 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useOutletContext, useParams } from "react-router-dom";
+import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom";
 import { io } from "socket.io-client";
 import Loading from "../components/Loading";
 import ErrorBanner from "../components/ErrorBanner";
 import {
   addChatRoomMember,
+  archiveChatRoom,
+  blockChatUser,
+  clearChatHistory,
   deleteChatMessage,
   getChatReadReceipts,
   getChatRoomPresence,
   getChatRoomSummary,
+  leaveChatRoom,
   listChatRoomMembers,
   listChatRoomMessages,
   patchChatMessage,
@@ -17,6 +21,7 @@ import {
   searchChatMessages,
   setChatRoomPin,
   toggleChatReaction,
+  unarchiveChatRoom,
   uploadChatAttachment
 } from "../api/chat";
 import MessageBody from "../components/chat/MessageBody";
@@ -87,6 +92,7 @@ function targetAllowsLongPress(target) {
 
 export default function ChatRoom() {
   const { roomId } = useParams();
+  const navigate = useNavigate();
   const { me } = useOutletContext() || {};
   const qc = useQueryClient();
 
@@ -445,6 +451,50 @@ export default function ChatRoom() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["chat_room_summary", roomId] })
   });
 
+  const mArchive = useMutation({
+    mutationFn: () => archiveChatRoom(numericRoomId),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["chat_rooms"] });
+      navigate("/chat");
+    }
+  });
+
+  const mUnarchive = useMutation({
+    mutationFn: () => unarchiveChatRoom(numericRoomId),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["chat_rooms"] });
+      await qc.invalidateQueries({ queryKey: ["chat_room_summary", roomId] });
+    }
+  });
+
+  const mClear = useMutation({
+    mutationFn: () => clearChatHistory(numericRoomId),
+    onSuccess: async () => {
+      setMessages([]);
+      setNextCursor(null);
+      await qc.invalidateQueries({ queryKey: ["chat_room_messages", roomId] });
+      await qc.invalidateQueries({ queryKey: ["chat_room_summary", roomId] });
+      await qc.invalidateQueries({ queryKey: ["chat_rooms"] });
+    }
+  });
+
+  const mLeave = useMutation({
+    mutationFn: () => leaveChatRoom(numericRoomId),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["chat_rooms"] });
+      navigate("/chat");
+    }
+  });
+
+  const mBlock = useMutation({
+    mutationFn: (userId) => blockChatUser(userId),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["chat_rooms"] });
+      await qc.invalidateQueries({ queryKey: ["chat_blocks"] });
+      navigate("/chat");
+    }
+  });
+
   const jumpToMessageId = useCallback(
     async (targetId) => {
       setHighlightId(targetId);
@@ -485,6 +535,9 @@ export default function ChatRoom() {
 
   const title = room?.title || `Room #${numericRoomId}`;
   const typingLabel = Object.values(typingUsers).filter(Boolean).join(", ");
+  const isPublicRoom = room?.kind === "MEETING" || room?.kind === "PROJECT";
+  const isDmRoom = room?.kind === "DM";
+  const roomArchived = Boolean(room?.membership?.archivedAt);
 
   if (qSummary.isLoading || qMessages.isLoading) return <Loading label="Loading chat..." />;
   if (qSummary.error) return <ErrorBanner error={qSummary.error} />;
@@ -522,6 +575,97 @@ export default function ChatRoom() {
               Members
             </button>
           ) : null}
+          <details className="relative">
+            <summary className="ui-btn-outline list-none cursor-pointer select-none text-xs [&::-webkit-details-marker]:hidden">
+              Room actions
+            </summary>
+            <div
+              className="absolute right-0 z-40 mt-1 flex min-w-[13.5rem] flex-col gap-0.5 rounded-lg border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-600 dark:bg-slate-900"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                className="rounded px-3 py-2 text-left text-xs text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-800"
+                disabled={mClear.isPending}
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      "Clear all messages from your view? Others still keep the full history. New messages will appear normally."
+                    )
+                  ) {
+                    mClear.mutate();
+                  }
+                }}
+              >
+                Clear messages
+              </button>
+              {roomArchived ? (
+                <button
+                  type="button"
+                  className="rounded px-3 py-2 text-left text-xs text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-800"
+                  disabled={mUnarchive.isPending}
+                  onClick={() => mUnarchive.mutate()}
+                >
+                  Unarchive chat
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="rounded px-3 py-2 text-left text-xs text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-800"
+                  disabled={mArchive.isPending}
+                  onClick={() => {
+                    if (window.confirm("Archive this chat? It moves to Archived on the chat list.")) {
+                      mArchive.mutate();
+                    }
+                  }}
+                >
+                  Archive chat
+                </button>
+              )}
+              {!isPublicRoom ? (
+                <button
+                  type="button"
+                  className="rounded px-3 py-2 text-left text-xs text-rose-700 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-950/40"
+                  disabled={mLeave.isPending}
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        isDmRoom
+                          ? "Delete this chat for you? You can start a new direct message with the same person later."
+                          : "Leave this group? You will need to be re-invited to return."
+                      )
+                    ) {
+                      mLeave.mutate();
+                    }
+                  }}
+                >
+                  {isDmRoom ? "Delete chat" : "Leave group"}
+                </button>
+              ) : (
+                <p className="px-3 py-1.5 text-[10px] text-slate-500 dark:text-slate-400">
+                  Meeting/project rooms: use Archive or Clear; you cannot leave.
+                </p>
+              )}
+              {isDmRoom && room?.otherUserId ? (
+                <button
+                  type="button"
+                  className="rounded px-3 py-2 text-left text-xs text-rose-700 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-950/40"
+                  disabled={mBlock.isPending}
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        "Block this user? Neither of you can open this chat until someone unblocks from Blocked users."
+                      )
+                    ) {
+                      mBlock.mutate(room.otherUserId);
+                    }
+                  }}
+                >
+                  Block user
+                </button>
+              ) : null}
+            </div>
+          </details>
         </div>
       </div>
 

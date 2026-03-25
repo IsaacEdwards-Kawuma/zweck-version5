@@ -3,7 +3,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import Loading from "../components/Loading";
 import ErrorBanner from "../components/ErrorBanner";
-import { createDmRoomByEmail, createGroupRoom, listChatRooms, listChatUsers, markAllChatRoomsRead } from "../api/chat";
+import {
+  createDmRoomByEmail,
+  createGroupRoom,
+  listChatBlocks,
+  listChatRooms,
+  listChatUsers,
+  markAllChatRoomsRead,
+  unblockChatUser
+} from "../api/chat";
 
 function kindLabel(kind) {
   switch (kind) {
@@ -83,6 +91,8 @@ export default function Chat() {
   const [groupTitle, setGroupTitle] = useState("");
   const [groupMembersSelected, setGroupMembersSelected] = useState([]);
   const [groupUserSearch, setGroupUserSearch] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
+  const [showBlocked, setShowBlocked] = useState(false);
 
   const qUsers = useQuery({
     queryKey: ["chat_users"],
@@ -97,8 +107,14 @@ export default function Chat() {
   });
 
   const qRooms = useQuery({
-    queryKey: ["chat_rooms"],
-    queryFn: listChatRooms
+    queryKey: ["chat_rooms", showArchived],
+    queryFn: () => listChatRooms({ includeArchived: showArchived })
+  });
+
+  const qBlocks = useQuery({
+    queryKey: ["chat_blocks"],
+    queryFn: listChatBlocks,
+    enabled: showBlocked
   });
 
   const rooms = useMemo(() => qRooms.data || [], [qRooms.data]);
@@ -154,6 +170,14 @@ export default function Chat() {
     }
   });
 
+  const mUnblock = useMutation({
+    mutationFn: (userId) => unblockChatUser(userId),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["chat_blocks"] });
+      await qc.invalidateQueries({ queryKey: ["chat_rooms"] });
+    }
+  });
+
   if (qRooms.isLoading) return <Loading label="Loading chat rooms..." />;
   if (qRooms.error) return <ErrorBanner error={qRooms.error} />;
 
@@ -170,7 +194,9 @@ export default function Chat() {
             ) : null}
           </div>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-            1:1 chats, group discussions, and meeting/project rooms.
+            {showArchived
+              ? "Archived chats stay out of your main list until you unarchive them from the room."
+              : "1:1 chats, group discussions, and meeting/project rooms."}
           </p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
@@ -196,6 +222,17 @@ export default function Chat() {
             <option value="PROJECT">Project</option>
           </select>
           <input className="ui-input min-w-[240px]" placeholder="Search rooms..." value={filter} onChange={(e) => setFilter(e.target.value)} />
+          <button
+            type="button"
+            className={showArchived ? "ui-btn" : "ui-btn-outline"}
+            onClick={() => setShowArchived((v) => !v)}
+            title={showArchived ? "Show active chats" : "Show archived chats"}
+          >
+            {showArchived ? "Viewing: archived" : "View: archived"}
+          </button>
+          <button type="button" className="ui-btn-outline" onClick={() => setShowBlocked(true)}>
+            Blocked users
+          </button>
           <button type="button" className="ui-btn-outline" onClick={() => mMarkAllRead.mutate()} disabled={mMarkAllRead.isPending}>
             Mark all chats read
           </button>
@@ -256,6 +293,11 @@ export default function Chat() {
                     <span className="shrink-0 rounded-md bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-700 dark:bg-brand-900/30 dark:text-brand-200">
                       {kindLabel(r.kind)}
                     </span>
+                    {r.archived ? (
+                      <span className="shrink-0 rounded-md bg-slate-200 px-2 py-0.5 text-[10px] font-medium text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+                        Archived
+                      </span>
+                    ) : null}
                     <div className="truncate font-medium text-slate-900 dark:text-slate-100">{r.title || "(untitled)"}</div>
                   </div>
                   <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{roomSubtitle(r)}</div>
@@ -468,6 +510,50 @@ export default function Chat() {
                 Create group
               </button>
             </form>
+          </div>
+        </div>
+      ) : null}
+
+      {showBlocked ? (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 p-4">
+          <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-4 shadow-lg dark:border-slate-700 dark:bg-slate-950/60">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">Blocked users</div>
+              <button type="button" className="ui-btn-outline-xs" onClick={() => setShowBlocked(false)}>
+                Close
+              </button>
+            </div>
+            <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
+              Unblock to allow direct messages again. Start a new chat from New chat after unblocking.
+            </p>
+            {qBlocks.isLoading ? (
+              <div className="mt-3 text-sm text-slate-600 dark:text-slate-300">Loading...</div>
+            ) : qBlocks.error ? (
+              <div className="mt-3">
+                <ErrorBanner error={qBlocks.error} />
+              </div>
+            ) : (qBlocks.data || []).length === 0 ? (
+              <div className="mt-3 text-sm text-slate-500 dark:text-slate-400">No blocked users.</div>
+            ) : (
+              <ul className="mt-3 max-h-60 space-y-2 overflow-auto">
+                {(qBlocks.data || []).map((b) => (
+                  <li
+                    key={b.userId}
+                    className="flex items-center justify-between gap-2 rounded-lg border border-slate-100 px-2 py-2 dark:border-slate-700"
+                  >
+                    <span className="truncate text-sm text-slate-800 dark:text-slate-200">{b.email}</span>
+                    <button
+                      type="button"
+                      className="shrink-0 text-xs font-medium text-brand-700 hover:underline dark:text-brand-300"
+                      disabled={mUnblock.isPending}
+                      onClick={() => mUnblock.mutate(b.userId)}
+                    >
+                      Unblock
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
       ) : null}

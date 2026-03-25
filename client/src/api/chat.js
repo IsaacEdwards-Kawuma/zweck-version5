@@ -1,7 +1,9 @@
 import api from "./client";
 
-export async function listChatRooms() {
-  const { data } = await api.get("/chat/rooms");
+export async function listChatRooms({ includeArchived = false } = {}) {
+  const { data } = await api.get("/chat/rooms", {
+    params: includeArchived ? { includeArchived: "1" } : {}
+  });
   return data?.rooms ?? [];
 }
 
@@ -96,5 +98,40 @@ export async function setChatRoomPin(roomId, messageId) {
 
 export async function getChatRoomPresence(roomId) {
   const { data } = await api.get(`/chat/rooms/${roomId}/presence`);
+  return data;
+}
+
+export async function archiveChatRoom(roomId) {
+  const { data } = await api.post(`/chat/rooms/${roomId}/archive`);
+  return data;
+}
+
+export async function unarchiveChatRoom(roomId) {
+  const { data } = await api.post(`/chat/rooms/${roomId}/unarchive`);
+  return data;
+}
+
+export async function clearChatHistory(roomId) {
+  const { data } = await api.post(`/chat/rooms/${roomId}/clear`);
+  return data;
+}
+
+export async function leaveChatRoom(roomId) {
+  const { data } = await api.delete(`/chat/rooms/${roomId}/membership`);
+  return data;
+}
+
+export async function listChatBlocks() {
+  const { data } = await api.get("/chat/blocks");
+  return data?.blocks ?? [];
+}
+
+export async function blockChatUser(userId) {
+  const { data } = await api.post("/chat/blocks", { userId });
+  return data;
+}
+
+export async function unblockChatUser(userId) {
+  const { data } = await api.delete(`/chat/blocks/${userId}`);
   return data;
 }
