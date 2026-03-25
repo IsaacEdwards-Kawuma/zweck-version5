@@ -142,14 +142,23 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
           editedAt: message.editedAt ?? null
         };
 
-        // Create in-app notifications for all other room members.
-        // This ensures DM/group members see new messages in the bell/inbox.
-        const recipients = await prisma.chatRoomMember.findMany({
-          where: { roomId, userId: { not: user.id } },
-          select: { userId: true }
-        });
+        // Create in-app notifications for recipients.
+        // - For MEETING/PROJECT (public rooms): notify everyone (except sender).
+        // - For DM/GROUP: notify other members in the room.
+        const recipients =
+          room.kind === "MEETING" || room.kind === "PROJECT"
+            ? await prisma.user.findMany({
+                where: { id: { not: user.id } },
+                select: { id: true }
+              })
+            : await prisma.chatRoomMember.findMany({
+                where: { roomId, userId: { not: user.id } },
+                select: { userId: true }
+              });
 
-        if (recipients.length) {
+        const recipientUserIds = recipients.map((r: any) => (r.id != null ? r.id : r.userId)).filter((id: any) => id != null);
+
+        if (recipientUserIds.length) {
           const senderLabel = out.senderEmail ? `from ${out.senderEmail}` : "new message";
           const title =
             room.kind === "DM"
@@ -159,8 +168,8 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
                 : `New message ${senderLabel}`;
 
           await prisma.notification.createMany({
-            data: recipients.map((r) => ({
-              userId: r.userId,
+            data: recipientUserIds.map((uid) => ({
+              userId: uid,
               type: "CHAT_MESSAGE",
               title,
               body,

@@ -57,6 +57,14 @@ router.get("/rooms", async (req, res) => {
       })
     : [];
 
+  // Ensure every user has membership rows for public rooms, so unread/read state works.
+  if (publicRooms.length) {
+    await prisma.chatRoomMember.createMany({
+      data: publicRooms.map((r) => ({ roomId: r.id, userId: user.id })),
+      skipDuplicates: true
+    });
+  }
+
   // 2) Private rooms: DM + GROUP rooms come from memberships.
   const membershipRooms = await prisma.chatRoomMember.findMany({
     where: { userId: user.id },
@@ -82,26 +90,30 @@ router.get("/rooms", async (req, res) => {
   const roomIds = rooms.map((r) => r.id);
   const memberRows = await prisma.chatRoomMember.findMany({
     where: { userId: user.id, roomId: { in: roomIds } },
-    select: { roomId: true, lastReadAt: true }
+    select: { roomId: true, lastReadAt: true, createdAt: true }
   });
-  const memberByRoomId = new Map(memberRows.map((m) => [m.roomId, m.lastReadAt]));
+  const memberByRoomId = new Map(memberRows.map((m) => [m.roomId, { lastReadAt: m.lastReadAt, createdAt: m.createdAt }]));
 
   // v1: compute unread + last message per room.
   const out = [];
   for (const r of rooms) {
-    const lastReadAt = memberByRoomId.get(r.id) ?? null;
-    const unreadSince = lastReadAt ?? null;
+    const member = memberByRoomId.get(r.id) ?? null;
+    const since = member?.lastReadAt ?? member?.createdAt ?? new Date(0);
 
-    const unreadCount = unreadSince
-      ? await prisma.chatMessage.count({
-          where: { roomId: r.id, deletedAt: null, createdAt: { gt: unreadSince } }
-        })
-      : 0;
+    const unreadCount = await prisma.chatMessage.count({
+      where: { roomId: r.id, deletedAt: null, createdAt: { gt: since } }
+    });
 
     const lastMessage = await prisma.chatMessage.findFirst({
       where: { roomId: r.id, deletedAt: null },
       orderBy: { createdAt: "desc" },
-      select: { id: true, senderId: true, body: true, createdAt: true }
+      select: {
+        id: true,
+        senderId: true,
+        body: true,
+        createdAt: true,
+        sender: { select: { email: true } }
+      }
     });
 
     out.push({
@@ -116,6 +128,7 @@ router.get("/rooms", async (req, res) => {
         ? {
             id: lastMessage.id,
             senderId: lastMessage.senderId,
+            senderEmail: lastMessage.sender?.email ?? null,
             body: lastMessage.body,
             createdAt: lastMessage.createdAt
           }
@@ -202,6 +215,31 @@ router.post("/rooms/group", async (req, res) => {
   res.json({ roomId: room.id });
 });
 
+router.post("/rooms/read-all", async (req, res) => {
+  const user = req.user!;
+  const result = await prisma.chatRoomMember.updateMany({
+    where: { userId: user.id },
+    data: { lastReadAt: new Date() }
+  });
+  res.json({ updated: result.count });
+});
+
+router.get("/users", async (req, res) => {
+  const user = req.user!;
+  const users = await prisma.user.findMany({
+    where: { id: { not: user.id } },
+    select: {
+      id: true,
+      email: true,
+      role: true,
+      directorId: true,
+      director: { select: { name: true, initials: true, avatarUrl: true } }
+    },
+    orderBy: { createdAt: "asc" }
+  });
+  res.json({ users });
+});
+
 const listMessagesQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
   cursor: z.coerce.number().int().positive().optional()
@@ -230,25 +268,26 @@ router.get("/rooms/:roomId/messages", async (req, res) => {
     return res.status(403).json(e);
   }
 
-  const take = limit + 1;
-  const rows = await prisma.chatMessage.findMany({
-    where: { roomId, deletedAt: null },
-    orderBy: { id: "asc" },
-    take,
-    include: { sender: { select: { email: true } } },
-    ...(cursor
-      ? {
-          cursor: { id: cursor },
-          skip: 1
-        }
-      : {})
+  // Cursor semantics:
+  // - `cursor` means "fetch messages older than this message id".
+  // - We always return `items` sorted ascending by id for easy rendering.
+  const rowsDesc = await prisma.chatMessage.findMany({
+    where: {
+      roomId,
+      deletedAt: null,
+      ...(cursor ? { id: { lt: cursor } } : {})
+    },
+    orderBy: { id: "desc" },
+    take: limit + 1,
+    include: { sender: { select: { email: true } } }
   });
 
-  const hasMore = rows.length > limit;
-  const page = hasMore ? rows.slice(0, limit) : rows;
+  const hasMore = rowsDesc.length > limit;
+  const trimmed = hasMore ? rowsDesc.slice(0, limit) : rowsDesc;
+  const itemsAsc = trimmed.slice().reverse();
 
   return res.json({
-    items: page.map((m) => ({
+    items: itemsAsc.map((m) => ({
       id: m.id,
       senderId: m.senderId,
       senderEmail: (m as { sender?: { email: string } }).sender?.email ?? null,
@@ -256,7 +295,7 @@ router.get("/rooms/:roomId/messages", async (req, res) => {
       createdAt: m.createdAt,
       editedAt: m.editedAt ?? null
     })),
-    nextCursor: hasMore ? page[page.length - 1]?.id ?? null : null
+    nextCursor: hasMore ? itemsAsc[0]?.id ?? null : null
   });
 });
 

@@ -24,17 +24,24 @@ export default function ChatRoom() {
 
   const qMessages = useQuery({
     queryKey: ["chat_room_messages", roomId],
-    queryFn: () => listChatRoomMessages(numericRoomId, { limit: 100 }),
+    queryFn: () => listChatRoomMessages(numericRoomId, { limit: 50 }),
     enabled: Number.isFinite(numericRoomId) && Boolean(token)
   });
 
   const [draft, setDraft] = useState("");
   const [messages, setMessages] = useState([]);
+  const [nextCursor, setNextCursor] = useState(null);
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const scrollRef = useRef(null);
   const socketRef = useRef(null);
+  const isPrependingRef = useRef(false);
+  const lastMarkedReadIdRef = useRef(null);
 
   useEffect(() => {
-    if (qMessages.data?.items) setMessages(qMessages.data.items);
+    if (qMessages.data?.items) {
+      setMessages(qMessages.data.items);
+      setNextCursor(qMessages.data.nextCursor ?? null);
+    }
   }, [qMessages.data]);
 
   const socketURL = useMemo(() => resolveSocketURL(), []);
@@ -61,7 +68,10 @@ export default function ChatRoom() {
         return [...prev, msg];
       });
       setTimeout(() => {
-        if (msg?.id) socket.emit("chat:markRead", { roomId: numericRoomId, lastMessageId: msg.id });
+        if (msg?.id) {
+          lastMarkedReadIdRef.current = msg.id;
+          socket.emit("chat:markRead", { roomId: numericRoomId, lastMessageId: msg.id });
+        }
       }, 0);
     });
 
@@ -75,12 +85,49 @@ export default function ChatRoom() {
     // When user opens this room, mark the latest loaded message as read.
     if (!messages.length || !socketRef.current) return;
     const last = messages[messages.length - 1];
+    if (!last?.id) return;
+    if (lastMarkedReadIdRef.current === last.id) return;
+    lastMarkedReadIdRef.current = last.id;
     socketRef.current.emit("chat:markRead", { roomId: numericRoomId, lastMessageId: last.id });
   }, [messages, numericRoomId]);
 
   useEffect(() => {
+    // Keep user at the bottom when new messages append; when prepending older messages, we handle scroll manually.
+    if (isPrependingRef.current) return;
     scrollRef.current?.scrollTo?.({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages.length]);
+
+  const loadOlderMessages = async () => {
+    if (!nextCursor || isLoadingOlder) return;
+    const el = scrollRef.current;
+    if (!el) return;
+
+    setIsLoadingOlder(true);
+    isPrependingRef.current = true;
+
+    const prevScrollHeight = el.scrollHeight;
+    const prevScrollTop = el.scrollTop;
+
+    try {
+      const data = await listChatRoomMessages(numericRoomId, { limit: 50, cursor: nextCursor });
+      const older = data?.items ?? [];
+      if (older.length) {
+        setMessages((prev) => [...older, ...prev]);
+      }
+      setNextCursor(data?.nextCursor ?? null);
+    } finally {
+      // Wait for DOM/layout after prepending, then keep the viewport anchored.
+      requestAnimationFrame(() => {
+        const el2 = scrollRef.current;
+        if (el2) {
+          const newScrollHeight = el2.scrollHeight;
+          el2.scrollTop = newScrollHeight - prevScrollHeight + prevScrollTop;
+        }
+        isPrependingRef.current = false;
+        setIsLoadingOlder(false);
+      });
+    }
+  };
 
   if (qMessages.isLoading) return <Loading label="Loading messages..." />;
   if (qMessages.error) return <ErrorBanner error={qMessages.error} />;
@@ -97,6 +144,13 @@ export default function ChatRoom() {
       <div
         ref={scrollRef}
         className="min-h-[320px] flex-1 overflow-y-auto rounded-xl border border-slate-200 bg-white/70 p-3 dark:border-slate-700 dark:bg-slate-900/30"
+        onScroll={() => {
+          const el = scrollRef.current;
+          if (!el) return;
+          if (el.scrollTop < 40 && nextCursor && !isLoadingOlder) {
+            loadOlderMessages();
+          }
+        }}
       >
         {messages.length === 0 ? (
           <div className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">No messages yet.</div>

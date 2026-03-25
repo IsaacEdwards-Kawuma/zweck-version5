@@ -22,3 +22,13 @@ export async function createGroupRoom({ title, memberEmails }) {
   return data;
 }
 
+export async function listChatUsers() {
+  const { data } = await api.get("/chat/users");
+  return data?.users ?? [];
+}
+
+export async function markAllChatRoomsRead() {
+  const { data } = await api.post("/chat/rooms/read-all");
+  return data;
+}
+
