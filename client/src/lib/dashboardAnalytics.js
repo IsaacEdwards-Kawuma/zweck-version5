@@ -1,6 +1,6 @@
-import { TX_TYPE_LABELS } from "./transactionTypes";
+import { labelForTxType } from "./transactionTypes";
 
-export { TX_TYPE_LABELS };
+export { TX_TYPE_LABELS } from "./transactionTypes";
 
 /** @typedef {{ date: string, amount: number, type: string, director?: { id: number, name: string } | null }} TxRow */
 
@@ -64,7 +64,7 @@ export function volumeByType(transactions) {
   const rows = Array.from(map.entries())
     .map(([type, amount]) => ({
       type,
-      name: TX_TYPE_LABELS[type] || type,
+      name: labelForTxType(type),
       amount
     }))
     .sort((a, b) => b.amount - a.amount);

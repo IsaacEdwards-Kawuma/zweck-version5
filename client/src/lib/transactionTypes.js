@@ -83,6 +83,12 @@ export const TX_TYPE_LABELS = Object.fromEntries(
   TX_TYPE_GROUPS.flatMap((g) => g.options.map((o) => [o.value, o.label]))
 );
 
+/** Display label for a transaction type (keeps chart code from depending on TX_TYPE_LABELS binding in other modules). */
+export function labelForTxType(type) {
+  if (type == null || type === "") return "UNKNOWN";
+  return TX_TYPE_LABELS[type] || String(type).replaceAll("_", " ");
+}
+
 /** Preview + director requirement — must match server `TX_ACCOUNT_MAP`. */
 export const TX_ACCOUNT_MAP = {
   CONTRIBUTION: { debit: "bank", credit: "capital", needsDirector: true },
