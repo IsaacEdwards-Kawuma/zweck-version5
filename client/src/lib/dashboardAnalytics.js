@@ -1,3 +1,7 @@
+import { TX_TYPE_LABELS } from "./transactionTypes";
+
+export { TX_TYPE_LABELS };
+
 /** @typedef {{ date: string, amount: number, type: string, director?: { id: number, name: string } | null }} TxRow */
 
 function monthKeyFromDate(iso) {
@@ -47,8 +51,6 @@ export function monthlyVolumeSeries(transactions, monthsBack = 12) {
     count: map.get(month).count
   }));
 }
-
-export { TX_TYPE_LABELS } from "./transactionTypes";
 
 /**
  * @param {TxRow[]} transactions
