@@ -34,7 +34,17 @@ function publicAssetUrl(path) {
   return `${window.location.origin}${path.startsWith("/") ? "" : "/"}${path}`;
 }
 
-const QUICK_EMOJIS = ["👍", "❤️", "😂", "🔥"];
+// Emoji "stickers" for the quick reaction picker.
+// Keep them as single unicode characters so backend emoji handling remains predictable.
+const QUICK_EMOJIS = ["👍", "❤️", "😂", "🔥", "🎉", "😮", "😢", "🙏", "👏", "🤩", "😡", "💯", "🤝", "🚀"];
+const LONG_PRESS_MS = 520;
+const LONG_PRESS_MOVE_CANCEL_PX = 14;
+
+function targetAllowsLongPress(target) {
+  if (!(target instanceof Element)) return false;
+  if (target.closest("button, a, input, textarea, label, [data-no-longpress]")) return false;
+  return true;
+}
 
 export default function ChatRoom() {
   const { roomId } = useParams();
@@ -172,6 +182,71 @@ export default function ChatRoom() {
     [numericRoomId]
   );
 
+  const clearLongPressTimer = useCallback(() => {
+    if (longPressRef.current.timer != null) {
+      clearTimeout(longPressRef.current.timer);
+      longPressRef.current.timer = null;
+    }
+  }, []);
+
+  const startMessageLongPress = useCallback(
+    (e, messageId) => {
+      if (editingId === messageId) return;
+      // Don't start long-press on non-primary mouse buttons (e.g. right-click).
+      if (typeof e.button === "number" && e.button !== 0) return;
+      if (!targetAllowsLongPress(e.target)) return;
+      clearLongPressTimer();
+      longPressRef.current.startX = e.clientX;
+      longPressRef.current.startY = e.clientY;
+      longPressRef.current.timer = window.setTimeout(() => {
+        longPressRef.current.timer = null;
+        setReactionPickerMessageId(messageId);
+        try {
+          if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(30);
+        } catch {
+          /* ignore */
+        }
+      }, LONG_PRESS_MS);
+    },
+    [editingId, clearLongPressTimer]
+  );
+
+  const onMessagePointerMove = useCallback(
+    (e) => {
+      if (longPressRef.current.timer == null) return;
+      const dx = Math.abs(e.clientX - longPressRef.current.startX);
+      const dy = Math.abs(e.clientY - longPressRef.current.startY);
+      if (dx > LONG_PRESS_MOVE_CANCEL_PX || dy > LONG_PRESS_MOVE_CANCEL_PX) {
+        clearLongPressTimer();
+      }
+    },
+    [clearLongPressTimer]
+  );
+
+  const endMessageLongPress = useCallback(() => {
+    clearLongPressTimer();
+  }, [clearLongPressTimer]);
+
+  useEffect(() => {
+    if (reactionPickerMessageId == null) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") setReactionPickerMessageId(null);
+    };
+    const onDocPointerDown = (e) => {
+      const t = e.target;
+      if (t instanceof Element && t.closest(".chat-reaction-picker")) return;
+      setReactionPickerMessageId(null);
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onDocPointerDown);
+    document.addEventListener("touchstart", onDocPointerDown, { passive: true });
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onDocPointerDown);
+      document.removeEventListener("touchstart", onDocPointerDown);
+    };
+  }, [reactionPickerMessageId]);
+
   const onDraftChange = (e) => {
     setDraft(e.target.value);
     emitTyping(true);
@@ -262,6 +337,9 @@ export default function ChatRoom() {
           {typingLabel ? (
             <p className="mt-1 text-xs italic text-slate-500 dark:text-slate-400">{typingLabel} typing…</p>
           ) : null}
+          <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+            Long-press a message (or right-click on desktop) to react with an emoji.
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button type="button" className="ui-btn-outline text-xs" onClick={() => setShowSearch((v) => !v)}>
@@ -327,16 +405,52 @@ export default function ChatRoom() {
           <ul className="space-y-3">
             {messages.map((m) => {
               const isMe = m.senderId === me?.id;
-              const isDeleting = m.deletedAt && !m.body && !m.attachmentUrl;
               return (
                 <li key={m.id} className={isMe ? "text-right" : "text-left"}>
                   <div
                     className={
                       isMe
-                        ? "inline-block max-w-[min(100%,28rem)] rounded-xl bg-brand-50 px-3 py-2 text-left dark:bg-brand-950/30"
-                        : "inline-block max-w-[min(100%,28rem)] rounded-xl bg-slate-50 px-3 py-2 text-left dark:bg-slate-800/40"
+                        ? "relative inline-block max-w-[min(100%,28rem)] rounded-xl bg-brand-50 px-3 py-2 text-left touch-manipulation dark:bg-brand-950/30"
+                        : "relative inline-block max-w-[min(100%,28rem)] rounded-xl bg-slate-50 px-3 py-2 text-left touch-manipulation dark:bg-slate-800/40"
                     }
+                    onPointerDown={(e) => startMessageLongPress(e, m.id)}
+                    onPointerMove={onMessagePointerMove}
+                    onPointerUp={endMessageLongPress}
+                    onPointerCancel={endMessageLongPress}
+                    onContextMenu={(e) => {
+                      if (editingId === m.id) return;
+                      if (!targetAllowsLongPress(e.target)) return;
+                      e.preventDefault();
+                      clearLongPressTimer();
+                      setReactionPickerMessageId(m.id);
+                    }}
                   >
+                    {reactionPickerMessageId === m.id ? (
+                      <div
+                        className={`chat-reaction-picker absolute z-30 flex flex-wrap items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-1.5 shadow-lg dark:border-slate-600 dark:bg-slate-900 ${
+                          isMe ? "bottom-full right-0 mb-1" : "bottom-full left-0 mb-1"
+                        }`}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                        }}
+                      >
+                        {QUICK_EMOJIS.map((em) => (
+                          <button
+                            key={em}
+                            type="button"
+                            className="rounded-full px-2 py-1 text-lg leading-none hover:bg-brand-50 dark:hover:bg-brand-950/50"
+                            onClick={() => {
+                              mReaction.mutate({ messageId: m.id, emoji: em });
+                              setReactionPickerMessageId(null);
+                            }}
+                          >
+                            {em}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
                     <div className="text-xs font-medium text-slate-700 dark:text-slate-200">
                       {isMe ? "You" : m.senderEmail || `User #${m.senderId}`}
                     </div>
@@ -411,20 +525,11 @@ export default function ChatRoom() {
                     </div>
                     {editingId !== m.id ? (
                       <div className="mt-2 flex flex-wrap items-center gap-1">
-                        {QUICK_EMOJIS.map((em) => (
-                          <button
-                            key={em}
-                            type="button"
-                            className="rounded bg-white/80 px-1.5 py-0.5 text-sm dark:bg-slate-900/50"
-                            onClick={() => mReaction.mutate({ messageId: m.id, emoji: em })}
-                          >
-                            {em}
-                          </button>
-                        ))}
                         {isMe ? (
                           <>
                             <button
                               type="button"
+                              data-no-longpress
                               className="ml-1 text-xs text-brand-700 hover:underline dark:text-brand-300"
                               onClick={() => {
                                 setEditingId(m.id);
@@ -435,6 +540,7 @@ export default function ChatRoom() {
                             </button>
                             <button
                               type="button"
+                              data-no-longpress
                               className="text-xs text-rose-600 hover:underline"
                               onClick={() => {
                                 if (window.confirm("Delete this message?")) mDelete.mutate(m.id);
