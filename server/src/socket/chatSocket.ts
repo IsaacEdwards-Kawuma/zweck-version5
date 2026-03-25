@@ -93,7 +93,7 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
 
         const room = await prisma.chatRoom.findUnique({
           where: { id: roomId },
-          select: { id: true, kind: true, meetingId: true, projectId: true }
+          select: { id: true, kind: true, roomKey: true, meetingId: true, projectId: true }
         });
         if (!room) throw new Error("Room not found");
 
@@ -121,7 +121,7 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
 
         const room = await prisma.chatRoom.findUnique({
           where: { id: roomId },
-          select: { id: true, kind: true, meetingId: true, projectId: true }
+          select: { id: true, kind: true, roomKey: true, meetingId: true, projectId: true }
         });
         if (!room) throw new Error("Room not found");
 
@@ -159,7 +159,7 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
 
         const room = await prisma.chatRoom.findUnique({
           where: { id: roomId },
-          select: { id: true, kind: true, meetingId: true, projectId: true }
+          select: { id: true, kind: true, roomKey: true, meetingId: true, projectId: true }
         });
         if (!room) throw new Error("Room not found");
         await assertUserCanAccessChatRoom(user, room);

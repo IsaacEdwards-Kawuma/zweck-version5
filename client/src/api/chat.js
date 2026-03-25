@@ -11,3 +11,14 @@ export async function listChatRoomMessages(roomId, { limit = 50, cursor = null }
   return data;
 }
 
+export async function createDmRoomByEmail({ otherEmail }) {
+  const { data } = await api.post("/chat/rooms/dm", { otherEmail });
+  return data;
+}
+
+export async function createGroupRoom({ title, memberEmails }) {
+  const payload = { title, ...(Array.isArray(memberEmails) ? { memberEmails } : {}) };
+  const { data } = await api.post("/chat/rooms/group", payload);
+  return data;
+}
+

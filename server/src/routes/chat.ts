@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import crypto from "node:crypto";
 import { prisma } from "../lib/prisma.js";
 import { apiError } from "../lib/http.js";
 import { assertUserCanAccessChatRoom, getChatRoomKey, normalizeChatBody } from "../lib/chatPermissions.js";
@@ -9,24 +10,24 @@ const router = Router();
 router.get("/rooms", async (req, res) => {
   const user = req.user!;
 
-  // Creator + leader-only access.
+  // 1) Public rooms: everyone can access Meeting + Project discussions.
   const meetings = await prisma.meeting.findMany({
-    where: { createdById: user.id, status: { not: "CANCELLED" } },
+    where: { status: { not: "CANCELLED" } },
     select: { id: true, title: true }
   });
 
-  const leaderDirectorId = user.directorId ?? null;
   const projects = await prisma.project.findMany({
-    where: {
-      OR: [
-        { createdById: user.id },
-        ...(leaderDirectorId != null ? [{ leaderDirectorId }] : [])
-      ]
-    },
+    where: { status: { not: "CANCELLED" } },
     select: { id: true, name: true }
   });
 
-  const roomDefs: Array<{ kind: string; roomKey: string; title: string; meetingId?: number; projectId?: number }> = [
+  const publicRoomDefs: Array<{
+    kind: string;
+    roomKey: string;
+    title: string;
+    meetingId?: number;
+    projectId?: number;
+  }> = [
     ...meetings.map((m) => ({
       kind: "MEETING",
       roomKey: getChatRoomKey("MEETING", m.id),
@@ -41,8 +42,7 @@ router.get("/rooms", async (req, res) => {
     }))
   ];
 
-  // Upsert rooms (so we don't need to pre-create everything).
-  for (const r of roomDefs) {
+  for (const r of publicRoomDefs) {
     await prisma.chatRoom.upsert({
       where: { roomKey: r.roomKey },
       update: { title: r.title, kind: r.kind },
@@ -50,38 +50,53 @@ router.get("/rooms", async (req, res) => {
     });
   }
 
-  const rooms = await prisma.chatRoom.findMany({
-    where: { roomKey: { in: roomDefs.map((r) => r.roomKey) } },
-    select: { id: true, kind: true, meetingId: true, projectId: true, title: true, createdAt: true }
+  const publicRooms = publicRoomDefs.length
+    ? await prisma.chatRoom.findMany({
+        where: { roomKey: { in: publicRoomDefs.map((r) => r.roomKey) } },
+        select: { id: true, kind: true, roomKey: true, meetingId: true, projectId: true, title: true, createdAt: true }
+      })
+    : [];
+
+  // 2) Private rooms: DM + GROUP rooms come from memberships.
+  const membershipRooms = await prisma.chatRoomMember.findMany({
+    where: { userId: user.id },
+    select: {
+      roomId: true,
+      lastReadAt: true,
+      room: {
+        select: { id: true, kind: true, roomKey: true, meetingId: true, projectId: true, title: true, createdAt: true }
+      }
+    }
   });
 
-  // Ensure membership rows exist.
-  if (rooms.length) {
-    await prisma.chatRoomMember.createMany({
-      data: rooms.map((r) => ({ roomId: r.id, userId: user.id })),
-      skipDuplicates: true
-    });
+  const roomById = new Map<number, typeof publicRooms[number]>();
+  for (const r of publicRooms) roomById.set(r.id, r);
+  for (const mr of membershipRooms) {
+    if (!mr.room) continue;
+    roomById.set(mr.room.id, mr.room);
   }
 
-  const members = await prisma.chatRoomMember.findMany({
-    where: { userId: user.id, roomId: { in: rooms.map((r) => r.id) } },
+  const rooms = [...roomById.values()];
+
+  // Read cursors for rooms we return.
+  const roomIds = rooms.map((r) => r.id);
+  const memberRows = await prisma.chatRoomMember.findMany({
+    where: { userId: user.id, roomId: { in: roomIds } },
     select: { roomId: true, lastReadAt: true }
   });
-  const memberByRoomId = new Map(members.map((m) => [m.roomId, m.lastReadAt]));
+  const memberByRoomId = new Map(memberRows.map((m) => [m.roomId, m.lastReadAt]));
 
-  // v1: compute unread + last message per room (simple, acceptable for small rooms).
+  // v1: compute unread + last message per room.
   const out = [];
   for (const r of rooms) {
     const lastReadAt = memberByRoomId.get(r.id) ?? null;
-    const since = lastReadAt ?? new Date(0);
+    const unreadSince = lastReadAt ?? null;
 
-    const unreadCount = await prisma.chatMessage.count({
-      where: {
-        roomId: r.id,
-        deletedAt: null,
-        createdAt: { gt: since }
-      }
-    });
+    const unreadCount = unreadSince
+      ? await prisma.chatMessage.count({
+          where: { roomId: r.id, deletedAt: null, createdAt: { gt: unreadSince } }
+        })
+      : 0;
 
     const lastMessage = await prisma.chatMessage.findFirst({
       where: { roomId: r.id, deletedAt: null },
@@ -92,6 +107,7 @@ router.get("/rooms", async (req, res) => {
     out.push({
       id: r.id,
       kind: r.kind,
+      roomKey: r.roomKey,
       title: r.title,
       meetingId: r.meetingId,
       projectId: r.projectId,
@@ -108,6 +124,82 @@ router.get("/rooms", async (req, res) => {
   }
 
   return res.json({ rooms: out });
+});
+
+router.post("/rooms/dm", async (req, res) => {
+  const user = req.user!;
+  const bodySchema = z.object({ otherEmail: z.string().email().max(320) });
+  const parsed = bodySchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json(apiError("Invalid body", "otherEmail"));
+
+  const otherEmail = parsed.data.otherEmail.trim().toLowerCase();
+  const other = await prisma.user.findUnique({
+    where: { email: otherEmail },
+    select: { id: true, email: true }
+  });
+  if (!other) return res.status(404).json(apiError("User not found"));
+  if (other.id === user.id) return res.status(400).json(apiError("Cannot DM yourself"));
+
+  const a = Math.min(user.id, other.id);
+  const b = Math.max(user.id, other.id);
+  const roomKey = `DM:${a}:${b}`;
+  const title = `DM: ${other.email}`;
+
+  const room = await prisma.chatRoom.upsert({
+    where: { roomKey },
+    update: { kind: "DM", title },
+    create: { roomKey, kind: "DM", title }
+  });
+
+  await prisma.chatRoomMember.createMany({
+    data: [
+      { roomId: room.id, userId: user.id },
+      { roomId: room.id, userId: other.id }
+    ],
+    skipDuplicates: true
+  });
+
+  res.json({ roomId: room.id });
+});
+
+router.post("/rooms/group", async (req, res) => {
+  const user = req.user!;
+  const bodySchema = z.object({
+    title: z.string().min(1).max(200),
+    memberEmails: z.array(z.string().email().max(320)).optional()
+  });
+  const parsed = bodySchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json(apiError("Invalid body", "group"));
+
+  const title = parsed.data.title.trim();
+  const memberEmails = Array.isArray(parsed.data.memberEmails) ? parsed.data.memberEmails : [];
+
+  const normalized = memberEmails.map((e) => e.trim().toLowerCase()).filter(Boolean);
+  const unique = [...new Set(normalized)];
+
+  const members = await prisma.user.findMany({
+    where: { email: { in: unique } },
+    select: { id: true, email: true }
+  });
+
+  if (members.length !== unique.length) {
+    return res.status(400).json(apiError("One or more member emails not found"));
+  }
+
+  const memberIds = new Set<number>(members.map((m) => m.id));
+  memberIds.add(user.id);
+
+  const roomKey = `GROUP:${crypto.randomUUID()}`;
+  const room = await prisma.chatRoom.create({
+    data: { roomKey, kind: "GROUP", title }
+  });
+
+  await prisma.chatRoomMember.createMany({
+    data: [...memberIds].map((uid) => ({ roomId: room.id, userId: uid })),
+    skipDuplicates: true
+  });
+
+  res.json({ roomId: room.id });
 });
 
 const listMessagesQuerySchema = z.object({
@@ -128,7 +220,7 @@ router.get("/rooms/:roomId/messages", async (req, res) => {
 
   const room = await prisma.chatRoom.findUnique({
     where: { id: roomId },
-    select: { id: true, kind: true, meetingId: true, projectId: true }
+    select: { id: true, kind: true, roomKey: true, meetingId: true, projectId: true }
   });
   if (!room) return res.status(404).json(apiError("Room not found"));
 

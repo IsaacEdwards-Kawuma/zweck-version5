@@ -5,6 +5,7 @@ import type { AuthUser } from "../middleware/auth.js";
 export type ChatRoomForAuth = {
   id: number;
   kind: string;
+  roomKey: string;
   meetingId: number | null;
   projectId: number | null;
 };
@@ -21,32 +22,32 @@ export function normalizeChatBody(body: unknown): string | null {
   return t;
 }
 
+function parseDmRoomKey(roomKey: string): { a: number; b: number } | null {
+  // Expected: DM:<low>:<high>
+  const m = /^DM:(\d+):(\d+)$/.exec(roomKey);
+  if (!m) return null;
+  const a = Number(m[1]);
+  const b = Number(m[2]);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+  return { a, b };
+}
+
 export async function assertUserCanAccessChatRoom(user: AuthUser, room: ChatRoomForAuth): Promise<void> {
-  if (room.kind === "MEETING") {
-    if (!room.meetingId) throw apiError("Meeting chat room not found");
-    const meeting = await prisma.meeting.findUnique({
-      where: { id: room.meetingId },
-      select: { createdById: true }
-    });
-    if (!meeting || meeting.createdById !== user.id) {
-      throw apiError("Forbidden", "chatRoom");
-    }
+  // Meetings + Projects are public discussion rooms (everyone can join/send).
+  if (room.kind === "MEETING" || room.kind === "PROJECT") return;
+
+  if (room.kind === "DM") {
+    const parsed = parseDmRoomKey(room.roomKey);
+    if (!parsed) throw apiError("Forbidden", "chatRoom");
+    if (parsed.a !== user.id && parsed.b !== user.id) throw apiError("Forbidden", "chatRoom");
     return;
   }
 
-  if (room.kind === "PROJECT") {
-    if (!room.projectId) throw apiError("Project chat room not found");
-    const project = await prisma.project.findUnique({
-      where: { id: room.projectId },
-      select: { createdById: true, leaderDirectorId: true }
+  if (room.kind === "GROUP") {
+    const member = await prisma.chatRoomMember.findUnique({
+      where: { roomId_userId: { roomId: room.id, userId: user.id } }
     });
-    if (!project) throw apiError("Forbidden", "chatRoom");
-
-    const isCreator = project.createdById === user.id;
-    const isLeader =
-      project.leaderDirectorId != null && user.directorId != null && project.leaderDirectorId === user.directorId;
-
-    if (!isCreator && !isLeader) throw apiError("Forbidden", "chatRoom");
+    if (!member) throw apiError("Forbidden", "chatRoom");
     return;
   }
 
