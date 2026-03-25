@@ -56,7 +56,14 @@ const baseSchema = z.object({
   amount: z
     .number()
     .positive()
-    .refine((n) => Math.round(n * 100) === n * 100, "Amount must have max 2 decimal places"),
+    .refine(
+      (n) => {
+        if (!Number.isFinite(n)) return false;
+        const cents = Math.round(n * 100);
+        return Math.abs(n - cents / 100) < 1e-9;
+      },
+      "Amount must have max 2 decimal places"
+    ),
   description: z.string().max(300).optional(),
   directorId: z.number().int().positive().optional()
 });

@@ -35,3 +35,30 @@ export function pctFmt01(p, digits = 1) {
   return `${n.toFixed(digits)}%`;
 }
 
+/** Round a finite number to 2 decimal places (euros + cents). */
+export function roundToCents(n) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return NaN;
+  return Math.round(x * 100) / 100;
+}
+
+/**
+ * Parse a user-typed money string (e.g. "2.23", "10,50" with comma as decimal).
+ * Returns { ok: true, value } in euros with at most cent precision, or { ok: false, error }.
+ */
+export function parseMoneyAmountInput(raw) {
+  const s = String(raw ?? "")
+    .trim()
+    .replace(",", ".");
+  if (s === "") return { ok: false, error: "Enter amount." };
+  const n = Number(s);
+  if (Number.isNaN(n)) return { ok: false, error: "Amount must be numeric." };
+  if (n <= 0) return { ok: false, error: "Amount must be greater than zero." };
+  const dot = s.indexOf(".");
+  if (dot !== -1 && s.length - dot - 1 > 2) {
+    return { ok: false, error: "Use at most two decimal places (cents)." };
+  }
+  const rounded = roundToCents(n);
+  return { ok: true, value: rounded };
+}
+

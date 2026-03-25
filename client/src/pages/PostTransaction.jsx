@@ -5,7 +5,7 @@ import DirectorAvatar from "../components/DirectorAvatar";
 import ErrorBanner from "../components/ErrorBanner";
 import { postTransaction, deleteTransaction, updateTransaction, listTransactions, txItems } from "../api/transactions";
 import { listDirectors } from "../api/directors";
-import { eur, fmtDate } from "../lib/format";
+import { eur, fmtDate, parseMoneyAmountInput, roundToCents } from "../lib/format";
 
 const TX_ACCOUNT_MAP = {
   CONTRIBUTION: { debit: "bank", credit: "capital", needsDirector: true },
@@ -98,19 +98,26 @@ export default function PostTransaction() {
   });
 
   const preview = useMemo(() => {
-    const n = Number(amount || 0);
+    const parsed = parseMoneyAmountInput(amount);
+    let n = 0;
+    if (parsed.ok) n = parsed.value;
+    else {
+      const x = Number(amount);
+      n = Number.isFinite(x) ? roundToCents(x) : 0;
+    }
     return {
       debit: map?.debit,
       credit: map?.credit,
-      amount: n
+      amount: Number.isFinite(n) ? n : 0
     };
   }, [amount, map]);
 
   const validation = useMemo(() => {
-    const n = Number(amount);
-    if (amount === "") return "Enter amount.";
-    if (Number.isNaN(n)) return "Amount must be numeric.";
-    if (n <= 0) return "Amount must be greater than zero.";
+    const parsed = parseMoneyAmountInput(amount);
+    if (!parsed.ok) {
+      if (amount.trim() === "") return "Enter amount.";
+      return parsed.error;
+    }
     if (needsDirector && !directorId) return "Select director for this transaction type.";
     return "";
   }, [amount, needsDirector, directorId]);
@@ -124,9 +131,11 @@ export default function PostTransaction() {
   function onSubmit(e) {
     e.preventDefault();
     setSuccess(null);
+    const parsedAmount = parseMoneyAmountInput(amount);
+    if (!parsedAmount.ok) return;
     const payload = {
       type,
-      amount: Number(amount),
+      amount: parsedAmount.value,
       date: new Date(`${date}T12:00:00.000Z`).toISOString(),
       description: description || undefined,
       directorId: needsDirector ? Number(directorId) : undefined
@@ -267,11 +276,15 @@ export default function PostTransaction() {
             <input
               className="mt-1 w-full rounded-lg border-slate-300"
               inputMode="decimal"
+              type="number"
+              step="0.01"
+              min="0"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               required
               placeholder="0.00"
             />
+            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">You can include cents (e.g. 2.23).</p>
           </div>
 
           <div>
