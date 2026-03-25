@@ -142,6 +142,34 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
           editedAt: message.editedAt ?? null
         };
 
+        // Create in-app notifications for all other room members.
+        // This ensures DM/group members see new messages in the bell/inbox.
+        const recipients = await prisma.chatRoomMember.findMany({
+          where: { roomId, userId: { not: user.id } },
+          select: { userId: true }
+        });
+
+        if (recipients.length) {
+          const senderLabel = out.senderEmail ? `from ${out.senderEmail}` : "new message";
+          const title =
+            room.kind === "DM"
+              ? `DM ${senderLabel}`
+              : room.kind === "GROUP"
+                ? `New group message ${senderLabel}`
+                : `New message ${senderLabel}`;
+
+          await prisma.notification.createMany({
+            data: recipients.map((r) => ({
+              userId: r.userId,
+              type: "CHAT_MESSAGE",
+              title,
+              body,
+              link: `/chat/rooms/${roomId}`,
+              meetingId: null
+            }))
+          });
+        }
+
         io.to(String(roomId)).emit("chat:messageCreated", out);
         ack?.({ ok: true, messageId: message.id });
       } catch (e) {
