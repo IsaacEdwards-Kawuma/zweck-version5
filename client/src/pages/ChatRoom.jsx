@@ -554,7 +554,7 @@ export default function ChatRoom() {
                         ) : null}
                       </div>
                     ) : null}
-                    {m.reactions?.length ? (
+                    {Array.isArray(m.reactions) && m.reactions.length ? (
                       <div className="mt-2 flex flex-wrap gap-1 text-xs text-slate-600 dark:text-slate-300">
                         {Object.entries(
                           m.reactions.reduce((acc, r) => {
