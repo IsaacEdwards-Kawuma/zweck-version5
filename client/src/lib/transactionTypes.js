@@ -31,6 +31,7 @@ export const TX_TYPE_GROUPS = [
       { value: "YPA_INVEST", label: "YPA / project invest" },
       { value: "PROJECT_DISBURSEMENT", label: "10. Project Disbursement" },
       { value: "ASSET_PURCHASE", label: "11. Asset Purchase" },
+      { value: "LOAN_ADVANCED", label: "12. Loan Advanced (company lends principal)" },
       { value: "LOAN_REPAYMENT_RECEIVED", label: "14. Loan Repayment Received" }
     ]
   },
@@ -103,6 +104,7 @@ export const TX_ACCOUNT_MAP = {
   OTHER_INCOME: { debit: "bank", credit: "income_other", needsDirector: false },
   PROJECT_DISBURSEMENT: { debit: "project_exp", credit: "bank", needsDirector: false },
   ASSET_PURCHASE: { debit: "capex", credit: "bank", needsDirector: false },
+  LOAN_ADVANCED: { debit: "loan_receivable", credit: "bank", needsDirector: false },
   LOAN_REPAYMENT_RECEIVED: { debit: "bank", credit: "loan_receivable", needsDirector: false },
   TRANSPORT_TRAVEL: { debit: "exp_transport", credit: "bank", needsDirector: false },
   COMMUNICATION_INTERNET: { debit: "exp_communication", credit: "bank", needsDirector: false },

@@ -98,6 +98,7 @@ export const TX_ACCOUNT_MAP: Record<
   PROJECT_DISBURSEMENT: { debit: "project_exp", credit: "bank", needsDirector: false },
   ASSET_PURCHASE: { debit: "capex", credit: "bank", needsDirector: false },
   LOAN_REPAYMENT_RECEIVED: { debit: "bank", credit: "loan_receivable", needsDirector: false },
+  LOAN_ADVANCED: { debit: "loan_receivable", credit: "bank", needsDirector: false },
   TRANSPORT_TRAVEL: { debit: "exp_transport", credit: "bank", needsDirector: false },
   COMMUNICATION_INTERNET: { debit: "exp_communication", credit: "bank", needsDirector: false },
   OFFICE_ADMINISTRATION: { debit: "exp_office", credit: "bank", needsDirector: false },
