@@ -26,6 +26,43 @@ function roomSubtitle(room) {
   return room.kind || "Room";
 }
 
+function formatRelativeTime(iso) {
+  if (!iso) return "";
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return "";
+  const diff = Date.now() - t;
+  const sec = Math.floor(diff / 1000);
+  if (sec < 60) return "just now";
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const d = Math.floor(hr / 24);
+  if (d < 7) return `${d}d ago`;
+  return new Date(iso).toLocaleDateString();
+}
+
+function sortRooms(list, mode) {
+  const copy = [...list];
+  const lastTs = (r) => (r.lastMessage?.createdAt ? new Date(r.lastMessage.createdAt).getTime() : 0);
+  if (mode === "alpha") {
+    copy.sort((a, b) => (a.title || "").localeCompare(b.title || "", undefined, { sensitivity: "base" }));
+    return copy;
+  }
+  if (mode === "unread_first") {
+    copy.sort((a, b) => {
+      const ua = Number(a.unreadCount) || 0;
+      const ub = Number(b.unreadCount) || 0;
+      if (ub !== ua) return ub - ua;
+      return lastTs(b) - lastTs(a);
+    });
+    return copy;
+  }
+  // recent
+  copy.sort((a, b) => lastTs(b) - lastTs(a));
+  return copy;
+}
+
 export default function Chat() {
   const { me } = useOutletContext() || {};
   const qc = useQueryClient();
@@ -52,7 +89,7 @@ export default function Chat() {
 
   const rooms = useMemo(() => qRooms.data || [], [qRooms.data]);
   const selectedGroupMembers = useMemo(() => {
-    const users = qUsers.data?.users ?? [];
+    const users = Array.isArray(qUsers.data) ? qUsers.data : [];
     const ids = new Set(groupMembersSelected);
     return users.filter((u) => ids.has(u.id));
   }, [qUsers.data, groupMembersSelected]);
@@ -68,6 +105,13 @@ export default function Chat() {
       );
     });
   }, [rooms, filter, kindFilter]);
+
+  const sortedFiltered = useMemo(() => sortRooms(filtered, sortMode), [filtered, sortMode]);
+
+  const totalUnread = useMemo(
+    () => rooms.reduce((sum, r) => sum + (Number(r.unreadCount) || 0), 0),
+    [rooms]
+  );
 
   if (qRooms.isLoading) return <Loading label="Loading chat rooms..." />;
   if (qRooms.error) return <ErrorBanner error={qRooms.error} />;
@@ -103,10 +147,29 @@ export default function Chat() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Chat</h1>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">1:1 chats, group discussions, and meeting/project rooms.</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Chat</h1>
+            {totalUnread > 0 ? (
+              <span className="rounded-full bg-rose-600 px-2 py-0.5 text-xs font-semibold text-white" title="Unread across all rooms">
+                {totalUnread > 99 ? "99+" : totalUnread} unread
+              </span>
+            ) : null}
+          </div>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+            1:1 chats, group discussions, and meeting/project rooms.
+          </p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
+          <select
+            className="ui-input min-w-[160px]"
+            value={sortMode}
+            onChange={(e) => setSortMode(e.target.value)}
+            title="Sort rooms"
+          >
+            <option value="recent">Sort: Recent activity</option>
+            <option value="unread_first">Sort: Unread first</option>
+            <option value="alpha">Sort: A–Z</option>
+          </select>
           <select
             className="ui-input min-w-[150px]"
             value={kindFilter}
@@ -149,48 +212,71 @@ export default function Chat() {
         </button>
       </div>
 
-      {filtered.length === 0 ? (
+      {sortedFiltered.length === 0 ? (
         <div className="rounded-lg border border-slate-200 bg-white/60 p-4 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900/30 dark:text-slate-300">
-          No chat rooms available.
+          {rooms.length === 0 ? "No chat rooms yet. Start a direct message or group, or open a meeting/project room." : "No rooms match your filters."}
         </div>
       ) : null}
 
       <div className="grid gap-3 md:grid-cols-2">
-        {filtered.map((r) => (
-          <button
+        {sortedFiltered.map((r) => (
+          <div
             key={r.id}
-            type="button"
-            className="rounded-xl border border-slate-200 bg-white/70 p-4 text-left transition hover:border-brand-200 hover:bg-brand-50/40 dark:border-slate-700 dark:bg-slate-900/30 dark:hover:border-brand-600/60"
-            onClick={() => navigate(`/chat/rooms/${r.id}`)}
+            className="rounded-xl border border-slate-200 bg-white/70 text-left transition hover:border-brand-200 hover:bg-brand-50/40 dark:border-slate-700 dark:bg-slate-900/30 dark:hover:border-brand-600/60"
           >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="shrink-0 rounded-md bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-700 dark:bg-brand-900/30 dark:text-brand-200">
-                    {kindLabel(r.kind)}
-                  </span>
-                  <div className="truncate font-medium text-slate-900 dark:text-slate-100">{r.title || "(untitled)"}</div>
+            <button
+              type="button"
+              className="w-full p-4 pb-2 text-left"
+              onClick={() => navigate(`/chat/rooms/${r.id}`)}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="shrink-0 rounded-md bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-700 dark:bg-brand-900/30 dark:text-brand-200">
+                      {kindLabel(r.kind)}
+                    </span>
+                    <div className="truncate font-medium text-slate-900 dark:text-slate-100">{r.title || "(untitled)"}</div>
+                  </div>
+                  <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{roomSubtitle(r)}</div>
                 </div>
-                <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{roomSubtitle(r)}</div>
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  {r.lastMessage ? (
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400" title={new Date(r.lastMessage.createdAt).toLocaleString()}>
+                      {formatRelativeTime(r.lastMessage.createdAt)}
+                    </span>
+                  ) : null}
+                  {r.unreadCount ? (
+                    <div className="rounded-full bg-rose-600 px-2 py-0.5 text-xs font-semibold text-white">
+                      {r.unreadCount > 99 ? "99+" : r.unreadCount}
+                    </div>
+                  ) : null}
+                </div>
               </div>
-              {r.unreadCount ? (
-                <div className="shrink-0 rounded-full bg-rose-600 px-2 py-0.5 text-xs font-semibold text-white">
-                  {r.unreadCount > 99 ? "99+" : r.unreadCount}
-                </div>
-              ) : null}
-            </div>
 
-            {r.lastMessage ? (
-              <div className="mt-3 line-clamp-2 text-sm text-slate-600 dark:text-slate-300">
-                <span className="font-medium">
-                  {new Date(r.lastMessage.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                </span>{" "}
-                {r.lastMessage.senderEmail ? <span className="font-medium">{r.lastMessage.senderEmail}:</span> : null} {r.lastMessage.body}
-              </div>
-            ) : (
-              <div className="mt-3 text-sm text-slate-500 dark:text-slate-400">No messages yet.</div>
-            )}
-          </button>
+              {r.lastMessage ? (
+                <div className="mt-3 line-clamp-2 text-sm text-slate-600 dark:text-slate-300">
+                  <span className="font-medium">
+                    {new Date(r.lastMessage.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </span>{" "}
+                  {r.lastMessage.senderEmail ? <span className="font-medium">{r.lastMessage.senderEmail}:</span> : null} {r.lastMessage.body}
+                </div>
+              ) : (
+                <div className="mt-3 text-sm text-slate-500 dark:text-slate-400">No messages yet.</div>
+              )}
+            </button>
+            <div className="flex items-center justify-end border-t border-slate-100 px-4 py-2 dark:border-slate-700/80">
+              <button
+                type="button"
+                className="text-[11px] font-medium text-brand-700 hover:underline dark:text-brand-300"
+                onClick={() => {
+                  const path = `${window.location.origin}/chat/rooms/${r.id}`;
+                  void navigator.clipboard.writeText(path).catch(() => {});
+                }}
+              >
+                Copy link
+              </button>
+            </div>
+          </div>
         ))}
       </div>
 
@@ -202,7 +288,15 @@ export default function Chat() {
                 <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">New chat</div>
                 <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">Type the other user email.</div>
               </div>
-              <button type="button" className="ui-btn-outline-xs" onClick={() => setShowDmModal(false)} disabled={mCreateDm.isPending}>
+              <button
+                type="button"
+                className="ui-btn-outline-xs"
+                onClick={() => {
+                  setShowDmModal(false);
+                  setDmUserSearch("");
+                }}
+                disabled={mCreateDm.isPending}
+              >
                 Close
               </button>
             </div>
@@ -215,8 +309,39 @@ export default function Chat() {
                 mCreateDm.mutate({ otherEmail: email });
               }}
             >
+              <div className="text-xs font-medium text-slate-700 dark:text-slate-300">Pick a user</div>
+              {qUsersDm.isLoading ? (
+                <div className="text-sm text-slate-600 dark:text-slate-300">Loading users...</div>
+              ) : qUsersDm.error ? (
+                <ErrorBanner error={qUsersDm.error} />
+              ) : (
+                <div className="max-h-36 space-y-1 overflow-auto rounded-lg border border-slate-200 bg-white/50 p-2 dark:border-slate-700 dark:bg-slate-950/30">
+                  <input
+                    className="ui-input mb-2 w-full text-sm"
+                    placeholder="Filter by email..."
+                    value={dmUserSearch}
+                    onChange={(e) => setDmUserSearch(e.target.value)}
+                  />
+                  {(Array.isArray(qUsersDm.data) ? qUsersDm.data : [])
+                    .filter((u) => {
+                      const qq = dmUserSearch.trim().toLowerCase();
+                      if (!qq) return true;
+                      return (u.email || "").toLowerCase().includes(qq);
+                    })
+                    .map((u) => (
+                      <button
+                        key={u.id}
+                        type="button"
+                        className="w-full truncate rounded-md px-2 py-1.5 text-left text-sm text-slate-800 hover:bg-brand-50 dark:text-slate-200 dark:hover:bg-brand-950/40"
+                        onClick={() => setDmEmail(u.email)}
+                      >
+                        {u.email}
+                      </button>
+                    ))}
+                </div>
+              )}
               <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
-                Recipient email
+                Or enter recipient email
                 <input className="ui-input mt-1 w-full" value={dmEmail} onChange={(e) => setDmEmail(e.target.value)} placeholder="user@example.com" />
               </label>
               {mCreateDm.error ? <ErrorBanner error={mCreateDm.error} /> : null}
@@ -251,7 +376,7 @@ export default function Chat() {
                 e.preventDefault();
                 const t = groupTitle.trim();
                 if (!t) return;
-                const users = qUsers.data?.users ?? [];
+                const users = Array.isArray(qUsers.data) ? qUsers.data : [];
                 const emails = users.filter((u) => groupMembersSelected.includes(u.id)).map((u) => u.email);
                 mCreateGroup.mutate({ title: t, memberEmails: emails });
               }}
@@ -276,7 +401,7 @@ export default function Chat() {
                   <ErrorBanner error={qUsers.error} />
                 ) : (
                   <div className="max-h-44 space-y-2 overflow-auto rounded-lg border border-slate-200 bg-white/50 p-2 dark:border-slate-700 dark:bg-slate-950/30">
-                    {(qUsers.data?.users ?? [])
+                    {(Array.isArray(qUsers.data) ? qUsers.data : [])
                       .filter((u) => {
                         const qq = groupUserSearch.trim().toLowerCase();
                         if (!qq) return true;
