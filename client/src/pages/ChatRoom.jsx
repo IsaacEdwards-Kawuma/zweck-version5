@@ -89,6 +89,7 @@ export default function ChatRoom() {
   const [showReaders, setShowReaders] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [editDraft, setEditDraft] = useState("");
+  const [reactionPickerMessageId, setReactionPickerMessageId] = useState(null);
   const [addMemberEmail, setAddMemberEmail] = useState("");
   const fileInputRef = useRef(null);
 
