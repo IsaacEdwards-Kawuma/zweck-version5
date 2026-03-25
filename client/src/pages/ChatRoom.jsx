@@ -81,6 +81,7 @@ export default function ChatRoom() {
   const isPrependingRef = useRef(false);
   const lastMarkedReadIdRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const longPressRef = useRef({ timer: null, startX: 0, startY: 0 });
   const [typingUsers, setTypingUsers] = useState({});
   const [searchQ, setSearchQ] = useState("");
   const [showSearch, setShowSearch] = useState(false);
