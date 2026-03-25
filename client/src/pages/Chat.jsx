@@ -26,6 +26,12 @@ function roomSubtitle(room) {
   return room.kind || "Room";
 }
 
+function roomAvatarLetters(room) {
+  const t = (room.title || room.roomKey || "?").trim();
+  if (t.length <= 2) return t.toUpperCase() || "?";
+  return t.slice(0, 2).toUpperCase();
+}
+
 function formatRelativeTime(iso) {
   if (!iso) return "";
   const t = new Date(iso).getTime();
@@ -238,7 +244,14 @@ export default function Chat() {
               onClick={() => navigate(`/chat/rooms/${r.id}`)}
             >
               <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
+                <div className="flex min-w-0 flex-1 items-start gap-3">
+                  <div
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-bold text-brand-800 dark:bg-brand-900/50 dark:text-brand-100"
+                    aria-hidden
+                  >
+                    {roomAvatarLetters(r)}
+                  </div>
+                  <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="shrink-0 rounded-md bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-700 dark:bg-brand-900/30 dark:text-brand-200">
                       {kindLabel(r.kind)}
@@ -246,6 +259,7 @@ export default function Chat() {
                     <div className="truncate font-medium text-slate-900 dark:text-slate-100">{r.title || "(untitled)"}</div>
                   </div>
                   <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{roomSubtitle(r)}</div>
+                  </div>
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-1">
                   {r.lastMessage ? (

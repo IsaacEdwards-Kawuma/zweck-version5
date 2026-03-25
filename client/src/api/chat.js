@@ -88,3 +88,13 @@ export async function markAllChatRoomsRead() {
   const { data } = await api.post("/chat/rooms/read-all");
   return data;
 }
+
+export async function setChatRoomPin(roomId, messageId) {
+  const { data } = await api.patch(`/chat/rooms/${roomId}/pin`, { messageId });
+  return data;
+}
+
+export async function getChatRoomPresence(roomId) {
+  const { data } = await api.get(`/chat/rooms/${roomId}/presence`);
+  return data;
+}

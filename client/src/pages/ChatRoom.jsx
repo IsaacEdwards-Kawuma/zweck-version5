@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useOutletContext, useParams } from "react-router-dom";
+import { Link, useOutletContext, useParams } from "react-router-dom";
 import { io } from "socket.io-client";
 import Loading from "../components/Loading";
 import ErrorBanner from "../components/ErrorBanner";
@@ -8,15 +8,18 @@ import {
   addChatRoomMember,
   deleteChatMessage,
   getChatReadReceipts,
+  getChatRoomPresence,
   getChatRoomSummary,
   listChatRoomMembers,
   listChatRoomMessages,
   patchChatMessage,
   removeChatRoomMember,
   searchChatMessages,
+  setChatRoomPin,
   toggleChatReaction,
   uploadChatAttachment
 } from "../api/chat";
+import MessageBody from "../components/chat/MessageBody";
 
 function resolveSocketURL() {
   const env = import.meta.env.VITE_API_URL?.trim();
@@ -37,6 +40,42 @@ function publicAssetUrl(path) {
 // Emoji "stickers" for the quick reaction picker.
 // Keep them as single unicode characters so backend emoji handling remains predictable.
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "🔥", "🎉", "😮", "😢", "🙏", "👏", "🤩", "😡", "💯", "🤝", "🚀"];
+const MORE_EMOJIS = [
+  "😀",
+  "😁",
+  "😊",
+  "🙂",
+  "😉",
+  "😍",
+  "🥰",
+  "😘",
+  "😎",
+  "🤔",
+  "😴",
+  "🤒",
+  "👀",
+  "💪",
+  "🙌",
+  "✨",
+  "⭐",
+  "❗",
+  "❓",
+  "✅",
+  "☕",
+  "🍕",
+  "🎂",
+  "📎",
+  "📌",
+  "💼",
+  "📧",
+  "🔔",
+  "⚡",
+  "🌟",
+  "🎯",
+  "📅",
+  "✍️",
+  "📝"
+];
 const LONG_PRESS_MS = 520;
 const LONG_PRESS_MOVE_CANCEL_PX = 14;
 
@@ -92,10 +131,75 @@ export default function ChatRoom() {
   const [reactionPickerMessageId, setReactionPickerMessageId] = useState(null);
   const [addMemberEmail, setAddMemberEmail] = useState("");
   const fileInputRef = useRef(null);
+  const messagesRef = useRef([]);
+  const nextCursorRef = useRef(null);
+  const [replyTo, setReplyTo] = useState(null);
+  const [highlightId, setHighlightId] = useState(null);
+  const [presence, setPresence] = useState({ viewerCount: 0, userIds: [] });
+  const [starredIds, setStarredIds] = useState(() => new Set());
 
   const room = qSummary.data;
   const canManageGroup =
     room?.kind === "GROUP" && (me?.role === "ADMIN" || (room.createdById != null && room.createdById === me?.id));
+  const canModerate = me?.role === "ADMIN";
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(`zweck_chat_stars_${roomId}`);
+      setStarredIds(new Set(raw ? JSON.parse(raw) : []));
+    } catch {
+      setStarredIds(new Set());
+    }
+  }, [roomId]);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`zweck_chat_draft_${roomId}`);
+      setDraft(typeof saved === "string" ? saved : "");
+    } catch {
+      setDraft("");
+    }
+  }, [roomId]);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      try {
+        localStorage.setItem(`zweck_chat_draft_${roomId}`, draft);
+      } catch {
+        /* ignore */
+      }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [draft, roomId]);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  useEffect(() => {
+    nextCursorRef.current = nextCursor;
+  }, [nextCursor]);
+
+  useEffect(() => {
+    if (!Number.isFinite(numericRoomId)) return;
+    let cancelled = false;
+    async function poll() {
+      try {
+        const d = await getChatRoomPresence(numericRoomId);
+        if (!cancelled && d) {
+          setPresence({ viewerCount: d.viewerCount ?? 0, userIds: Array.isArray(d.userIds) ? d.userIds : [] });
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    poll();
+    const iv = setInterval(poll, 45000);
+    return () => {
+      cancelled = true;
+      clearInterval(iv);
+    };
+  }, [numericRoomId]);
 
   useEffect(() => {
     if (qMessages.data?.items) {
@@ -156,11 +260,23 @@ export default function ChatRoom() {
       });
     });
 
+    socket.on("chat:presence", (payload) => {
+      if (!payload || payload.roomId !== numericRoomId) return;
+      setPresence({
+        viewerCount: payload.viewerCount ?? 0,
+        userIds: Array.isArray(payload.userIds) ? payload.userIds : []
+      });
+    });
+
+    socket.on("chat:roomUpdated", () => {
+      qc.invalidateQueries({ queryKey: ["chat_room_summary", roomId] });
+    });
+
     return () => {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [token, numericRoomId, socketURL]);
+  }, [token, numericRoomId, socketURL, qc, roomId]);
 
   useEffect(() => {
     if (!messages.length || !socketRef.current) return;
@@ -297,7 +413,10 @@ export default function ChatRoom() {
 
   const mDelete = useMutation({
     mutationFn: (messageId) => deleteChatMessage(numericRoomId, messageId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["chat_room_messages", roomId] })
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["chat_room_messages", roomId] });
+      qc.invalidateQueries({ queryKey: ["chat_room_summary", roomId] });
+    }
   });
 
   const mReaction = useMutation({
@@ -321,6 +440,49 @@ export default function ChatRoom() {
     mutationFn: (q) => searchChatMessages(numericRoomId, { q, limit: 30 })
   });
 
+  const mPin = useMutation({
+    mutationFn: (messageId) => setChatRoomPin(numericRoomId, messageId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["chat_room_summary", roomId] })
+  });
+
+  const jumpToMessageId = useCallback(
+    async (targetId) => {
+      setHighlightId(targetId);
+      let currentList = messagesRef.current;
+      let cursor = nextCursorRef.current;
+      while (!currentList.some((m) => m.id === targetId) && cursor) {
+        const data = await listChatRoomMessages(numericRoomId, { limit: 50, cursor });
+        const older = data?.items ?? [];
+        cursor = data?.nextCursor ?? null;
+        if (!older.length) break;
+        currentList = [...older, ...currentList];
+        setMessages(currentList);
+        setNextCursor(cursor);
+        messagesRef.current = currentList;
+        nextCursorRef.current = cursor;
+      }
+      requestAnimationFrame(() => {
+        document.getElementById(`chat-msg-${targetId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+        setTimeout(() => setHighlightId(null), 2800);
+      });
+    },
+    [numericRoomId]
+  );
+
+  function toggleStar(messageId) {
+    setStarredIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(messageId)) next.delete(messageId);
+      else next.add(messageId);
+      try {
+        localStorage.setItem(`zweck_chat_stars_${roomId}`, JSON.stringify([...next]));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }
+
   const title = room?.title || `Room #${numericRoomId}`;
   const typingLabel = Object.values(typingUsers).filter(Boolean).join(", ");
 
@@ -332,6 +494,9 @@ export default function ChatRoom() {
     <div className="flex min-h-[60vh] flex-col gap-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
+          <Link to="/chat" className="mb-1 inline-block text-xs font-medium text-brand-700 hover:underline dark:text-brand-300">
+            ← All chats
+          </Link>
           <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{title}</h1>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
             {room?.kind || "Room"} · #{numericRoomId}
@@ -339,8 +504,13 @@ export default function ChatRoom() {
           {typingLabel ? (
             <p className="mt-1 text-xs italic text-slate-500 dark:text-slate-400">{typingLabel} typing…</p>
           ) : null}
+          {presence.viewerCount > 0 ? (
+            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+              {presence.viewerCount} active in this room
+            </p>
+          ) : null}
           <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-            Long-press a message (or right-click on desktop) to react with an emoji.
+            Long-press or right-click to react; use Copy, Reply, star, or pin below each message.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -354,6 +524,25 @@ export default function ChatRoom() {
           ) : null}
         </div>
       </div>
+
+      {room?.pinnedMessageId && room?.pinnedMessage ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50/90 px-3 py-2 text-sm dark:border-amber-800 dark:bg-amber-950/50">
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-amber-900 dark:text-amber-200">Pinned</div>
+          <div className="mt-1 line-clamp-2 text-slate-800 dark:text-slate-100">
+            {room.pinnedMessage.sender?.email ? (
+              <span className="font-medium">{room.pinnedMessage.sender.email}: </span>
+            ) : null}
+            {(room.pinnedMessage.body || "").slice(0, 220)}
+          </div>
+          <button
+            type="button"
+            className="mt-2 text-xs font-medium text-brand-700 hover:underline dark:text-brand-300"
+            onClick={() => jumpToMessageId(room.pinnedMessage.id)}
+          >
+            Jump to message
+          </button>
+        </div>
+      ) : null}
 
       {showSearch ? (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white/70 p-3 dark:border-slate-700 dark:bg-slate-900/30">
@@ -381,8 +570,23 @@ export default function ChatRoom() {
           {mSearch.data?.items?.length ? (
             <ul className="w-full max-h-40 space-y-1 overflow-auto text-left text-xs text-slate-700 dark:text-slate-200">
               {mSearch.data.items.map((row) => (
-                <li key={row.id} className="truncate rounded border border-slate-100 px-2 py-1 dark:border-slate-700">
-                  #{row.id}: {row.body?.slice(0, 120) || "(attachment)"}
+                <li
+                  key={row.id}
+                  className="flex items-start justify-between gap-2 rounded border border-slate-100 px-2 py-1 dark:border-slate-700"
+                >
+                  <span className="min-w-0 flex-1 truncate">
+                    #{row.id}: {row.body?.slice(0, 120) || "(attachment)"}
+                  </span>
+                  <button
+                    type="button"
+                    className="shrink-0 text-[10px] font-medium text-brand-700 hover:underline dark:text-brand-300"
+                    onClick={() => {
+                      setShowSearch(false);
+                      jumpToMessageId(row.id);
+                    }}
+                  >
+                    Go to
+                  </button>
                 </li>
               ))}
             </ul>
@@ -392,6 +596,8 @@ export default function ChatRoom() {
 
       <div
         ref={scrollRef}
+        role="region"
+        aria-label="Chat messages"
         className="min-h-[320px] flex-1 overflow-y-auto rounded-xl border border-slate-200 bg-white/70 p-3 dark:border-slate-700 dark:bg-slate-900/30"
         onScroll={() => {
           const el = scrollRef.current;
@@ -410,10 +616,12 @@ export default function ChatRoom() {
               return (
                 <li key={m.id} className={isMe ? "text-right" : "text-left"}>
                   <div
+                    id={`chat-msg-${m.id}`}
                     className={
-                      isMe
+                      (isMe
                         ? "relative inline-block max-w-[min(100%,28rem)] rounded-xl bg-brand-50 px-3 py-2 text-left touch-manipulation dark:bg-brand-950/30"
-                        : "relative inline-block max-w-[min(100%,28rem)] rounded-xl bg-slate-50 px-3 py-2 text-left touch-manipulation dark:bg-slate-800/40"
+                        : "relative inline-block max-w-[min(100%,28rem)] rounded-xl bg-slate-50 px-3 py-2 text-left touch-manipulation dark:bg-slate-800/40") +
+                      (highlightId === m.id ? " ring-2 ring-brand-500 ring-offset-2 dark:ring-offset-slate-900" : "")
                     }
                     onPointerDown={(e) => startMessageLongPress(e, m.id)}
                     onPointerMove={onMessagePointerMove}
@@ -429,7 +637,7 @@ export default function ChatRoom() {
                   >
                     {reactionPickerMessageId === m.id ? (
                       <div
-                        className={`chat-reaction-picker absolute z-30 flex flex-wrap items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-1.5 shadow-lg dark:border-slate-600 dark:bg-slate-900 ${
+                        className={`chat-reaction-picker absolute z-30 flex max-w-[min(96vw,22rem)] flex-col gap-1 rounded-2xl border border-slate-200 bg-white px-2 py-1.5 shadow-lg dark:border-slate-600 dark:bg-slate-900 ${
                           isMe ? "bottom-full right-0 mb-1" : "bottom-full left-0 mb-1"
                         }`}
                         onPointerDown={(e) => e.stopPropagation()}
@@ -438,23 +646,47 @@ export default function ChatRoom() {
                           e.stopPropagation();
                         }}
                       >
-                        {QUICK_EMOJIS.map((em) => (
-                          <button
-                            key={em}
-                            type="button"
-                            className="rounded-full px-2 py-1 text-lg leading-none hover:bg-brand-50 dark:hover:bg-brand-950/50"
-                            onClick={() => {
-                              mReaction.mutate({ messageId: m.id, emoji: em });
-                              setReactionPickerMessageId(null);
-                            }}
-                          >
-                            {em}
-                          </button>
-                        ))}
+                        <div className="flex max-w-[min(92vw,18rem)] flex-wrap items-center gap-0.5">
+                          {QUICK_EMOJIS.map((em) => (
+                            <button
+                              key={em}
+                              type="button"
+                              className="rounded-full px-2 py-1 text-lg leading-none hover:bg-brand-50 dark:hover:bg-brand-950/50"
+                              onClick={() => {
+                                mReaction.mutate({ messageId: m.id, emoji: em });
+                                setReactionPickerMessageId(null);
+                              }}
+                            >
+                              {em}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="mt-1 max-h-24 w-full overflow-y-auto border-t border-slate-200 pt-1 dark:border-slate-600">
+                          <div className="flex flex-wrap gap-0.5">
+                            {MORE_EMOJIS.map((em) => (
+                              <button
+                                key={em}
+                                type="button"
+                                className="rounded px-1.5 py-0.5 text-base leading-none hover:bg-brand-50 dark:hover:bg-brand-950/50"
+                                onClick={() => {
+                                  mReaction.mutate({ messageId: m.id, emoji: em });
+                                  setReactionPickerMessageId(null);
+                                }}
+                              >
+                                {em}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                       </div>
                     ) : null}
                     <div className="text-xs font-medium text-slate-700 dark:text-slate-200">
                       {isMe ? "You" : m.senderEmail || `User #${m.senderId}`}
+                      {starredIds.has(m.id) ? (
+                        <span className="ml-1 text-amber-500" title="Starred (this device)">
+                          ★
+                        </span>
+                      ) : null}
                     </div>
                     {editingId === m.id ? (
                       <div className="mt-2 space-y-2">
@@ -480,6 +712,12 @@ export default function ChatRoom() {
                       </div>
                     ) : (
                       <>
+                        {m.replyTo ? (
+                          <div className="mb-2 border-l-2 border-brand-500 pl-2 text-left text-xs text-slate-600 dark:text-slate-400">
+                            <div className="font-semibold">{m.replyTo.senderEmail || "User"}</div>
+                            <div className="line-clamp-3">{m.replyTo.body || "…"}</div>
+                          </div>
+                        ) : null}
                         {m.attachmentUrl && m.attachmentKind === "IMAGE" ? (
                           <a
                             href={publicAssetUrl(m.attachmentUrl)}
@@ -505,15 +743,27 @@ export default function ChatRoom() {
                           </a>
                         ) : null}
                         {m.body ? (
-                          <div className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-900 dark:text-slate-100">
-                            {m.body}
+                          <div className="mt-1 text-sm text-slate-900 dark:text-slate-100">
+                            <MessageBody text={m.body} />
                           </div>
                         ) : null}
                       </>
                     )}
-                    <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-slate-500 dark:text-slate-400">
+                    <div className="mt-1 flex flex-wrap items-center justify-end gap-2 text-[10px] text-slate-500 dark:text-slate-400">
                       <span>{new Date(m.createdAt).toLocaleString()}</span>
                       {m.editedAt ? <span>(edited)</span> : null}
+                      {isMe && m.readStatus ? (
+                        <span
+                          className="text-slate-400"
+                          title={`Read by ${m.readStatus.read} of ${m.readStatus.total} others`}
+                        >
+                          {m.readStatus.total === 0
+                            ? "✓"
+                            : m.readStatus.read >= m.readStatus.total
+                              ? "✓✓"
+                              : `✓ ${m.readStatus.read}/${m.readStatus.total}`}
+                        </span>
+                      ) : null}
                       <button
                         type="button"
                         className="text-brand-700 hover:underline dark:text-brand-300"
@@ -526,13 +776,66 @@ export default function ChatRoom() {
                       </button>
                     </div>
                     {editingId !== m.id ? (
-                      <div className="mt-2 flex flex-wrap items-center gap-1">
+                      <div className="mt-2 flex flex-wrap items-center justify-end gap-2 text-[10px]">
+                        <button
+                          type="button"
+                          data-no-longpress
+                          className="text-brand-700 hover:underline dark:text-brand-300"
+                          onClick={() => {
+                            const t = m.body || m.attachmentName || "";
+                            void navigator.clipboard.writeText(t);
+                          }}
+                        >
+                          Copy
+                        </button>
+                        <button
+                          type="button"
+                          data-no-longpress
+                          className="text-brand-700 hover:underline dark:text-brand-300"
+                          onClick={() =>
+                            setReplyTo({
+                              id: m.id,
+                              senderEmail: m.senderEmail,
+                              bodySnippet: (m.body || "").slice(0, 200)
+                            })
+                          }
+                        >
+                          Reply
+                        </button>
+                        <button
+                          type="button"
+                          data-no-longpress
+                          className="text-brand-700 hover:underline dark:text-brand-300"
+                          onClick={() => toggleStar(m.id)}
+                        >
+                          {starredIds.has(m.id) ? "★" : "☆"}
+                        </button>
+                        <button
+                          type="button"
+                          data-no-longpress
+                          className="text-brand-700 hover:underline dark:text-brand-300"
+                          disabled={mPin.isPending}
+                          onClick={() => mPin.mutate(m.id)}
+                        >
+                          Pin
+                        </button>
+                        {room?.pinnedMessageId === m.id ? (
+                          <button
+                            type="button"
+                            data-no-longpress
+                            className="text-slate-600 hover:underline dark:text-slate-400"
+                            disabled={mPin.isPending}
+                            onClick={() => mPin.mutate(null)}
+                          >
+                            Unpin
+                          </button>
+                        ) : null}
                         {isMe ? (
                           <>
                             <button
                               type="button"
                               data-no-longpress
-                              className="ml-1 text-xs text-brand-700 hover:underline dark:text-brand-300"
+                              className="text-xs text-brand-700 hover:underline dark:text-brand-300"
                               onClick={() => {
                                 setEditingId(m.id);
                                 setEditDraft(m.body || "");
@@ -551,6 +854,17 @@ export default function ChatRoom() {
                               Delete
                             </button>
                           </>
+                        ) : canModerate ? (
+                          <button
+                            type="button"
+                            data-no-longpress
+                            className="text-xs text-rose-600 hover:underline"
+                            onClick={() => {
+                              if (window.confirm("Delete this message as admin?")) mDelete.mutate(m.id);
+                            }}
+                          >
+                            Delete
+                          </button>
                         ) : null}
                       </div>
                     ) : null}
@@ -578,22 +892,47 @@ export default function ChatRoom() {
       </div>
 
       <form
-        className="flex flex-wrap items-end gap-2 rounded-xl border border-slate-200 bg-white/70 p-3 dark:border-slate-700 dark:bg-slate-900/30"
+        className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white/70 p-3 dark:border-slate-700 dark:bg-slate-900/30"
         onSubmit={(e) => {
           e.preventDefault();
           const body = draft.trim();
           if (!body) return;
           if (!socketRef.current) return;
-          socketRef.current.emit("chat:sendMessage", { roomId: numericRoomId, body }, (ack) => {
-            if (!ack?.ok) {
-              // eslint-disable-next-line no-console
-              console.warn("send failed", ack);
+          const rid = replyTo?.id;
+          socketRef.current.emit(
+            "chat:sendMessage",
+            { roomId: numericRoomId, body, ...(rid ? { replyToId: rid } : {}) },
+            (ack) => {
+              if (!ack?.ok) {
+                // eslint-disable-next-line no-console
+                console.warn("send failed", ack);
+              }
             }
-          });
+          );
           emitTyping(false);
           setDraft("");
+          setReplyTo(null);
         }}
       >
+        {replyTo ? (
+          <div className="flex items-start justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-left text-xs dark:border-slate-600 dark:bg-slate-800/50">
+            <div className="min-w-0">
+              <div className="font-semibold text-slate-800 dark:text-slate-100">
+                Replying to {replyTo.senderEmail || "message"}
+              </div>
+              <div className="mt-0.5 line-clamp-2 text-slate-600 dark:text-slate-300">{replyTo.bodySnippet}</div>
+            </div>
+            <button
+              type="button"
+              className="shrink-0 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+              onClick={() => setReplyTo(null)}
+              aria-label="Cancel reply"
+            >
+              ✕
+            </button>
+          </div>
+        ) : null}
+        <div className="flex flex-wrap items-end gap-2">
         <input
           ref={fileInputRef}
           type="file"
@@ -605,11 +944,13 @@ export default function ChatRoom() {
             if (!f || !socketRef.current) return;
             try {
               const up = await uploadChatAttachment(numericRoomId, f);
+              const rid = replyTo?.id;
               socketRef.current.emit(
                 "chat:sendMessage",
                 {
                   roomId: numericRoomId,
                   body: draft.trim() || " ",
+                  ...(rid ? { replyToId: rid } : {}),
                   attachmentUrl: up.attachmentUrl,
                   attachmentKind: up.attachmentKind,
                   attachmentName: up.attachmentName,
@@ -623,6 +964,7 @@ export default function ChatRoom() {
                 }
               );
               setDraft("");
+              setReplyTo(null);
               emitTyping(false);
             } catch (err) {
               // eslint-disable-next-line no-console
@@ -642,6 +984,7 @@ export default function ChatRoom() {
         <button type="submit" className="ui-btn-outline">
           Send
         </button>
+        </div>
       </form>
 
       {showReaders ? (

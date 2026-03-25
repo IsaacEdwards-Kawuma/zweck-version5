@@ -75,3 +75,10 @@ export async function assertUserCanManageGroupMembers(user: AuthUser, room: Chat
 export function assertUserOwnsMessage(user: AuthUser, senderId: number): void {
   if (senderId !== user.id) throw apiError("Forbidden", "message");
 }
+
+/** Delete own message, or any message in the room if ADMIN. */
+export function assertUserCanDeleteMessage(user: AuthUser, senderId: number): void {
+  if (senderId === user.id) return;
+  if (user.role === "ADMIN") return;
+  throw apiError("Forbidden", "message");
+}

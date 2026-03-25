@@ -122,8 +122,51 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
 
         socket.join(String(roomId));
         ack?.({ ok: true, roomId });
+
+        try {
+          const sockets = await io.in(String(roomId)).fetchSockets();
+          const userIds = [
+            ...new Set(
+              sockets
+                .map((s) => (s.data as { user?: { id: number } }).user?.id)
+                .filter((id): id is number => typeof id === "number")
+            )
+          ];
+          io.to(String(roomId)).emit("chat:presence", {
+            roomId,
+            viewerCount: sockets.length,
+            userIds
+          });
+        } catch {
+          /* ignore presence broadcast errors */
+        }
       } catch (e) {
         ack?.({ ok: false, message: e instanceof Error ? e.message : "Join failed" });
+      }
+    });
+
+    socket.on("disconnecting", async () => {
+      for (const roomIdStr of socket.rooms) {
+        if (roomIdStr === socket.id) continue;
+        const roomId = Number(roomIdStr);
+        if (!Number.isFinite(roomId) || roomId <= 0) continue;
+        try {
+          const sockets = await io.in(roomIdStr).fetchSockets();
+          const userIds = [
+            ...new Set(
+              sockets
+                .map((s) => (s.data as { user?: { id: number } }).user?.id)
+                .filter((id): id is number => typeof id === "number")
+            )
+          ];
+          io.to(roomIdStr).emit("chat:presence", {
+            roomId,
+            viewerCount: sockets.length,
+            userIds
+          });
+        } catch {
+          /* ignore */
+        }
       }
     });
 
@@ -158,12 +201,18 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
         const obj = payload as {
           roomId?: unknown;
           body?: unknown;
+          replyToId?: unknown;
           attachmentUrl?: unknown;
           attachmentKind?: unknown;
           attachmentName?: unknown;
           attachmentSize?: unknown;
         };
         const roomId = Number(obj.roomId);
+        const replyToIdRaw = obj.replyToId;
+        const replyToId =
+          replyToIdRaw === undefined || replyToIdRaw === null
+            ? null
+            : Number(replyToIdRaw);
         const attachmentUrl =
           typeof obj.attachmentUrl === "string" && obj.attachmentUrl.trim() ? obj.attachmentUrl.trim() : null;
         const attachmentKind =
@@ -188,18 +237,49 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
 
         await assertUserCanAccessChatRoom(user, room);
 
+        if (replyToId != null) {
+          if (!Number.isFinite(replyToId) || replyToId <= 0) throw new Error("Invalid replyToId");
+          const parent = await prisma.chatMessage.findFirst({
+            where: { id: replyToId, roomId, deletedAt: null },
+            select: { id: true }
+          });
+          if (!parent) throw new Error("Reply target not found");
+        }
+
         const message = await prisma.chatMessage.create({
           data: {
             roomId,
             senderId: user.id,
             body: body ?? "",
+            replyToId: replyToId ?? undefined,
             attachmentUrl,
             attachmentKind,
             attachmentName,
             attachmentSize
           },
-          include: { sender: { select: { email: true } } }
+          include: {
+            sender: { select: { email: true } },
+            replyTo: {
+              select: {
+                id: true,
+                body: true,
+                deletedAt: true,
+                sender: { select: { email: true } }
+              }
+            }
+          }
         });
+
+        const replySnap =
+          message.replyTo && !message.replyTo.deletedAt
+            ? {
+                id: message.replyTo.id,
+                body: (message.replyTo.body ?? "").slice(0, 500),
+                senderEmail: message.replyTo.sender?.email ?? null
+              }
+            : replyToId
+              ? { id: replyToId, body: "", senderEmail: null as string | null }
+              : null;
 
         const out = {
           id: message.id,
@@ -214,6 +294,8 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
           attachmentKind: message.attachmentKind ?? null,
           attachmentName: message.attachmentName ?? null,
           attachmentSize: message.attachmentSize ?? null,
+          replyToId: message.replyToId ?? null,
+          replyTo: replySnap,
           reactions: [] as Array<{ emoji: string; userId: number; userEmail: string | null }>
         };
 

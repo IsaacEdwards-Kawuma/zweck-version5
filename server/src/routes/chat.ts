@@ -8,6 +8,7 @@ import { prisma } from "../lib/prisma.js";
 import { apiError } from "../lib/http.js";
 import {
   assertUserCanAccessChatRoom,
+  assertUserCanDeleteMessage,
   assertUserCanManageGroupMembers,
   assertUserOwnsMessage,
   getChatRoomKey,
@@ -81,10 +82,31 @@ function mapMessageRow(
     attachmentKind: string | null;
     attachmentName: string | null;
     attachmentSize: number | null;
+    replyToId?: number | null;
     sender?: { email: string } | null;
+    replyTo?: {
+      id: number;
+      body: string;
+      deletedAt: Date | null;
+      sender?: { email: string } | null;
+    } | null;
   },
-  reactions: Array<{ emoji: string; userId: number; userEmail: string | null }>
+  reactions: Array<{ emoji: string; userId: number; userEmail: string | null }>,
+  extras?: {
+    readStatus?: { read: number; total: number } | null;
+  }
 ) {
+  const replySnap =
+    m.replyTo && !m.replyTo.deletedAt
+      ? {
+          id: m.replyTo.id,
+          body: m.replyTo.body?.slice(0, 500) ?? "",
+          senderEmail: m.replyTo.sender?.email ?? null
+        }
+      : m.replyToId
+        ? { id: m.replyToId, body: "", senderEmail: null as string | null }
+        : null;
+
   return {
     id: m.id,
     roomId: m.roomId,
@@ -98,9 +120,37 @@ function mapMessageRow(
     attachmentKind: m.attachmentKind ?? null,
     attachmentName: m.attachmentName ?? null,
     attachmentSize: m.attachmentSize ?? null,
-    reactions
+    replyToId: m.replyToId ?? null,
+    replyTo: replySnap,
+    reactions,
+    ...(extras?.readStatus != null ? { readStatus: extras.readStatus } : {})
   };
 }
+
+function attachReadStatusForSender(
+  userId: number,
+  members: Array<{ userId: number; lastReadAt: Date | null }>,
+  msg: { senderId: number; createdAt: Date }
+): { read: number; total: number } | null {
+  if (msg.senderId !== userId) return null;
+  const others = members.filter((m) => m.userId !== userId);
+  if (!others.length) return { read: 0, total: 0 };
+  const t = new Date(msg.createdAt).getTime();
+  const read = others.filter((m) => m.lastReadAt && new Date(m.lastReadAt).getTime() >= t).length;
+  return { read, total: others.length };
+}
+
+const messageInclude = {
+  sender: { select: { email: true } },
+  replyTo: {
+    select: {
+      id: true,
+      body: true,
+      deletedAt: true,
+      sender: { select: { email: true } }
+    }
+  }
+} as const;
 
 function emitRoom(roomId: number, event: string, payload: unknown) {
   const io = getChatIo();
@@ -348,7 +398,15 @@ router.get("/rooms/:roomId/summary", async (req, res) => {
       roomKey: true,
       meetingId: true,
       projectId: true,
-      createdById: true
+      createdById: true,
+      pinnedMessageId: true,
+      pinnedMessage: {
+        select: {
+          id: true,
+          body: true,
+          sender: { select: { email: true } }
+        }
+      }
     }
   });
   if (!room) return res.status(404).json(apiError("Room not found"));
@@ -359,6 +417,82 @@ router.get("/rooms/:roomId/summary", async (req, res) => {
   }
 
   return res.json({ room });
+});
+
+const pinBodySchema = z.object({
+  messageId: z.number().int().positive().nullable()
+});
+
+router.patch("/rooms/:roomId/pin", async (req, res) => {
+  const user = req.user!;
+  const roomId = Number(req.params.roomId);
+  if (!Number.isFinite(roomId) || roomId <= 0) return res.status(400).json(apiError("Invalid room id"));
+
+  const parsed = pinBodySchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json(apiError("Invalid body", "messageId"));
+
+  const room = await prisma.chatRoom.findUnique({
+    where: { id: roomId },
+    select: roomSelectAuth
+  });
+  if (!room) return res.status(404).json(apiError("Room not found"));
+  try {
+    await assertUserCanAccessChatRoom(user, room);
+  } catch (e) {
+    return res.status(403).json(e);
+  }
+
+  const mid = parsed.data.messageId;
+  if (mid === null) {
+    await prisma.chatRoom.update({ where: { id: roomId }, data: { pinnedMessageId: null } });
+    emitRoom(roomId, "chat:roomUpdated", { roomId, pinnedMessageId: null });
+    return res.json({ ok: true, pinnedMessageId: null });
+  }
+
+  const msg = await prisma.chatMessage.findFirst({
+    where: { id: mid, roomId, deletedAt: null }
+  });
+  if (!msg) return res.status(404).json(apiError("Message not found"));
+
+  await prisma.chatRoom.update({
+    where: { id: roomId },
+    data: { pinnedMessageId: mid }
+  });
+  emitRoom(roomId, "chat:roomUpdated", { roomId, pinnedMessageId: mid });
+  return res.json({ ok: true, pinnedMessageId: mid });
+});
+
+router.get("/rooms/:roomId/presence", async (req, res) => {
+  const user = req.user!;
+  const roomId = Number(req.params.roomId);
+  if (!Number.isFinite(roomId) || roomId <= 0) return res.status(400).json(apiError("Invalid room id"));
+
+  const room = await prisma.chatRoom.findUnique({
+    where: { id: roomId },
+    select: roomSelectAuth
+  });
+  if (!room) return res.status(404).json(apiError("Room not found"));
+  try {
+    await assertUserCanAccessChatRoom(user, room);
+  } catch (e) {
+    return res.status(403).json(e);
+  }
+
+  const io = getChatIo();
+  if (!io) {
+    return res.json({ viewerCount: 0, userIds: [] as number[] });
+  }
+  try {
+    const sockets = await io.in(String(roomId)).fetchSockets();
+    const userIds = [
+      ...new Set(
+        sockets.map((s) => (s.data as { user?: { id: number } }).user?.id).filter((id): id is number => typeof id === "number")
+      )
+    ];
+    return res.json({ viewerCount: sockets.length, userIds });
+  } catch {
+    return res.json({ viewerCount: 0, userIds: [] as number[] });
+  }
 });
 
 router.get("/rooms/:roomId/members", async (req, res) => {
@@ -542,7 +676,7 @@ router.get("/rooms/:roomId/messages/search", async (req, res) => {
     },
     orderBy: { id: "desc" },
     take: limit + 1,
-    include: { sender: { select: { email: true } } },
+    include: messageInclude,
     ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {})
   });
 
@@ -552,13 +686,21 @@ router.get("/rooms/:roomId/messages/search", async (req, res) => {
   const ids = itemsAsc.map((m) => m.id);
   const reactMap = await loadReactionsMap(ids);
 
+  const members = await prisma.chatRoomMember.findMany({
+    where: { roomId },
+    select: { userId: true, lastReadAt: true }
+  });
+
   return res.json({
-    items: itemsAsc.map((m) =>
-      mapMessageRow(
-        { ...m, sender: m.sender },
-        reactMap.get(m.id) ?? []
-      )
-    ),
+    items: itemsAsc.map((m) => {
+      const reactions = reactMap.get(m.id) ?? [];
+      const rs = attachReadStatusForSender(user.id, members, m);
+      return mapMessageRow(
+        { ...m, sender: m.sender, replyTo: m.replyTo },
+        reactions,
+        rs == null ? undefined : { readStatus: rs }
+      );
+    }),
     nextCursor: hasMore ? itemsAsc[0]?.id ?? null : null
   });
 });
@@ -651,12 +793,21 @@ router.patch("/rooms/:roomId/messages/:messageId", async (req, res) => {
   const updated = await prisma.chatMessage.update({
     where: { id: messageId },
     data: { body: newBody, editedAt: new Date() },
-    include: { sender: { select: { email: true } } }
+    include: messageInclude
   });
 
   const reactMap = await loadReactionsMap([messageId]);
   const reactions = reactMap.get(messageId) ?? [];
-  const out = mapMessageRow({ ...updated, sender: updated.sender }, reactions);
+  const members = await prisma.chatRoomMember.findMany({
+    where: { roomId },
+    select: { userId: true, lastReadAt: true }
+  });
+  const rs = attachReadStatusForSender(user.id, members, updated);
+  const out = mapMessageRow(
+    { ...updated, sender: updated.sender, replyTo: updated.replyTo },
+    reactions,
+    rs == null ? undefined : { readStatus: rs }
+  );
   emitRoom(roomId, "chat:messageUpdated", out);
 
   return res.json(out);
@@ -686,7 +837,7 @@ router.delete("/rooms/:roomId/messages/:messageId", async (req, res) => {
   if (!msg) return res.status(404).json(apiError("Message not found"));
   if (msg.deletedAt) return res.status(400).json(apiError("Already deleted"));
   try {
-    assertUserOwnsMessage(user, msg.senderId);
+    assertUserCanDeleteMessage(user, msg.senderId);
   } catch (e) {
     return res.status(403).json(e);
   }
@@ -694,6 +845,11 @@ router.delete("/rooms/:roomId/messages/:messageId", async (req, res) => {
   await prisma.chatMessage.update({
     where: { id: messageId },
     data: { deletedAt: new Date(), body: "" }
+  });
+
+  await prisma.chatRoom.updateMany({
+    where: { id: roomId, pinnedMessageId: messageId },
+    data: { pinnedMessageId: null }
   });
 
   emitRoom(roomId, "chat:messageDeleted", { id: messageId, roomId });
@@ -791,7 +947,7 @@ router.get("/rooms/:roomId/messages", async (req, res) => {
     },
     orderBy: { id: "desc" },
     take: limit + 1,
-    include: { sender: { select: { email: true } } }
+    include: messageInclude
   });
 
   const hasMore = rowsDesc.length > limit;
@@ -800,13 +956,21 @@ router.get("/rooms/:roomId/messages", async (req, res) => {
   const ids = itemsAsc.map((m) => m.id);
   const reactMap = await loadReactionsMap(ids);
 
+  const members = await prisma.chatRoomMember.findMany({
+    where: { roomId },
+    select: { userId: true, lastReadAt: true }
+  });
+
   return res.json({
-    items: itemsAsc.map((m) =>
-      mapMessageRow(
-        { ...m, sender: m.sender },
-        reactMap.get(m.id) ?? []
-      )
-    ),
+    items: itemsAsc.map((m) => {
+      const reactions = reactMap.get(m.id) ?? [];
+      const rs = attachReadStatusForSender(user.id, members, m);
+      return mapMessageRow(
+        { ...m, sender: m.sender, replyTo: m.replyTo },
+        reactions,
+        rs == null ? undefined : { readStatus: rs }
+      );
+    }),
     nextCursor: hasMore ? itemsAsc[0]?.id ?? null : null
   });
 });

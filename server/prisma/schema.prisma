@@ -96,6 +96,9 @@ model ChatRoom {
 
   createdAt DateTime @default(now())
 
+  pinnedMessageId Int? @unique
+  pinnedMessage   ChatMessage? @relation("RoomPinnedMessage", fields: [pinnedMessageId], references: [id], onDelete: SetNull)
+
   members  ChatRoomMember[]
   messages ChatMessage[]
 
@@ -130,9 +133,16 @@ model ChatMessage {
   attachmentSize  Int?
   createdAt DateTime  @default(now())
 
+  replyToId Int?
+  replyTo   ChatMessage? @relation("MessageReply", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies   ChatMessage[] @relation("MessageReply")
+
+  pinnedInRoom ChatRoom? @relation("RoomPinnedMessage")
+
   reactions ChatMessageReaction[]
 
   @@index([roomId, createdAt])
+  @@index([replyToId])
 }
 
 model ChatMessageReaction {
