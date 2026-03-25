@@ -6,17 +6,7 @@ import ErrorBanner from "../components/ErrorBanner";
 import { postTransaction, deleteTransaction, updateTransaction, listTransactions, txItems } from "../api/transactions";
 import { listDirectors } from "../api/directors";
 import { eur, fmtDate, parseMoneyAmountInput, roundToCents } from "../lib/format";
-
-const TX_ACCOUNT_MAP = {
-  CONTRIBUTION: { debit: "bank", credit: "capital", needsDirector: true },
-  SIDE_FUND: { debit: "bank", credit: "side_fund", needsDirector: true },
-  REGISTRATION: { debit: "reg_costs", credit: "bank", needsDirector: false },
-  TX_CHARGE: { debit: "tx_charge", credit: "bank", needsDirector: false },
-  LEGAL: { debit: "legal", credit: "bank", needsDirector: false },
-  PENALTY: { debit: "bank", credit: "penalties", needsDirector: true },
-  LOAN_IN: { debit: "bank", credit: "loan_liability", needsDirector: false },
-  OTHER_OUT: { debit: "other_exp", credit: "bank", needsDirector: false }
-};
+import { TX_ACCOUNT_MAP, TX_TYPE_GROUPS, TX_TYPE_LABELS } from "../lib/transactionTypes";
 const TEMPLATES = [
   { id: "monthly-fee", label: "Monthly charges", type: "TX_CHARGE", amount: "25", description: "Monthly bank/service charges" },
   { id: "registration", label: "Registration fee", type: "REGISTRATION", amount: "50", description: "Member registration charge" },
@@ -240,10 +230,14 @@ export default function PostTransaction() {
           <div>
             <label className="text-xs font-medium text-slate-700">Type</label>
             <select className="mt-1 w-full rounded-lg border-slate-300" value={type} onChange={(e) => setType(e.target.value)}>
-              {Object.keys(TX_ACCOUNT_MAP).map((k) => (
-                <option key={k} value={k}>
-                  {k.replaceAll("_", " ")}
-                </option>
+              {TX_TYPE_GROUPS.map((g) => (
+                <optgroup key={g.label} label={g.label}>
+                  {g.options.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           </div>
@@ -358,10 +352,14 @@ export default function PostTransaction() {
             />
             <select className="ui-input px-2 py-1.5 text-sm" value={recentType} onChange={(e) => setRecentType(e.target.value)}>
               <option value="ALL">All types</option>
-              {Object.keys(TX_ACCOUNT_MAP).map((k) => (
-                <option key={k} value={k}>
-                  {k.replaceAll("_", " ")}
-                </option>
+              {TX_TYPE_GROUPS.map((g) => (
+                <optgroup key={`f-${g.label}`} label={g.label}>
+                  {g.options.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
             <label className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-2 py-1.5 text-xs">
@@ -394,7 +392,7 @@ export default function PostTransaction() {
                   <tr key={t.id}>
                     <td className="px-3 py-2 whitespace-nowrap">{fmtDate(t.date)}</td>
                     <td className="px-3 py-2 whitespace-nowrap text-xs font-semibold">
-                      {t.type.replaceAll("_", " ")}
+                      {TX_TYPE_LABELS[t.type] || t.type.replaceAll("_", " ")}
                     </td>
                     <td className="px-3 py-2">
                       {t.director?.name || <span className="text-slate-400">—</span>}

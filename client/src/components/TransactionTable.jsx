@@ -1,7 +1,8 @@
 import DirectorAvatar from "./DirectorAvatar";
 import { eur, fmtDate } from "../lib/format";
+import { TX_TYPE_LABELS } from "../lib/transactionTypes";
 
-const typeLabel = (t) => t?.replaceAll("_", " ");
+const typeLabel = (t) => TX_TYPE_LABELS[t] || t?.replaceAll("_", " ");
 
 export default function TransactionTable({ rows, showDelete, onDelete, isDeleting, role }) {
   return (
@@ -23,7 +24,10 @@ export default function TransactionTable({ rows, showDelete, onDelete, isDeletin
           {(rows || []).map((r) => (
             <tr key={r.id} className="ui-table-row-hover">
               <td className="px-4 py-3 whitespace-nowrap text-slate-700 dark:text-slate-300">{fmtDate(r.date)}</td>
-              <td className="px-4 py-3 whitespace-nowrap font-medium text-slate-900 dark:text-slate-100">
+              <td
+                className="max-w-[14rem] truncate px-4 py-3 font-medium text-slate-900 dark:text-slate-100"
+                title={typeLabel(r.type)}
+              >
                 {typeLabel(r.type)}
               </td>
               <td className="max-w-[380px] truncate px-4 py-3 text-slate-700 dark:text-slate-300">

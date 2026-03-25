@@ -9,17 +9,7 @@ import { listDirectors } from "../api/directors";
 import { useQuery } from "@tanstack/react-query";
 import { deleteTransaction, listTransactions, txItems } from "../api/transactions";
 import { eur } from "../lib/format";
-
-const TX_ACCOUNT_MAP = {
-  CONTRIBUTION: { debit: "bank", credit: "capital" },
-  SIDE_FUND: { debit: "bank", credit: "side_fund" },
-  REGISTRATION: { debit: "reg_costs", credit: "bank" },
-  TX_CHARGE: { debit: "tx_charge", credit: "bank" },
-  LEGAL: { debit: "legal", credit: "bank" },
-  PENALTY: { debit: "bank", credit: "penalties" },
-  LOAN_IN: { debit: "bank", credit: "loan_liability" },
-  OTHER_OUT: { debit: "other_exp", credit: "bank" }
-};
+import { TX_TYPE_GROUPS } from "../lib/transactionTypes";
 
 export default function Ledger() {
   const { me } = useOutletContext() || {};
@@ -168,16 +158,17 @@ export default function Ledger() {
           </div>
           <div>
             <div className="text-xs font-medium text-slate-700 dark:text-slate-300">Type</div>
-            <select className="ui-input mt-1" value={type} onChange={(e) => { setType(e.target.value); resetPage(); }}>
+            <select className="ui-input mt-1 max-w-[min(100%,20rem)]" value={type} onChange={(e) => { setType(e.target.value); resetPage(); }}>
               <option value="">All</option>
-              <option value="CONTRIBUTION">CONTRIBUTION</option>
-              <option value="SIDE_FUND">SIDE_FUND</option>
-              <option value="REGISTRATION">REGISTRATION</option>
-              <option value="TX_CHARGE">TX_CHARGE</option>
-              <option value="LEGAL">LEGAL</option>
-              <option value="PENALTY">PENALTY</option>
-              <option value="LOAN_IN">LOAN_IN</option>
-              <option value="OTHER_OUT">OTHER_OUT</option>
+              {TX_TYPE_GROUPS.map((g) => (
+                <optgroup key={g.label} label={g.label}>
+                  {g.options.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
             </select>
           </div>
           <div>

@@ -5,22 +5,16 @@ import ErrorBanner from "../components/ErrorBanner";
 import { listTransactions, txItems } from "../api/transactions";
 import { getReconciliationNote, saveReconciliationNote } from "../api/reconciliation";
 import { eur, fmtDate } from "../lib/format";
+import { TX_ACCOUNT_MAP } from "../lib/transactionTypes";
 
-const BANK_EFFECT = {
-  CONTRIBUTION: 1,
-  SIDE_FUND: 1,
-  PENALTY: 1,
-  LOAN_IN: 1,
-  REGISTRATION: -1,
-  TX_CHARGE: -1,
-  LEGAL: -1,
-  OTHER_OUT: -1
-};
-
+/** Net effect on the bank cash account (matches server double-entry). */
 function bankDelta(tx) {
-  const dir = BANK_EFFECT[tx.type];
-  if (!dir) return 0;
-  return dir * (Number(tx.amount) || 0);
+  const m = TX_ACCOUNT_MAP[tx.type];
+  if (!m) return 0;
+  const amt = Number(tx.amount) || 0;
+  if (m.debit === "bank") return amt;
+  if (m.credit === "bank") return -amt;
+  return 0;
 }
 
 export default function Reconciliation() {

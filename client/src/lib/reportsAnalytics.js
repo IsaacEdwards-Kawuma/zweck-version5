@@ -1,16 +1,50 @@
-import { TX_TYPE_LABELS } from "./dashboardAnalytics";
+import { TX_TYPE_LABELS } from "./transactionTypes";
 
 /** Legacy Reports classification — keep in sync across aggregateReportByMonth, reportPeriodKpis, incomeExpenseMix. */
 function isContributionType(type) {
   return type === "CONTRIBUTION";
 }
 
+const REPORT_INCOME_TYPES = new Set([
+  "MMF_RETURN",
+  "INVESTMENT_RETURN",
+  "PROJECT_REVENUE",
+  "INTEREST_INCOME",
+  "DIVIDEND_INCOME",
+  "OTHER_INCOME",
+  "PENALTY",
+  "LOAN_IN",
+  "LOAN_REPAYMENT_RECEIVED",
+  "FOREIGN_EXCHANGE_GAIN"
+]);
+
+const REPORT_EXPENSE_TYPES = new Set([
+  "REGISTRATION",
+  "TX_CHARGE",
+  "LEGAL",
+  "OTHER_OUT",
+  "PROJECT_DISBURSEMENT",
+  "ASSET_PURCHASE",
+  "TRANSPORT_TRAVEL",
+  "COMMUNICATION_INTERNET",
+  "OFFICE_ADMINISTRATION",
+  "PRINTING_STATIONERY",
+  "SALARIES_WAGES",
+  "UTILITIES",
+  "INSURANCE",
+  "MEALS_ENTERTAINMENT",
+  "WITHHOLDING_TAX",
+  "VAT_PAYABLE",
+  "CORPORATE_TAX_PROVISION",
+  "FOREIGN_EXCHANGE_LOSS"
+]);
+
 function isReportIncomeType(type) {
-  return type === "MMF_RETURN" || type === "PENALTY" || type === "LOAN_IN";
+  return REPORT_INCOME_TYPES.has(type);
 }
 
 function isReportExpenseType(type) {
-  return type === "REGISTRATION" || type === "TX_CHARGE" || type === "LEGAL" || type === "OTHER_OUT";
+  return REPORT_EXPENSE_TYPES.has(type);
 }
 
 /**

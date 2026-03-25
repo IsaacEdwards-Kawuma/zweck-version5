@@ -48,19 +48,7 @@ export function monthlyVolumeSeries(transactions, monthsBack = 12) {
   }));
 }
 
-export const TX_TYPE_LABELS = {
-  CONTRIBUTION: "Contribution",
-  SIDE_FUND: "Side fund",
-  MMF_DEPLOY: "Project deploy",
-  MMF_RETURN: "Project return",
-  YPA_INVEST: "Project invest",
-  REGISTRATION: "Registration",
-  TX_CHARGE: "TX charge",
-  LEGAL: "Legal",
-  PENALTY: "Penalty",
-  LOAN_IN: "Loan in",
-  OTHER_OUT: "Other out"
-};
+export { TX_TYPE_LABELS } from "./transactionTypes";
 
 /**
  * @param {TxRow[]} transactions
