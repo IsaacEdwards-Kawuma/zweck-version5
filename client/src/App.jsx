@@ -28,6 +28,8 @@ const Settings = lazy(() => import("./pages/Settings"));
 const AboutCompany = lazy(() => import("./pages/AboutCompany"));
 const Privacy = lazy(() => import("./pages/Privacy"));
 const DataRights = lazy(() => import("./pages/DataRights"));
+const Chat = lazy(() => import("./pages/Chat"));
+const ChatRoom = lazy(() => import("./pages/ChatRoom"));
 
 export default function App() {
   return (
@@ -44,6 +46,8 @@ export default function App() {
             <Route path="/reports" element={<Reports />} />
             <Route path="/meetings" element={<Meetings />} />
             <Route path="/documents" element={<Documents />} />
+            <Route path="/chat" element={<Chat />} />
+            <Route path="/chat/rooms/:roomId" element={<ChatRoom />} />
             <Route path="/users" element={<Users />} />
             <Route path="/audit" element={<AuditLog />} />
             <Route path="/settings" element={<Settings />} />

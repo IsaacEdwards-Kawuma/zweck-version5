@@ -47,8 +47,10 @@ model User {
   createdAt  DateTime  @default(now())
 
   notifications Notification[]
+  chatRoomMembers ChatRoomMember[]
   projectsCreated Project[]     @relation("ProjectCreator")
   tasksCreated    ProjectTask[] @relation("TaskCreator")
+  chatMessages    ChatMessage[]
   passwordResetTokens PasswordResetToken[]
   loginEvents LoginEvent[]
 }
@@ -67,6 +69,57 @@ model Notification {
 
   @@index([userId, createdAt])
   @@index([userId, readAt])
+}
+
+// -----------------------------
+// Chat (v1)
+// -----------------------------
+
+model ChatRoom {
+  id        Int      @id @default(autoincrement())
+  roomKey   String   @unique @db.VarChar(80)
+  kind      String   @db.VarChar(16) // "MEETING" | "PROJECT"
+  title     String?
+
+  meetingId Int?
+  meeting   Meeting? @relation("MeetingChatRooms", fields: [meetingId], references: [id], onDelete: Cascade)
+
+  projectId Int?
+  project   Project? @relation("ProjectChatRooms", fields: [projectId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  members  ChatRoomMember[]
+  messages ChatMessage[]
+
+  @@index([kind])
+}
+
+model ChatRoomMember {
+  id          Int      @id @default(autoincrement())
+  roomId      Int
+  room        ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastReadAt  DateTime?
+  createdAt   DateTime @default(now())
+
+  @@unique([roomId, userId])
+  @@index([userId, lastReadAt])
+}
+
+model ChatMessage {
+  id        Int       @id @default(autoincrement())
+  roomId    Int
+  room      ChatRoom  @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  senderId  Int
+  sender    User      @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  body      String
+  editedAt  DateTime?
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([roomId, createdAt])
 }
 
 model LoginEvent {
@@ -157,6 +210,8 @@ model Project {
   creator     User            @relation("ProjectCreator", fields: [createdById], references: [id])
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
+
+  chatRooms ChatRoom[] @relation("ProjectChatRooms")
 
   tasks     ProjectTask[]
   mmfEntries MMFEntry[]
@@ -272,6 +327,8 @@ model Meeting {
   updatedAt        DateTime @updatedAt
 
   reminderSent MeetingReminderSent?
+
+  chatRooms ChatRoom[] @relation("MeetingChatRooms")
 
   @@index([date])
   @@index([status])

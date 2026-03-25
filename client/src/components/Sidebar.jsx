@@ -7,6 +7,7 @@ const links = [
   { to: "/", label: "Dashboard", icon: "dashboard" },
   { to: "/reports", label: "Reports", icon: "reports" },
   { to: "/meetings", label: "Meetings", icon: "meetings" },
+  { to: "/chat", label: "Chat", icon: "chat" },
   { to: "/documents", label: "Documents", icon: "documents" },
   { to: "/post", label: "Post Transaction", icon: "post" },
   { to: "/ledger", label: "Ledger", icon: "ledger" },
@@ -118,6 +119,14 @@ function NavIcon({ name }) {
         <svg {...common}>
           <circle cx="12" cy="12" r="3" />
           <path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V20a2 2 0 1 1-4 0v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H4a2 2 0 1 1 0-4h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a2 2 0 0 1 2.8-2.8l.1.1a1 1 0 0 0 1.1.2h.1a1 1 0 0 0 .6-.9V4a2 2 0 1 1 4 0v.2a1 1 0 0 0 .6.9h.1a1 1 0 0 0 1.1-.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1 1 0 0 0-.2 1.1v.1a1 1 0 0 0 .9.6H20a2 2 0 1 1 0 4h-.2a1 1 0 0 0-.9.6z" />
+        </svg>
+      );
+    case "chat":
+      return (
+        <svg {...common}>
+          <path d="M4 5h16v11H7l-3 3V5z" />
+          <path d="M8 10h8" />
+          <path d="M8 7h6" />
         </svg>
       );
     default:
