@@ -206,8 +206,9 @@ export default function ChartOfAccounts() {
                     const pct = pctOfAssets(display, g);
                     return (
                       <tr key={r.key} className={zero ? "text-slate-400 dark:text-slate-500" : "text-slate-800 dark:text-slate-200"}>
+                        <td className="py-2 pr-3 font-mono text-xs">{r.meta.code ?? "—"}</td>
                         <td className="py-2 pr-3 font-medium">{r.meta.name}</td>
-                        <td className="py-2 pr-3 font-mono text-xs">{r.key}</td>
+                        <td className="py-2 pr-3 font-mono text-xs text-slate-600 dark:text-slate-300">{r.key}</td>
                         {g === "Assets" ? (
                           <td className="py-2 pr-3 text-right text-xs text-slate-600 dark:text-slate-400">
                             {pct != null && !zero ? `${pct.toFixed(1)}%` : "—"}

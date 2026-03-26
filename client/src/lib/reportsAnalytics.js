@@ -191,7 +191,7 @@ export function downloadChartOfAccountsCsv(accounts, balances, groups, filename 
     for (const [key, meta] of Object.entries(accounts)) {
       if (meta.group !== g) continue;
       const bal = balances[key] || 0;
-      const display = g === "Income" || g === "Equity" ? -bal : bal;
+      const display = g === "Income" || g === "Equity" || g === "Liabilities" ? -bal : bal;
       const code = meta.code != null ? String(meta.code) : "";
       lines.push([g, code, key, meta.name, String(display)].map(esc).join(","));
     }

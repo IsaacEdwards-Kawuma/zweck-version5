@@ -5,7 +5,7 @@ import { prisma } from "../lib/prisma.js";
 import { apiError } from "../lib/http.js";
 import { requireRole } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
-import { TX_ACCOUNT_MAP } from "../lib/constants.js";
+import { ACCOUNTS, TX_ACCOUNT_MAP } from "../lib/constants.js";
 
 const router = Router();
 
@@ -45,10 +45,37 @@ function shapeTransactionRow(
     } | null;
     createdBy: number | null;
     createdAt: Date;
-  }
+  },
+  directorCapitalCodeById: Map<number, { code: number; name: string }>
 ) {
   const map = TX_ACCOUNT_MAP[t.type];
   const currency = t.currency && t.currency.length ? t.currency : "EUR";
+
+  function resolveBankDisplay(ccy: string) {
+    if (ccy === "UGX") return "1200 Cash at Bank (UGX)";
+    if (ccy === "USD") return "1210 Cash at Bank (USD)";
+    return "1220 Cash at Bank (EUR)";
+  }
+
+  function resolveAccountDisplay(accountKey: string) {
+    if (accountKey === "bank") return resolveBankDisplay(currency);
+    if (accountKey === "capital") {
+      const dirId = t.director?.id;
+      const row = dirId != null ? directorCapitalCodeById.get(dirId) : undefined;
+      if (!row) return "3100 Director Capital";
+      return `${row.code} Director Capital — ${row.name}`;
+    }
+    if (accountKey === "side_fund") {
+      const code = ACCOUNTS.side_fund.code;
+      const name = ACCOUNTS.side_fund.name;
+      if (t.director?.name) return `${code} ${name} (tagged: ${t.director.name})`;
+      return `${code} ${name}`;
+    }
+    const meta = (ACCOUNTS as any)[accountKey] as { code: number; name: string } | undefined;
+    if (!meta) return accountKey;
+    return `${meta.code} ${meta.name}`;
+  }
+
   return {
     id: t.id,
     reference: formatTxRef(t.id),
@@ -65,8 +92,8 @@ function shapeTransactionRow(
           avatarUrl: t.director.avatarUrl
         }
       : null,
-    debitAccount: map.debit,
-    creditAccount: map.credit,
+    debitAccount: resolveAccountDisplay(map.debit),
+    creditAccount: resolveAccountDisplay(map.credit),
     createdBy: t.createdBy,
     createdAt: t.createdAt
   };
@@ -131,6 +158,16 @@ router.get("/", async (req, res) => {
     if (Number.isFinite(n) && n >= 0) offset = Math.floor(n);
   }
 
+  const directors = await prisma.director.findMany({
+    orderBy: { createdAt: "asc" },
+    select: { id: true, name: true }
+  });
+
+  const directorCapitalCodeById = new Map<number, { code: number; name: string }>();
+  directors.slice(0, 5).forEach((d, idx) => {
+    directorCapitalCodeById.set(d.id, { code: 3100 + idx * 10, name: d.name });
+  });
+
   const [rows, total, sumAgg, groupByType] = await Promise.all([
     prisma.transaction.findMany({
       where,
@@ -159,7 +196,7 @@ router.get("/", async (req, res) => {
     byType[g.type] = g._sum.amount ? Number(g._sum.amount) : 0;
   }
 
-  const items = rows.map((t) => shapeTransactionRow(t));
+  const items = rows.map((t) => shapeTransactionRow(t, directorCapitalCodeById));
 
   return res.json({
     items,
@@ -365,6 +402,15 @@ router.put("/:id", requireRole("ADMIN"), validateBody(updateSchema), async (req,
     include: { director: true }
   });
 
+  const directors = await prisma.director.findMany({
+    orderBy: { createdAt: "asc" },
+    select: { id: true, name: true }
+  });
+  const directorCapitalCodeById = new Map<number, { code: number; name: string }>();
+  directors.slice(0, 5).forEach((d, idx) => {
+    directorCapitalCodeById.set(d.id, { code: 3100 + idx * 10, name: d.name });
+  });
+
   await prisma.auditLog.create({
     data: {
       userId: req.user!.id,
@@ -376,7 +422,7 @@ router.put("/:id", requireRole("ADMIN"), validateBody(updateSchema), async (req,
     }
   });
 
-  return res.json(shapeTransactionRow(updated));
+  return res.json(shapeTransactionRow(updated, directorCapitalCodeById));
 });
 
 export default router;
