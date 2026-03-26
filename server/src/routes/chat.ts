@@ -17,6 +17,7 @@ import {
   normalizeChatBody,
   normalizeChatBodyWithAttachment
 } from "../lib/chatPermissions.js";
+import { getMentionableUserIds, parseMentionEmails, resolveMentionUserIds } from "../lib/chatMentions.js";
 import { getChatIo } from "../socket/chatSocket.js";
 
 const router = Router();
@@ -27,7 +28,9 @@ const roomSelectAuth = {
   roomKey: true,
   meetingId: true,
   projectId: true,
-  createdById: true
+  createdById: true,
+  slowModeSeconds: true,
+  adminOnlyPost: true
 } as const;
 
 const uploadRoot = path.join(process.cwd(), "uploads", "chat");
@@ -85,6 +88,10 @@ function mapMessageRow(
     attachmentName: string | null;
     attachmentSize: number | null;
     replyToId?: number | null;
+    threadRootId?: number | null;
+    forwardedFromId?: number | null;
+    mentionedUserIds?: number[];
+    linkPreview?: unknown;
     sender?: { email: string } | null;
     replyTo?: {
       id: number;
@@ -96,6 +103,7 @@ function mapMessageRow(
   reactions: Array<{ emoji: string; userId: number; userEmail: string | null }>,
   extras?: {
     readStatus?: { read: number; total: number } | null;
+    threadReplyCount?: number;
   }
 ) {
   const replySnap =
@@ -124,8 +132,13 @@ function mapMessageRow(
     attachmentSize: m.attachmentSize ?? null,
     replyToId: m.replyToId ?? null,
     replyTo: replySnap,
+    threadRootId: m.threadRootId ?? null,
+    forwardedFromId: m.forwardedFromId ?? null,
+    mentionedUserIds: Array.isArray(m.mentionedUserIds) ? m.mentionedUserIds : [],
+    linkPreview: m.linkPreview ?? null,
     reactions,
-    ...(extras?.readStatus != null ? { readStatus: extras.readStatus } : {})
+    ...(extras?.readStatus != null ? { readStatus: extras.readStatus } : {}),
+    ...(extras?.threadReplyCount != null ? { threadReplyCount: extras.threadReplyCount } : {})
   };
 }
 
@@ -589,6 +602,8 @@ router.get("/rooms/:roomId/summary", async (req, res) => {
       meetingId: true,
       projectId: true,
       createdById: true,
+      slowModeSeconds: true,
+      adminOnlyPost: true,
       pinnedMessageId: true,
       pinnedMessage: {
         select: {
@@ -608,7 +623,7 @@ router.get("/rooms/:roomId/summary", async (req, res) => {
 
   const membership = await prisma.chatRoomMember.findUnique({
     where: { roomId_userId: { roomId, userId: user.id } },
-    select: { archivedAt: true, clearedBeforeAt: true }
+    select: { archivedAt: true, clearedBeforeAt: true, mutedUntil: true, notifyPreference: true }
   });
 
   const otherUserId = room.kind === "DM" ? getOtherDmUserId(room.roomKey, user.id) : null;
@@ -996,9 +1011,13 @@ router.patch("/rooms/:roomId/messages/:messageId", async (req, res) => {
   const newBody = normalizeChatBody(parsed.data.body);
   if (!newBody) return res.status(400).json(apiError("Body required", "body"));
 
+  const mentionEmails = parseMentionEmails(newBody);
+  const mentionable = await getMentionableUserIds(roomId, room.kind);
+  const mentionedUserIds = await resolveMentionUserIds(mentionEmails, mentionable);
+
   const updated = await prisma.chatMessage.update({
     where: { id: messageId },
-    data: { body: newBody, editedAt: new Date() },
+    data: { body: newBody, editedAt: new Date(), mentionedUserIds },
     include: messageInclude
   });
 
@@ -1119,7 +1138,9 @@ router.post("/rooms/:roomId/messages/:messageId/reactions", async (req, res) => 
 
 const listMessagesQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
-  cursor: z.coerce.number().int().positive().optional()
+  cursor: z.coerce.number().int().positive().optional(),
+  /** Omit or "main" = timeline only; numeric string = thread under that root message id */
+  thread: z.string().optional()
 });
 
 router.get("/rooms/:roomId/messages", async (req, res) => {
@@ -1132,6 +1153,7 @@ router.get("/rooms/:roomId/messages", async (req, res) => {
 
   const limit = parsed.data.limit ?? 50;
   const cursor = parsed.data.cursor ?? null;
+  const threadRaw = parsed.data.thread?.trim();
 
   const room = await prisma.chatRoom.findUnique({
     where: { id: roomId },
@@ -1147,10 +1169,20 @@ router.get("/rooms/:roomId/messages", async (req, res) => {
 
   const clearedBefore = await getMemberClearedBeforeAt(user.id, roomId);
 
+  let threadFilter: { OR?: Array<{ id?: number; threadRootId?: number | null }>; threadRootId?: null } = {
+    threadRootId: null
+  };
+  if (threadRaw && threadRaw !== "main") {
+    const tid = Number(threadRaw);
+    if (!Number.isFinite(tid) || tid <= 0) return res.status(400).json(apiError("Invalid thread id", "thread"));
+    threadFilter = { OR: [{ id: tid }, { threadRootId: tid }] };
+  }
+
   const rowsDesc = await prisma.chatMessage.findMany({
     where: {
       roomId,
       deletedAt: null,
+      ...threadFilter,
       ...(clearedBefore ? { createdAt: { gt: clearedBefore } } : {}),
       ...(cursor ? { id: { lt: cursor } } : {})
     },
@@ -1170,18 +1202,275 @@ router.get("/rooms/:roomId/messages", async (req, res) => {
     select: { userId: true, lastReadAt: true }
   });
 
+  let threadCountMap = new Map<number, number>();
+  if (!threadRaw || threadRaw === "main") {
+    const rootIds = itemsAsc.filter((m) => m.threadRootId == null).map((m) => m.id);
+    if (rootIds.length) {
+      const counts = await prisma.chatMessage.groupBy({
+        by: ["threadRootId"],
+        where: { roomId, threadRootId: { in: rootIds } },
+        _count: { _all: true }
+      });
+      threadCountMap = new Map(
+        counts.map((c) => [c.threadRootId as number, c._count._all])
+      );
+    }
+  }
+
   return res.json({
     items: itemsAsc.map((m) => {
       const reactions = reactMap.get(m.id) ?? [];
       const rs = attachReadStatusForSender(user.id, members, m);
+      const trc =
+        (!threadRaw || threadRaw === "main") && m.threadRootId == null
+          ? (threadCountMap.get(m.id) ?? 0)
+          : undefined;
       return mapMessageRow(
         { ...m, sender: m.sender, replyTo: m.replyTo },
         reactions,
-        rs == null ? undefined : { readStatus: rs }
+        {
+          ...(rs == null ? {} : { readStatus: rs }),
+          ...(trc !== undefined ? { threadReplyCount: trc } : {})
+        }
       );
     }),
     nextCursor: hasMore ? itemsAsc[0]?.id ?? null : null
   });
+});
+
+const patchMemberMeSchema = z.object({
+  mutedUntil: z.union([z.string(), z.null()]).optional(),
+  notifyPreference: z.enum(["ALL", "MENTIONS", "NONE"]).optional()
+});
+
+router.patch("/rooms/:roomId/members/me", async (req, res) => {
+  const user = req.user!;
+  const roomId = Number(req.params.roomId);
+  if (!Number.isFinite(roomId) || roomId <= 0) return res.status(400).json(apiError("Invalid room id"));
+
+  const parsed = patchMemberMeSchema.safeParse(req.body || {});
+  if (!parsed.success) return res.status(400).json(apiError("Invalid body"));
+
+  const room = await prisma.chatRoom.findUnique({ where: { id: roomId }, select: roomSelectAuth });
+  if (!room) return res.status(404).json(apiError("Room not found"));
+  try {
+    await assertUserCanAccessChatRoom(user, room);
+  } catch (e) {
+    return res.status(403).json(e);
+  }
+
+  const data: { mutedUntil?: Date | null; notifyPreference?: string } = {};
+  if (parsed.data.mutedUntil !== undefined) {
+    if (parsed.data.mutedUntil === null) data.mutedUntil = null;
+    else if (typeof parsed.data.mutedUntil === "string" && parsed.data.mutedUntil.trim()) {
+      const d = new Date(parsed.data.mutedUntil);
+      if (Number.isNaN(d.getTime())) return res.status(400).json(apiError("Invalid mutedUntil"));
+      data.mutedUntil = d;
+    }
+  }
+  if (parsed.data.notifyPreference !== undefined) data.notifyPreference = parsed.data.notifyPreference;
+  if (Object.keys(data).length === 0) {
+    return res.status(400).json(apiError("Provide mutedUntil and/or notifyPreference"));
+  }
+
+  await prisma.chatRoomMember.createMany({
+    data: [{ roomId, userId: user.id }],
+    skipDuplicates: true
+  });
+  const updated = await prisma.chatRoomMember.update({
+    where: { roomId_userId: { roomId, userId: user.id } },
+    data,
+    select: { mutedUntil: true, notifyPreference: true }
+  });
+  res.json(updated);
+});
+
+const patchRoomSettingsSchema = z.object({
+  slowModeSeconds: z.union([z.number().int().min(0).max(3600), z.null()]).optional(),
+  adminOnlyPost: z.boolean().optional()
+});
+
+router.patch("/rooms/:roomId/settings", async (req, res) => {
+  const user = req.user!;
+  const roomId = Number(req.params.roomId);
+  if (!Number.isFinite(roomId) || roomId <= 0) return res.status(400).json(apiError("Invalid room id"));
+
+  const parsed = patchRoomSettingsSchema.safeParse(req.body || {});
+  if (!parsed.success) return res.status(400).json(apiError("Invalid body"));
+
+  const room = await prisma.chatRoom.findUnique({ where: { id: roomId }, select: roomSelectAuth });
+  if (!room) return res.status(404).json(apiError("Room not found"));
+  if (room.kind !== "GROUP") return res.status(400).json(apiError("Only group rooms have these settings"));
+  try {
+    await assertUserCanManageGroupMembers(user, room);
+  } catch (e) {
+    return res.status(403).json(e);
+  }
+
+  const data: { slowModeSeconds?: number | null; adminOnlyPost?: boolean } = {};
+  if ("slowModeSeconds" in parsed.data) data.slowModeSeconds = parsed.data.slowModeSeconds;
+  if (parsed.data.adminOnlyPost !== undefined) data.adminOnlyPost = parsed.data.adminOnlyPost;
+  if (Object.keys(data).length === 0) return res.status(400).json(apiError("Provide slowModeSeconds and/or adminOnlyPost"));
+
+  const updated = await prisma.chatRoom.update({
+    where: { id: roomId },
+    data,
+    select: { id: true, slowModeSeconds: true, adminOnlyPost: true }
+  });
+  emitRoom(roomId, "chat:roomUpdated", { roomId, settings: updated });
+  res.json(updated);
+});
+
+router.get("/rooms/:roomId/export", async (req, res) => {
+  const user = req.user!;
+  const roomId = Number(req.params.roomId);
+  if (!Number.isFinite(roomId) || roomId <= 0) return res.status(400).json(apiError("Invalid room id"));
+
+  const format = String(req.query.format || "txt").toLowerCase();
+  if (format !== "txt" && format !== "csv") return res.status(400).json(apiError("format must be txt or csv"));
+
+  const room = await prisma.chatRoom.findUnique({ where: { id: roomId }, select: { ...roomSelectAuth, title: true } });
+  if (!room) return res.status(404).json(apiError("Room not found"));
+  try {
+    await assertUserCanAccessChatRoom(user, room);
+  } catch (e) {
+    return res.status(403).json(e);
+  }
+
+  let from: Date | undefined;
+  let to: Date | undefined;
+  if (req.query.from) {
+    from = new Date(String(req.query.from));
+    if (Number.isNaN(from.getTime())) return res.status(400).json(apiError("Invalid from"));
+  }
+  if (req.query.to) {
+    to = new Date(String(req.query.to));
+    if (Number.isNaN(to.getTime())) return res.status(400).json(apiError("Invalid to"));
+  }
+
+  const clearedBefore = await getMemberClearedBeforeAt(user.id, roomId);
+
+  const rows = await prisma.chatMessage.findMany({
+    where: {
+      roomId,
+      deletedAt: null,
+      ...(clearedBefore ? { createdAt: { gt: clearedBefore } } : {}),
+      ...(from || to
+        ? {
+            createdAt: {
+              ...(from ? { gte: from } : {}),
+              ...(to ? { lte: to } : {})
+            }
+          }
+        : {})
+    },
+    orderBy: { id: "asc" },
+    include: { sender: { select: { email: true } } }
+  });
+
+  const title = room.title || room.roomKey || `room-${roomId}`;
+  const safeName = String(title).replace(/[^\w.-]+/g, "_").slice(0, 80);
+
+  if (format === "csv") {
+    const esc = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+    const header = ["id", "createdAt", "senderEmail", "body"].map(esc).join(",");
+    const lines = rows.map((r) =>
+      [r.id, r.createdAt.toISOString(), r.sender?.email ?? "", (r.body || "").replace(/\r?\n/g, "\\n")]
+        .map(esc)
+        .join(",")
+    );
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="chat-${safeName}.csv"`);
+    return res.send("\uFEFF" + [header, ...lines].join("\r\n"));
+  }
+
+  const text = rows
+    .map(
+      (r) =>
+        `[${r.createdAt.toISOString()}] ${r.sender?.email ?? r.senderId}: ${(r.body || "").replace(/\r?\n/g, "\n")}`
+    )
+    .join("\n\n");
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="chat-${safeName}.txt"`);
+  return res.send(text);
+});
+
+const forwardBodySchema = z.object({
+  targetRoomId: z.number().int().positive()
+});
+
+router.post("/rooms/:roomId/messages/:messageId/forward", async (req, res) => {
+  const user = req.user!;
+  const roomId = Number(req.params.roomId);
+  const messageId = Number(req.params.messageId);
+  if (!Number.isFinite(roomId) || roomId <= 0) return res.status(400).json(apiError("Invalid room id"));
+  if (!Number.isFinite(messageId) || messageId <= 0) return res.status(400).json(apiError("Invalid message id"));
+
+  const parsed = forwardBodySchema.safeParse(req.body || {});
+  if (!parsed.success) return res.status(400).json(apiError("Invalid body", "targetRoomId"));
+
+  const srcRoom = await prisma.chatRoom.findUnique({ where: { id: roomId }, select: roomSelectAuth });
+  if (!srcRoom) return res.status(404).json(apiError("Room not found"));
+  try {
+    await assertUserCanAccessChatRoom(user, srcRoom);
+  } catch (e) {
+    return res.status(403).json(e);
+  }
+
+  const tgtRoom = await prisma.chatRoom.findUnique({
+    where: { id: parsed.data.targetRoomId },
+    select: roomSelectAuth
+  });
+  if (!tgtRoom) return res.status(404).json(apiError("Target room not found"));
+  try {
+    await assertUserCanAccessChatRoom(user, tgtRoom);
+  } catch (e) {
+    return res.status(403).json(e);
+  }
+
+  if (tgtRoom.kind === "GROUP" && tgtRoom.adminOnlyPost) {
+    if (user.role !== "ADMIN" && user.id !== tgtRoom.createdById) {
+      return res.status(403).json(apiError("Only admins can post in target room"));
+    }
+  }
+
+  const src = await prisma.chatMessage.findFirst({
+    where: { id: messageId, roomId, deletedAt: null },
+    include: { sender: { select: { email: true } } }
+  });
+  if (!src) return res.status(404).json(apiError("Message not found"));
+
+  const bodyText =
+    (src.body && src.body.trim()) ||
+    (src.attachmentUrl ? `[attachment: ${src.attachmentName || "file"}]` : "(empty)");
+
+  const created = await prisma.chatMessage.create({
+    data: {
+      roomId: parsed.data.targetRoomId,
+      senderId: user.id,
+      body: `↪ Forwarded: ${bodyText}`,
+      forwardedFromId: src.id,
+      mentionedUserIds: []
+    },
+    include: messageInclude
+  });
+
+  const reactMap = await loadReactionsMap([created.id]);
+  const reactions = reactMap.get(created.id) ?? [];
+  const members = await prisma.chatRoomMember.findMany({
+    where: { roomId: parsed.data.targetRoomId },
+    select: { userId: true, lastReadAt: true }
+  });
+  const rs = attachReadStatusForSender(user.id, members, created);
+  const out = mapMessageRow(
+    { ...created, sender: created.sender, replyTo: created.replyTo },
+    reactions,
+    rs == null ? undefined : { readStatus: rs }
+  );
+
+  const io = getChatIo();
+  io?.to(String(parsed.data.targetRoomId)).emit("chat:messageCreated", out);
+  res.json(out);
 });
 
 export default router;

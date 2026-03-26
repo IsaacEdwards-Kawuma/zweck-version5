@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom";
+import { Link, useNavigate, useOutletContext, useParams, useSearchParams } from "react-router-dom";
 import { io } from "socket.io-client";
 import Loading from "../components/Loading";
 import ErrorBanner from "../components/ErrorBanner";
@@ -22,7 +22,11 @@ import {
   setChatRoomPin,
   toggleChatReaction,
   unarchiveChatRoom,
-  uploadChatAttachment
+  uploadChatAttachment,
+  downloadChatExport,
+  forwardChatMessage,
+  patchChatMemberMe,
+  patchChatRoomSettings
 } from "../api/chat";
 import MessageBody from "../components/chat/MessageBody";
 
@@ -110,11 +114,19 @@ function targetAllowsLongPress(target) {
 export default function ChatRoom() {
   const { roomId } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { me } = useOutletContext() || {};
   const qc = useQueryClient();
 
   const numericRoomId = Number(roomId);
   const token = localStorage.getItem("zweck_token");
+
+  /** null = main timeline; number = root message id for thread view */
+  const [threadView, setThreadView] = useState(null);
+  const threadViewRef = useRef(null);
+  useEffect(() => {
+    threadViewRef.current = threadView;
+  }, [threadView]);
 
   const qSummary = useQuery({
     queryKey: ["chat_room_summary", roomId],
@@ -123,8 +135,8 @@ export default function ChatRoom() {
   });
 
   const qMessages = useQuery({
-    queryKey: ["chat_room_messages", roomId],
-    queryFn: () => listChatRoomMessages(numericRoomId, { limit: 50 }),
+    queryKey: ["chat_room_messages", roomId, threadView],
+    queryFn: () => listChatRoomMessages(numericRoomId, { limit: 50, thread: threadView ?? undefined }),
     enabled: Number.isFinite(numericRoomId) && Boolean(token)
   });
 
@@ -260,6 +272,12 @@ export default function ChatRoom() {
     });
 
     socket.on("chat:messageCreated", (msg) => {
+      const tv = threadViewRef.current;
+      if (tv == null && msg.threadRootId) return;
+      if (tv != null) {
+        const ok = msg.id === tv || msg.threadRootId === tv;
+        if (!ok) return;
+      }
       setMessages((prev) => {
         if (prev.some((p) => p.id === msg.id)) return prev;
         return [...prev, msg];
@@ -572,7 +590,12 @@ export default function ChatRoom() {
     const prevScrollTop = el.scrollTop;
 
     try {
-      const data = await listChatRoomMessages(numericRoomId, { limit: 50, cursor: nextCursor });
+      const tv = threadViewRef.current;
+      const data = await listChatRoomMessages(numericRoomId, {
+        limit: 50,
+        cursor: nextCursor,
+        thread: tv ?? undefined
+      });
       const older = data?.items ?? [];
       if (older.length) {
         setMessages((prev) => [...older, ...prev]);
@@ -677,13 +700,28 @@ export default function ChatRoom() {
     }
   });
 
+  const mMemberPrefs = useMutation({
+    mutationFn: (body) => patchChatMemberMe(numericRoomId, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["chat_room_summary", roomId] })
+  });
+
+  const mRoomSettings = useMutation({
+    mutationFn: (body) => patchChatRoomSettings(numericRoomId, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["chat_room_summary", roomId] })
+  });
+
   const jumpToMessageId = useCallback(
     async (targetId) => {
+      setThreadView(null);
       setHighlightId(targetId);
       let currentList = messagesRef.current;
       let cursor = nextCursorRef.current;
       while (!currentList.some((m) => m.id === targetId) && cursor) {
-        const data = await listChatRoomMessages(numericRoomId, { limit: 50, cursor });
+        const data = await listChatRoomMessages(numericRoomId, {
+          limit: 50,
+          cursor,
+          thread: undefined
+        });
         const older = data?.items ?? [];
         cursor = data?.nextCursor ?? null;
         if (!older.length) break;
@@ -700,6 +738,32 @@ export default function ChatRoom() {
     },
     [numericRoomId]
   );
+
+  const deepLinkHandled = useRef(false);
+  useEffect(() => {
+    deepLinkHandled.current = false;
+  }, [roomId]);
+
+  useEffect(() => {
+    const mid = searchParams.get("messageId");
+    if (!mid) {
+      deepLinkHandled.current = false;
+      return;
+    }
+    if (deepLinkHandled.current) return;
+    const n = Number(mid);
+    if (!Number.isFinite(n)) return;
+    deepLinkHandled.current = true;
+    void jumpToMessageId(n);
+    setSearchParams(
+      (p) => {
+        const next = new URLSearchParams(p);
+        next.delete("messageId");
+        return next;
+      },
+      { replace: true }
+    );
+  }, [roomId, searchParams, jumpToMessageId, setSearchParams]);
 
   function toggleStar(messageId) {
     setStarredIds((prev) => {
@@ -735,6 +799,20 @@ export default function ChatRoom() {
           <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{title}</h1>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
             {room?.kind || "Room"} · #{numericRoomId}
+            {room?.kind === "GROUP" ? (
+              <>
+                {room.slowModeSeconds != null && room.slowModeSeconds > 0 ? (
+                  <span className="ml-1 rounded bg-slate-200 px-1.5 py-0.5 text-[11px] dark:bg-slate-700">
+                    Slow {room.slowModeSeconds}s
+                  </span>
+                ) : null}
+                {room.adminOnlyPost ? (
+                  <span className="ml-1 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] text-amber-900 dark:bg-amber-950/60 dark:text-amber-200">
+                    Admins only
+                  </span>
+                ) : null}
+              </>
+            ) : null}
           </p>
           {typingLabel ? (
             <p className="mt-1 text-xs italic text-slate-500 dark:text-slate-400">{typingLabel} typing…</p>
@@ -745,12 +823,32 @@ export default function ChatRoom() {
             </p>
           ) : null}
           <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-            Long-press or right-click to react; use Copy, Reply, star, or pin below each message.
+            Mention with <code className="rounded bg-slate-100 px-0.5 dark:bg-slate-800">@email</code> · long-press for
+            reactions and actions.
           </p>
+          {threadView != null ? (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <button type="button" className="ui-btn-outline text-xs" onClick={() => setThreadView(null)}>
+                ← Main chat
+              </button>
+              <span className="text-xs text-slate-500 dark:text-slate-400">Thread view</span>
+            </div>
+          ) : null}
         </div>
         <div className="flex flex-wrap gap-2">
           <button type="button" className="ui-btn-outline text-xs" onClick={() => setShowSearch((v) => !v)}>
             Search
+          </button>
+          <button
+            type="button"
+            className="ui-btn-outline text-xs"
+            onClick={() => {
+              void downloadChatExport(numericRoomId, { format: "txt" }).catch(() =>
+                window.alert("Export failed.")
+              );
+            }}
+          >
+            Export txt
           </button>
           {canManageGroup ? (
             <button type="button" className="ui-btn-outline text-xs" onClick={() => setShowMembers(true)}>
@@ -781,6 +879,98 @@ export default function ChatRoom() {
               >
                 Clear messages
               </button>
+              <div className="border-t border-slate-100 px-3 py-2 dark:border-slate-700">
+                <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  Your notifications
+                </div>
+                <select
+                  className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
+                  value={room?.membership?.notifyPreference || "ALL"}
+                  disabled={mMemberPrefs.isPending}
+                  onChange={(e) => {
+                    mMemberPrefs.mutate({ notifyPreference: e.target.value });
+                  }}
+                >
+                  <option value="ALL">All messages</option>
+                  <option value="MENTIONS">Mentions only</option>
+                  <option value="NONE">None</option>
+                </select>
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  <button
+                    type="button"
+                    className="rounded border border-slate-200 px-2 py-1 text-[10px] text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+                    disabled={mMemberPrefs.isPending}
+                    onClick={() => {
+                      mMemberPrefs.mutate({
+                        mutedUntil: new Date(Date.now() + 60 * 60 * 1000).toISOString()
+                      });
+                    }}
+                  >
+                    Mute 1h
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded border border-slate-200 px-2 py-1 text-[10px] text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+                    disabled={mMemberPrefs.isPending}
+                    onClick={() => {
+                      mMemberPrefs.mutate({ mutedUntil: null });
+                    }}
+                  >
+                    Unmute
+                  </button>
+                </div>
+                {room?.membership?.mutedUntil &&
+                new Date(room.membership.mutedUntil).getTime() > Date.now() ? (
+                  <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">
+                    Muted until {new Date(room.membership.mutedUntil).toLocaleString()}
+                  </p>
+                ) : null}
+              </div>
+              {canManageGroup ? (
+                <div className="border-t border-slate-100 px-3 py-2 dark:border-slate-700">
+                  <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    Group settings
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <button
+                      type="button"
+                      className="rounded px-2 py-1.5 text-left text-xs text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-800"
+                      disabled={mRoomSettings.isPending}
+                      onClick={() => {
+                        const v = window.prompt(
+                          "Minimum seconds between messages from the same person (0–3600, 0 = off):",
+                          String(room?.slowModeSeconds ?? 0)
+                        );
+                        if (v === null) return;
+                        const n = Number(v);
+                        if (!Number.isFinite(n) || n < 0 || n > 3600) {
+                          window.alert("Enter a number from 0 to 3600.");
+                          return;
+                        }
+                        mRoomSettings.mutate({ slowModeSeconds: n === 0 ? null : n });
+                      }}
+                    >
+                      Set slow mode…
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded px-2 py-1.5 text-left text-xs text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-800"
+                      disabled={mRoomSettings.isPending || (room?.slowModeSeconds ?? 0) <= 0}
+                      onClick={() => mRoomSettings.mutate({ slowModeSeconds: null })}
+                    >
+                      Disable slow mode
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded px-2 py-1.5 text-left text-xs text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-800"
+                      disabled={mRoomSettings.isPending}
+                      onClick={() => mRoomSettings.mutate({ adminOnlyPost: !room?.adminOnlyPost })}
+                    >
+                      {room?.adminOnlyPost ? "Allow all members to post" : "Admins post only"}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
               {roomArchived ? (
                 <button
                   type="button"
@@ -1044,6 +1234,37 @@ export default function ChatRoom() {
                               data-no-longpress
                               className="text-brand-700 hover:underline dark:text-brand-300"
                               onClick={() => {
+                                const url = `${window.location.origin}/chat/rooms/${roomId}?messageId=${m.id}`;
+                                void navigator.clipboard.writeText(url);
+                                setMessageMenuMessageId(null);
+                              }}
+                            >
+                              Copy link
+                            </button>
+                            <button
+                              type="button"
+                              data-no-longpress
+                              className="text-brand-700 hover:underline dark:text-brand-300"
+                              onClick={() => {
+                                const tid = window.prompt("Forward to room id (number):");
+                                const n = Number(tid);
+                                if (!Number.isFinite(n) || n <= 0) return;
+                                void forwardChatMessage(numericRoomId, m.id, n)
+                                  .then(() => {
+                                    qc.invalidateQueries({ queryKey: ["chat_room_messages", roomId] });
+                                    qc.invalidateQueries({ queryKey: ["chat_room_messages", String(n)] });
+                                  })
+                                  .catch(() => window.alert("Forward failed."));
+                                setMessageMenuMessageId(null);
+                              }}
+                            >
+                              Forward
+                            </button>
+                            <button
+                              type="button"
+                              data-no-longpress
+                              className="text-brand-700 hover:underline dark:text-brand-300"
+                              onClick={() => {
                                 toggleStar(m.id);
                                 setMessageMenuMessageId(null);
                               }}
@@ -1187,7 +1408,25 @@ export default function ChatRoom() {
                         ) : null}
                         {m.body ? (
                           <div className="mt-1 text-sm text-slate-900 dark:text-slate-100">
-                            <MessageBody text={m.body} />
+                            <MessageBody
+                              text={m.body}
+                              formatRich
+                              linkPreview={m.linkPreview}
+                              mentionHighlight={
+                                Array.isArray(m.mentionedUserIds) && m.mentionedUserIds.includes(me?.id)
+                              }
+                            />
+                          </div>
+                        ) : null}
+                        {m.threadRootId == null ? (
+                          <div className={`mt-1 ${isMe ? "text-right" : "text-left"}`}>
+                            <button
+                              type="button"
+                              className="text-[10px] font-medium text-brand-700 hover:underline dark:text-brand-300"
+                              onClick={() => setThreadView(m.id)}
+                            >
+                              Thread{(m.threadReplyCount ?? 0) > 0 ? ` (${m.threadReplyCount})` : ""}
+                            </button>
                           </div>
                         ) : null}
                       </>
@@ -1249,9 +1488,15 @@ export default function ChatRoom() {
           if (!body) return;
           if (!socketRef.current) return;
           const rid = replyTo?.id;
+          const tr = threadViewRef.current;
           socketRef.current.emit(
             "chat:sendMessage",
-            { roomId: numericRoomId, body, ...(rid ? { replyToId: rid } : {}) },
+            {
+              roomId: numericRoomId,
+              body,
+              ...(rid ? { replyToId: rid } : {}),
+              ...(tr != null ? { threadRootId: tr } : {})
+            },
             (ack) => {
               if (!ack?.ok) {
                 // eslint-disable-next-line no-console
@@ -1295,12 +1540,14 @@ export default function ChatRoom() {
             try {
               const up = await uploadChatAttachment(numericRoomId, f);
               const rid = replyTo?.id;
+              const tr = threadViewRef.current;
               socketRef.current.emit(
                 "chat:sendMessage",
                 {
                   roomId: numericRoomId,
                   body: draft.trim() || " ",
                   ...(rid ? { replyToId: rid } : {}),
+                  ...(tr != null ? { threadRootId: tr } : {}),
                   attachmentUrl: up.attachmentUrl,
                   attachmentKind: up.attachmentKind,
                   attachmentName: up.attachmentName,
@@ -1327,7 +1574,7 @@ export default function ChatRoom() {
         </button>
         <textarea
           className="ui-input min-h-[48px] flex-1 resize-none"
-          placeholder="Write a message..."
+          placeholder="Write a message… Use **bold**, `code`, and @user@email.com for mentions."
           value={draft}
           onChange={onDraftChange}
         />

@@ -5,6 +5,8 @@ import { prisma } from "../lib/prisma.js";
 import { isAuthDisabled } from "../middleware/auth.js";
 import type { AuthUser } from "../middleware/auth.js";
 import { assertUserCanAccessChatRoom, normalizeChatBodyWithAttachment } from "../lib/chatPermissions.js";
+import { getMentionableUserIds, parseMentionEmails, resolveMentionUserIds } from "../lib/chatMentions.js";
+import { extractFirstHttpUrl, fetchLinkPreview } from "../lib/linkPreview.js";
 
 let chatIoSingleton: SocketIOServer | null = null;
 
@@ -51,7 +53,9 @@ const roomSelect = {
   roomKey: true,
   meetingId: true,
   projectId: true,
-  createdById: true
+  createdById: true,
+  slowModeSeconds: true,
+  adminOnlyPost: true
 } as const;
 
 export function setupChatSocket(httpServer: http.Server): SocketIOServer {
@@ -202,6 +206,7 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
           roomId?: unknown;
           body?: unknown;
           replyToId?: unknown;
+          threadRootId?: unknown;
           attachmentUrl?: unknown;
           attachmentKind?: unknown;
           attachmentName?: unknown;
@@ -213,6 +218,18 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
           replyToIdRaw === undefined || replyToIdRaw === null
             ? null
             : Number(replyToIdRaw);
+        const threadRootRaw = obj.threadRootId;
+        let threadRootId: number | null = null;
+        if (threadRootRaw !== undefined && threadRootRaw !== null && String(threadRootRaw).trim() !== "") {
+          const tr = Number(threadRootRaw);
+          if (!Number.isFinite(tr) || tr <= 0) throw new Error("Invalid threadRootId");
+          const root = await prisma.chatMessage.findFirst({
+            where: { id: tr, roomId, deletedAt: null, threadRootId: null },
+            select: { id: true }
+          });
+          if (!root) throw new Error("Thread root not found");
+          threadRootId = tr;
+        }
         const attachmentUrl =
           typeof obj.attachmentUrl === "string" && obj.attachmentUrl.trim() ? obj.attachmentUrl.trim() : null;
         const attachmentKind =
@@ -237,6 +254,27 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
 
         await assertUserCanAccessChatRoom(user, room);
 
+        if (room.kind === "GROUP" && room.adminOnlyPost) {
+          if (user.role !== "ADMIN" && user.id !== room.createdById) {
+            throw new Error("Only admins can post in this room");
+          }
+        }
+
+        const slow = room.slowModeSeconds ?? null;
+        if (slow != null && slow > 0) {
+          const lastOwn = await prisma.chatMessage.findFirst({
+            where: { roomId, senderId: user.id, deletedAt: null },
+            orderBy: { id: "desc" },
+            select: { createdAt: true }
+          });
+          if (lastOwn) {
+            const waitMs = slow * 1000 - (Date.now() - new Date(lastOwn.createdAt).getTime());
+            if (waitMs > 0) {
+              throw new Error(`Slow mode: wait ${Math.ceil(waitMs / 1000)}s`);
+            }
+          }
+        }
+
         if (replyToId != null) {
           if (!Number.isFinite(replyToId) || replyToId <= 0) throw new Error("Invalid replyToId");
           const parent = await prisma.chatMessage.findFirst({
@@ -246,16 +284,22 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
           if (!parent) throw new Error("Reply target not found");
         }
 
+        const mentionEmails = parseMentionEmails(body ?? "");
+        const mentionable = await getMentionableUserIds(roomId, room.kind);
+        const mentionedUserIds = await resolveMentionUserIds(mentionEmails, mentionable);
+
         const message = await prisma.chatMessage.create({
           data: {
             roomId,
             senderId: user.id,
             body: body ?? "",
             replyToId: replyToId ?? undefined,
+            threadRootId: threadRootId ?? undefined,
             attachmentUrl,
             attachmentKind,
             attachmentName,
-            attachmentSize
+            attachmentSize,
+            mentionedUserIds
           },
           include: {
             sender: { select: { email: true } },
@@ -296,6 +340,10 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
           attachmentSize: message.attachmentSize ?? null,
           replyToId: message.replyToId ?? null,
           replyTo: replySnap,
+          threadRootId: message.threadRootId ?? null,
+          forwardedFromId: null as number | null,
+          mentionedUserIds: message.mentionedUserIds ?? [],
+          linkPreview: null as unknown,
           reactions: [] as Array<{ emoji: string; userId: number; userEmail: string | null }>
         };
 
@@ -319,7 +367,22 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
             where: { id: { in: recipientUserIds } },
             select: { id: true, inAppChatMessages: true }
           });
-          const allowed = new Set(prefs.filter((p) => p.inAppChatMessages).map((p) => p.id));
+          const allowedInApp = new Set(prefs.filter((p) => p.inAppChatMessages).map((p) => p.id));
+
+          const memberPrefs = await prisma.chatRoomMember.findMany({
+            where: { roomId, userId: { in: recipientUserIds } },
+            select: { userId: true, notifyPreference: true, mutedUntil: true }
+          });
+          const prefMap = new Map(memberPrefs.map((m) => [m.userId, m]));
+
+          const shouldNotify = (uid: number): boolean => {
+            const row = prefMap.get(uid);
+            if (row?.mutedUntil && new Date(row.mutedUntil) > new Date()) return false;
+            const np = row?.notifyPreference ?? "ALL";
+            if (np === "NONE") return false;
+            if (np === "MENTIONS") return mentionedUserIds.includes(uid);
+            return true;
+          };
 
           const senderLabel = out.senderEmail ? `from ${out.senderEmail}` : "new message";
           const preview = body?.slice(0, 200) || (hasAttachment ? "[attachment]" : "");
@@ -330,7 +393,7 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
                 ? `New group message ${senderLabel}`
                 : `New message ${senderLabel}`;
 
-          const toNotify = recipientUserIds.filter((id) => allowed.has(id));
+          const toNotify = recipientUserIds.filter((id) => allowedInApp.has(id) && shouldNotify(id));
           if (toNotify.length) {
             await prisma.notification.createMany({
               data: toNotify.map((uid) => ({
@@ -347,6 +410,23 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
 
         io.to(String(roomId)).emit("chat:messageCreated", out);
         ack?.({ ok: true, messageId: message.id });
+
+        const url = extractFirstHttpUrl(body ?? "");
+        if (url) {
+          void (async () => {
+            const preview = await fetchLinkPreview(url);
+            if (!preview) return;
+            await prisma.chatMessage.update({
+              where: { id: message.id },
+              data: { linkPreview: preview as object }
+            });
+            io.to(String(roomId)).emit("chat:messageUpdated", {
+              id: message.id,
+              roomId,
+              linkPreview: preview
+            });
+          })();
+        }
       } catch (e) {
         ack?.({ ok: false, message: e instanceof Error ? e.message : "Send failed" });
       }

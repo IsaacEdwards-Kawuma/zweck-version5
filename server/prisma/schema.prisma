@@ -114,6 +114,11 @@ model ChatRoom {
   pinnedMessageId Int? @unique
   pinnedMessage   ChatMessage? @relation("RoomPinnedMessage", fields: [pinnedMessageId], references: [id], onDelete: SetNull)
 
+  /** Minimum seconds between messages from the same user (GROUP/DM/MEETING/PROJECT). Null = off. */
+  slowModeSeconds Int?
+  /** GROUP only: only admins and room creator may post. */
+  adminOnlyPost   Boolean @default(false)
+
   members  ChatRoomMember[]
   messages ChatMessage[]
 
@@ -131,6 +136,10 @@ model ChatRoomMember {
   archivedAt  DateTime?
   /** Messages at or before this time are hidden for this member (clear chat for me). */
   clearedBeforeAt DateTime?
+  /** When set and in the future, suppress chat notifications for this room. */
+  mutedUntil      DateTime?
+  /** ALL | MENTIONS | NONE — when not muted. */
+  notifyPreference String @default("ALL") @db.VarChar(16)
   createdAt   DateTime @default(now())
 
   @@unique([roomId, userId])
@@ -157,12 +166,25 @@ model ChatMessage {
   replyTo   ChatMessage? @relation("MessageReply", fields: [replyToId], references: [id], onDelete: SetNull)
   replies   ChatMessage[] @relation("MessageReply")
 
+  /** Null = main timeline; set to root message id for messages inside a thread. */
+  threadRootId Int?
+  threadRoot   ChatMessage? @relation("ThreadMessages", fields: [threadRootId], references: [id], onDelete: SetNull)
+  threadChildren ChatMessage[] @relation("ThreadMessages")
+
+  forwardedFromId Int?
+  forwardedFrom   ChatMessage? @relation("ForwardedMessages", fields: [forwardedFromId], references: [id], onDelete: SetNull)
+  forwardedCopies ChatMessage[] @relation("ForwardedMessages")
+
+  mentionedUserIds Int[] @default([])
+  linkPreview      Json?
+
   pinnedInRoom ChatRoom? @relation("RoomPinnedMessage")
 
   reactions ChatMessageReaction[]
 
   @@index([roomId, createdAt])
   @@index([replyToId])
+  @@index([threadRootId])
 }
 
 model ChatMessageReaction {

@@ -12,8 +12,9 @@ export async function getChatRoomSummary(roomId) {
   return data?.room ?? null;
 }
 
-export async function listChatRoomMessages(roomId, { limit = 50, cursor = null } = {}) {
+export async function listChatRoomMessages(roomId, { limit = 50, cursor = null, thread = null } = {}) {
   const params = { limit, ...(cursor ? { cursor } : {}) };
+  if (thread != null && thread !== "main") params.thread = String(thread);
   const { data } = await api.get(`/chat/rooms/${roomId}/messages`, { params });
   return data;
 }
@@ -133,5 +134,37 @@ export async function blockChatUser(userId) {
 
 export async function unblockChatUser(userId) {
   const { data } = await api.delete(`/chat/blocks/${userId}`);
+  return data;
+}
+
+export async function patchChatMemberMe(roomId, body) {
+  const { data } = await api.patch(`/chat/rooms/${roomId}/members/me`, body);
+  return data;
+}
+
+export async function patchChatRoomSettings(roomId, body) {
+  const { data } = await api.patch(`/chat/rooms/${roomId}/settings`, body);
+  return data;
+}
+
+export async function downloadChatExport(roomId, { format = "txt", from = null, to = null } = {}) {
+  const params = { format };
+  if (from) params.from = from;
+  if (to) params.to = to;
+  const { data } = await api.get(`/chat/rooms/${roomId}/export`, { params, responseType: "blob" });
+  const ext = format === "csv" ? "csv" : "txt";
+  const name = `chat-export-${roomId}-${new Date().toISOString().slice(0, 10)}.${ext}`;
+  const url = URL.createObjectURL(data);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function forwardChatMessage(roomId, messageId, targetRoomId) {
+  const { data } = await api.post(`/chat/rooms/${roomId}/messages/${messageId}/forward`, {
+    targetRoomId
+  });
   return data;
 }
