@@ -110,6 +110,13 @@ function openPrintDocument(title, statementName, reportMeta, statementRef, inner
       @page { size: A4; margin: 12mm; }
       body { font-family: "Segoe UI", Arial, sans-serif; color: #0f172a; margin: 0; font-size: 12px; background: #fff; }
       .wrap { max-width: 980px; margin: 0 auto; padding: 2px 4px; }
+      :root {
+        --brand-dark: #0b2547;
+        --brand-mid: #1d4e89;
+        --brand-accent: #c9a227;
+        --line-soft: #e2e8f0;
+        --paper-soft: #f8fbff;
+      }
       .top {
         display: flex;
         justify-content: space-between;
@@ -118,7 +125,7 @@ function openPrintDocument(title, statementName, reportMeta, statementRef, inner
         padding: 14px 16px;
         border-radius: 12px;
         color: #ffffff;
-        background: linear-gradient(135deg, #0b2547 0%, #1d4e89 62%, #c9a227 160%);
+        background: linear-gradient(135deg, var(--brand-dark) 0%, var(--brand-mid) 62%, var(--brand-accent) 160%);
         box-shadow: inset 0 0 0 1px rgba(255,255,255,.15);
       }
       .brand h1 { margin: 0; font-size: 34px; letter-spacing: 0.02em; color: #ffffff; line-height: 1; font-weight: 800; }
@@ -126,7 +133,7 @@ function openPrintDocument(title, statementName, reportMeta, statementRef, inner
       .title { text-align: right; }
       .title h2 { margin: 0; font-size: 19px; color: #ffffff; letter-spacing: 0.02em; text-transform: uppercase; }
       .title .meta { margin-top: 8px; color: #dbeafe; font-size: 11px; }
-      .rule { height: 4px; margin: 14px 0 16px; background: linear-gradient(90deg, #0b2547 0%, #1d4e89 60%, #c9a227 100%); border: 0; border-radius: 999px; }
+      .rule { height: 4px; margin: 14px 0 16px; background: linear-gradient(90deg, var(--brand-dark) 0%, var(--brand-mid) 60%, var(--brand-accent) 100%); border: 0; border-radius: 999px; }
       .summary {
         border: 1px solid #bfd2ea;
         background: linear-gradient(180deg, #eef5ff 0%, #f8fbff 100%);
@@ -134,22 +141,24 @@ function openPrintDocument(title, statementName, reportMeta, statementRef, inner
         padding: 12px 14px;
       }
       .summary .k { color: #334155; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
-      .summary .v { margin-top: 4px; font-size: 13px; color: #0b2547; font-weight: 600; }
+      .summary .v { margin-top: 4px; font-size: 13px; color: var(--brand-dark); font-weight: 600; }
       .section { margin-top: 16px; }
-      .section h3 { margin: 0 0 8px; color: #0b2547; font-size: 18px; font-weight: 700; border-left: 4px solid #c9a227; padding-left: 8px; }
-      table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-      th, td { border: 1px solid #cbd5e1; padding: 7px 8px; }
-      th { background: #0b2547; color: #fff; text-align: left; }
+      .section h3 { margin: 0 0 8px; color: var(--brand-dark); font-size: 18px; font-weight: 700; border-left: 4px solid var(--brand-accent); padding-left: 8px; }
+      table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 8px; border: 1px solid var(--line-soft); border-radius: 10px; overflow: hidden; }
+      th, td { padding: 8px 10px; border: 0; }
+      tbody td { border-bottom: 1px solid var(--line-soft); }
+      tbody tr:last-child td { border-bottom: 0; }
+      th { background: var(--brand-dark); color: #fff; text-align: left; font-weight: 600; }
       td.num, th.num { text-align: right; }
-      tbody tr:nth-child(even) td { background: #f8fbff; }
-      tr.total td { font-weight: 700; background: #fff5d6; color: #7a5600; }
+      tbody tr:nth-child(even) td { background: var(--paper-soft); }
+      tr.total td { font-weight: 700; background: #fff5d6; color: #7a5600; border-top: 1px solid #f2df9f; }
       .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
       .card { border: 1px solid #bfd2ea; border-radius: 8px; padding: 10px; background: #f8fbff; }
       .card .k { font-size: 10px; color: #334155; text-transform: uppercase; letter-spacing: .05em; }
-      .card .v { margin-top: 4px; font-size: 16px; font-weight: 700; color: #0b2547; }
+      .card .v { margin-top: 4px; font-size: 16px; font-weight: 700; color: var(--brand-dark); }
       .signatures { margin-top: 26px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
       .sig-title { font-size: 12px; color: #0f172a; margin-bottom: 34px; }
-      .sig-line { border-top: 2px solid #1d4e89; padding-top: 6px; color: #0f172a; font-size: 12px; font-weight: 600; }
+      .sig-line { border-top: 2px solid var(--brand-mid); padding-top: 6px; color: #0f172a; font-size: 12px; font-weight: 600; }
       .footer { margin-top: 14px; display: flex; justify-content: space-between; gap: 20px; color: #475569; font-size: 11px; }
       @media print {
         .signatures { break-inside: avoid; }
