@@ -84,9 +84,10 @@ const MORE_EMOJIS = [
 const LONG_PRESS_MS = 520;
 const LONG_PRESS_MOVE_CANCEL_PX = 14;
 /** Touch / pen (and mouse drag for testing): horizontal swipe on a bubble starts a reply. */
-const SWIPE_REPLY_MIN_PX = 32;
-const SWIPE_REPLY_MAX_VERTICAL_PX = 100;
-const SWIPE_REPLY_HORIZONTAL_RATIO = 1.0;
+// Thresholds are tuned for real finger jitter: we primarily need "mostly horizontal".
+const SWIPE_REPLY_MIN_PX = 24;
+const SWIPE_REPLY_MAX_VERTICAL_PX = 140;
+const SWIPE_REPLY_HORIZONTAL_RATIO = 0.75;
 
 function isSwipeReplyPointer(e) {
   if (e.pointerType === "touch" || e.pointerType === "pen") return true;
@@ -144,8 +145,10 @@ export default function ChatRoom() {
     startY: 0,
     messageId: null,
     pointerId: null,
-    /** True when this gesture was started as touch/pen (pointerup may still complete swipe). */
-    tracking: false
+    // True when this gesture was started as touch/pen (pointerup may still complete swipe).
+    tracking: false,
+    senderEmail: null,
+    bodySnippet: null
   });
   const [typingUsers, setTypingUsers] = useState({});
   const [searchQ, setSearchQ] = useState("");
@@ -358,6 +361,40 @@ export default function ChatRoom() {
 
   const onMessagePointerMove = useCallback(
     (e) => {
+      // Swipe-to-reply: trigger as soon as the gesture looks valid.
+      // This avoids relying on `pointerup` (which can be cancelled/suppressed by some WebViews).
+      const s = swipeReplyRef.current;
+      if (s.tracking && s.pointerId != null && e.pointerId === s.pointerId && s.messageId != null) {
+        const dx = e.clientX - s.startX;
+        const dy = e.clientY - s.startY;
+        const absX = Math.abs(dx);
+        const absY = Math.abs(dy);
+
+        if (absY <= SWIPE_REPLY_MAX_VERTICAL_PX && absX >= SWIPE_REPLY_MIN_PX && absX >= absY * SWIPE_REPLY_HORIZONTAL_RATIO) {
+          swipeReplyRef.current = {
+            startX: 0,
+            startY: 0,
+            messageId: null,
+            pointerId: null,
+            tracking: false,
+            senderEmail: null,
+            bodySnippet: null
+          };
+          endMessageLongPress();
+          setReplyTo({
+            id: s.messageId,
+            senderEmail: s.senderEmail,
+            bodySnippet: s.bodySnippet || ""
+          });
+          try {
+            if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(18);
+          } catch {
+            /* ignore */
+          }
+          return;
+        }
+      }
+
       if (longPressRef.current.timer == null) return;
       const dx = Math.abs(e.clientX - longPressRef.current.startX);
       const dy = Math.abs(e.clientY - longPressRef.current.startY);
@@ -365,7 +402,7 @@ export default function ChatRoom() {
         clearLongPressTimer();
       }
     },
-    [clearLongPressTimer]
+    [clearLongPressTimer, endMessageLongPress]
   );
 
   const endMessageLongPress = useCallback(() => {
@@ -373,14 +410,23 @@ export default function ChatRoom() {
   }, [clearLongPressTimer]);
 
   const onMessageBubblePointerDown = useCallback(
-    (e, messageId) => {
-      if (editingId === messageId) return;
+    (e, m) => {
+      if (editingId === m.id) return;
       if (!targetAllowsLongPress(e.target)) {
         if (isSwipeReplyPointer(e)) {
-          swipeReplyRef.current = { startX: 0, startY: 0, messageId: null, pointerId: null, tracking: false };
+          swipeReplyRef.current = {
+            startX: 0,
+            startY: 0,
+            messageId: null,
+            pointerId: null,
+            tracking: false,
+            senderEmail: null,
+            bodySnippet: null
+          };
         }
         return;
       }
+      const messageId = m.id;
       if (isSwipeReplyPointer(e) && e.currentTarget instanceof Element) {
         try {
           e.currentTarget.setPointerCapture(e.pointerId);
@@ -395,10 +441,20 @@ export default function ChatRoom() {
           startY: e.clientY,
           messageId,
           pointerId: e.pointerId,
-          tracking: true
+          tracking: true,
+          senderEmail: m.senderEmail,
+          bodySnippet: (m.body || "").slice(0, 200)
         };
       } else {
-        swipeReplyRef.current = { startX: 0, startY: 0, messageId: null, pointerId: null, tracking: false };
+        swipeReplyRef.current = {
+          startX: 0,
+          startY: 0,
+          messageId: null,
+          pointerId: null,
+          tracking: false,
+          senderEmail: null,
+          bodySnippet: null
+        };
       }
     },
     [startMessageLongPress, editingId]
@@ -408,7 +464,15 @@ export default function ChatRoom() {
     (e, m) => {
       endMessageLongPress();
       if (editingId === m.id) {
-        swipeReplyRef.current = { startX: 0, startY: 0, messageId: null, pointerId: null, tracking: false };
+        swipeReplyRef.current = {
+          startX: 0,
+          startY: 0,
+          messageId: null,
+          pointerId: null,
+          tracking: false,
+          senderEmail: null,
+          bodySnippet: null
+        };
         return;
       }
       const s = swipeReplyRef.current;
@@ -417,7 +481,15 @@ export default function ChatRoom() {
 
       const dx = e.clientX - s.startX;
       const dy = e.clientY - s.startY;
-      swipeReplyRef.current = { startX: 0, startY: 0, messageId: null, pointerId: null, tracking: false };
+      swipeReplyRef.current = {
+        startX: 0,
+        startY: 0,
+        messageId: null,
+        pointerId: null,
+        tracking: false,
+        senderEmail: null,
+        bodySnippet: null
+      };
 
       const absX = Math.abs(dx);
       const absY = Math.abs(dy);
@@ -427,8 +499,8 @@ export default function ChatRoom() {
 
       setReplyTo({
         id: m.id,
-        senderEmail: m.senderEmail,
-        bodySnippet: (m.body || "").slice(0, 200)
+        senderEmail: s.senderEmail || m.senderEmail,
+        bodySnippet: s.bodySnippet || (m.body || "").slice(0, 200)
       });
       try {
         if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(22);
@@ -443,7 +515,15 @@ export default function ChatRoom() {
     (e) => {
       endMessageLongPress();
       if (swipeReplyRef.current.pointerId === e.pointerId) {
-        swipeReplyRef.current = { startX: 0, startY: 0, messageId: null, pointerId: null, tracking: false };
+        swipeReplyRef.current = {
+          startX: 0,
+          startY: 0,
+          messageId: null,
+          pointerId: null,
+          tracking: false,
+          senderEmail: null,
+          bodySnippet: null
+        };
       }
     },
     [endMessageLongPress]
@@ -861,11 +941,11 @@ export default function ChatRoom() {
                     id={`chat-msg-${m.id}`}
                     className={
                       (isMe
-                        ? "relative inline-block max-w-[min(100%,28rem)] rounded-xl bg-brand-50 px-3 py-2 text-left touch-manipulation dark:bg-brand-950/30"
-                        : "relative inline-block max-w-[min(100%,28rem)] rounded-xl bg-slate-50 px-3 py-2 text-left touch-manipulation dark:bg-slate-800/40") +
+                        ? "relative inline-block max-w-[min(100%,28rem)] rounded-xl bg-brand-50 px-3 py-2 text-left touch-pan-y dark:bg-brand-950/30"
+                        : "relative inline-block max-w-[min(100%,28rem)] rounded-xl bg-slate-50 px-3 py-2 text-left touch-pan-y dark:bg-slate-800/40") +
                       (highlightId === m.id ? " ring-2 ring-brand-500 ring-offset-2 dark:ring-offset-slate-900" : "")
                     }
-                    onPointerDown={(e) => onMessageBubblePointerDown(e, m.id)}
+                    onPointerDown={(e) => onMessageBubblePointerDown(e, m)}
                     onPointerMove={onMessagePointerMove}
                     onPointerUp={(e) => onMessageBubblePointerUp(e, m)}
                     onPointerCancel={onMessageBubblePointerCancel}
