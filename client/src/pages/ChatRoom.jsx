@@ -83,14 +83,18 @@ const MORE_EMOJIS = [
 ];
 const LONG_PRESS_MS = 520;
 const LONG_PRESS_MOVE_CANCEL_PX = 14;
-/** Touch / pen: horizontal swipe on a bubble starts a reply (WhatsApp-style). */
-const SWIPE_REPLY_MIN_PX = 40;
-const SWIPE_REPLY_MAX_VERTICAL_PX = 72;
-const SWIPE_REPLY_HORIZONTAL_RATIO = 1.05;
+/** Touch / pen (and mouse drag for testing): horizontal swipe on a bubble starts a reply. */
+const SWIPE_REPLY_MIN_PX = 32;
+const SWIPE_REPLY_MAX_VERTICAL_PX = 100;
+const SWIPE_REPLY_HORIZONTAL_RATIO = 1.0;
 
 function isSwipeReplyPointer(e) {
-  return e.pointerType === "touch" || e.pointerType === "pen";
+  if (e.pointerType === "touch" || e.pointerType === "pen") return true;
+  // Some WebViews briefly report an empty type on touch pointers.
+  if (!e.pointerType && typeof navigator !== "undefined" && navigator.maxTouchPoints > 0) return true;
+  return false;
 }
+
 
 function targetAllowsLongPress(target) {
   if (!(target instanceof Element)) return false;
@@ -135,7 +139,14 @@ export default function ChatRoom() {
   const lastMarkedReadIdRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const longPressRef = useRef({ timer: null, startX: 0, startY: 0 });
-  const swipeReplyRef = useRef({ startX: 0, startY: 0, messageId: null, pointerId: null });
+  const swipeReplyRef = useRef({
+    startX: 0,
+    startY: 0,
+    messageId: null,
+    pointerId: null,
+    /** True when this gesture was started as touch/pen (pointerup may still complete swipe). */
+    tracking: false
+  });
   const [typingUsers, setTypingUsers] = useState({});
   const [searchQ, setSearchQ] = useState("");
   const [showSearch, setShowSearch] = useState(false);
@@ -365,12 +376,12 @@ export default function ChatRoom() {
     (e, messageId) => {
       if (editingId === messageId) return;
       if (!targetAllowsLongPress(e.target)) {
-        if (e.pointerType === "touch") {
-          swipeReplyRef.current = { startX: 0, startY: 0, messageId: null, pointerId: null };
+        if (isSwipeReplyPointer(e)) {
+          swipeReplyRef.current = { startX: 0, startY: 0, messageId: null, pointerId: null, tracking: false };
         }
         return;
       }
-      if (e.pointerType === "touch" && e.currentTarget instanceof Element) {
+      if (isSwipeReplyPointer(e) && e.currentTarget instanceof Element) {
         try {
           e.currentTarget.setPointerCapture(e.pointerId);
         } catch {
@@ -383,10 +394,11 @@ export default function ChatRoom() {
           startX: e.clientX,
           startY: e.clientY,
           messageId,
-          pointerId: e.pointerId
+          pointerId: e.pointerId,
+          tracking: true
         };
       } else {
-        swipeReplyRef.current = { startX: 0, startY: 0, messageId: null, pointerId: null };
+        swipeReplyRef.current = { startX: 0, startY: 0, messageId: null, pointerId: null, tracking: false };
       }
     },
     [startMessageLongPress, editingId]
@@ -395,18 +407,17 @@ export default function ChatRoom() {
   const onMessageBubblePointerUp = useCallback(
     (e, m) => {
       endMessageLongPress();
-      if (!isSwipeReplyPointer(e)) return;
       if (editingId === m.id) {
-        swipeReplyRef.current = { startX: 0, startY: 0, messageId: null, pointerId: null };
+        swipeReplyRef.current = { startX: 0, startY: 0, messageId: null, pointerId: null, tracking: false };
         return;
       }
       const s = swipeReplyRef.current;
-      if (s.pointerId != null && e.pointerId !== s.pointerId) return;
-      if (s.messageId !== m.id) return;
+      if (!s.tracking || s.messageId !== m.id) return;
+      if (e.pointerId !== s.pointerId) return;
 
       const dx = e.clientX - s.startX;
       const dy = e.clientY - s.startY;
-      swipeReplyRef.current = { startX: 0, startY: 0, messageId: null, pointerId: null };
+      swipeReplyRef.current = { startX: 0, startY: 0, messageId: null, pointerId: null, tracking: false };
 
       const absX = Math.abs(dx);
       const absY = Math.abs(dy);
@@ -431,8 +442,8 @@ export default function ChatRoom() {
   const onMessageBubblePointerCancel = useCallback(
     (e) => {
       endMessageLongPress();
-      if (isSwipeReplyPointer(e)) {
-        swipeReplyRef.current = { startX: 0, startY: 0, messageId: null, pointerId: null };
+      if (swipeReplyRef.current.pointerId === e.pointerId) {
+        swipeReplyRef.current = { startX: 0, startY: 0, messageId: null, pointerId: null, tracking: false };
       }
     },
     [endMessageLongPress]
@@ -829,7 +840,7 @@ export default function ChatRoom() {
         ref={scrollRef}
         role="region"
         aria-label="Chat messages"
-        className="min-h-[320px] flex-1 overflow-y-auto rounded-xl border border-slate-200 bg-white/70 p-3 dark:border-slate-700 dark:bg-slate-900/30"
+        className="min-h-[320px] flex-1 touch-pan-y overflow-y-auto overscroll-y-contain rounded-xl border border-slate-200 bg-white/70 p-3 dark:border-slate-700 dark:bg-slate-900/30"
         onScroll={() => {
           const el = scrollRef.current;
           if (!el) return;
