@@ -33,17 +33,17 @@ export function eurPlain(n) {
 
 /**
  * @param {object} p - portfolio API payload
- * @param {object} members - members block
+ * @param {object} directorsBlock - directors summary from /portfolio
  */
-export function buildGeneralDirectorsCsv(p, members) {
+export function buildGeneralDirectorsCsv(p, directorsBlock) {
   const lines = [
     ["ZweckOS — Directors equity statement"],
     [`Generated ${new Date().toISOString()}`],
     [],
     ["Total assets (EUR)", eurPlain(p.totalAssets)],
-    ["Total member equity (EUR)", eurPlain(members.totalEquity)],
-    ["Total contributed capital (EUR)", eurPlain(members.totalCapital)],
-    ["Directors (count)", String(members.count)],
+    ["Total director equity (EUR)", eurPlain(directorsBlock.totalEquity)],
+    ["Total contributed capital (EUR)", eurPlain(directorsBlock.totalCapital)],
+    ["Directors (count)", String(directorsBlock.count)],
     [],
     [
       "Name",
@@ -57,7 +57,7 @@ export function buildGeneralDirectorsCsv(p, members) {
       "Capital share %"
     ]
   ];
-  for (const d of members.directors || []) {
+  for (const d of directorsBlock.list || []) {
     lines.push([
       d.name,
       d.email,
@@ -76,9 +76,9 @@ export function buildGeneralDirectorsCsv(p, members) {
 /**
  * @param {object} d - single director from API
  * @param {object} p - portfolio
- * @param {object} members - members block
+ * @param {object} directorsBlock - directors summary from /portfolio
  */
-export function buildDirectorStatementCsv(d, p, members) {
+export function buildDirectorStatementCsv(d, p, directorsBlock) {
   const lines = [
     ["ZweckOS — Director statement"],
     [`Generated ${new Date().toISOString()}`],
@@ -90,15 +90,15 @@ export function buildDirectorStatementCsv(d, p, members) {
     ["Joined round", String(d.joinedRound)],
     [],
     ["Pool reference (all directors)"],
-    ["Total member equity (EUR)", eurPlain(members.totalEquity)],
-    ["Total contributed capital (EUR)", eurPlain(members.totalCapital)],
+    ["Total director equity (EUR)", eurPlain(directorsBlock.totalEquity)],
+    ["Total contributed capital (EUR)", eurPlain(directorsBlock.totalCapital)],
     ["Total assets — organisation (EUR)", eurPlain(p.totalAssets)],
     [],
     ["This director"],
     ["Capital (EUR)", eurPlain(d.capital)],
     ["Side fund (EUR)", eurPlain(d.sideFund)],
     ["Total stake (EUR)", eurPlain(d.total)],
-    ["Share of member equity", fmtPct01(d.equityShare, 2)],
+    ["Share of director equity", fmtPct01(d.equityShare, 2)],
     ["Share of contributed capital", fmtPct01(d.capitalShare, 2)]
   ];
   return rowsToCsv(lines);
@@ -290,10 +290,10 @@ function letterhead(docTitle, metaLine) {
 
 /**
  * @param {object} p
- * @param {object} members
+ * @param {object} directorsBlock
  */
-export function printGeneralDirectorsStatement(p, members) {
-  const rows = (members.directors || [])
+export function printGeneralDirectorsStatement(p, directorsBlock) {
+  const rows = (directorsBlock.list || [])
     .map(
       (d) => `<tr>
       <td>${escapeHtml(d.name)}</td>
@@ -308,18 +308,18 @@ export function printGeneralDirectorsStatement(p, members) {
     )
     .join("");
 
-  const meta = `Generated ${new Date().toLocaleString()} · ${members.directors?.length || 0} director(s) · EUR`;
+  const meta = `Generated ${new Date().toLocaleString()} · ${directorsBlock.list?.length || 0} director(s) · EUR`;
 
   const html = `
     ${letterhead("Directors equity statement", meta)}
     <div class="summary">
       <div class="summary-card">
-        <div class="summary-card__label">Total member equity</div>
-        <div class="summary-card__value">${eurPlain(members.totalEquity)} €</div>
+        <div class="summary-card__label">Total director equity</div>
+        <div class="summary-card__value">${eurPlain(directorsBlock.totalEquity)} €</div>
       </div>
       <div class="summary-card">
         <div class="summary-card__label">Contributed capital</div>
-        <div class="summary-card__value">${eurPlain(members.totalCapital)} €</div>
+        <div class="summary-card__value">${eurPlain(directorsBlock.totalCapital)} €</div>
       </div>
       <div class="summary-card">
         <div class="summary-card__label">Organisation assets</div>
@@ -327,7 +327,7 @@ export function printGeneralDirectorsStatement(p, members) {
       </div>
       <div class="summary-card">
         <div class="summary-card__label">Directors</div>
-        <div class="summary-card__value">${members.count} <span style="font-size:11px;font-weight:600;color:#64748b">(${members.activeCount} active)</span></div>
+        <div class="summary-card__value">${directorsBlock.count} <span style="font-size:11px;font-weight:600;color:#64748b">(${directorsBlock.activeCount} active)</span></div>
       </div>
     </div>
     <div class="section-title">Detail by director</div>
@@ -346,14 +346,14 @@ export function printGeneralDirectorsStatement(p, members) {
 /**
  * @param {object} d
  * @param {object} p
- * @param {object} members
+ * @param {object} directorsBlock
  */
-export function printDirectorStatement(d, p, members) {
+export function printDirectorStatement(d, p, directorsBlock) {
   const meta = `${escapeHtml(d.name)} · Generated ${new Date().toLocaleString()} · EUR`;
 
   const html = `
-    ${letterhead("Member equity statement", meta)}
-    <div class="section-title">Member profile</div>
+    ${letterhead("Director equity statement", meta)}
+    <div class="section-title">Director profile</div>
     <table class="kv">
       <tbody>
         <tr><th colspan="2">${escapeHtml(d.name)} (${escapeHtml(d.initials)})</th></tr>
@@ -362,21 +362,21 @@ export function printDirectorStatement(d, p, members) {
         <tr><td>Joined round</td><td>${d.joinedRound}</td></tr>
       </tbody>
     </table>
-    <div class="section-title">This member's position</div>
+    <div class="section-title">This director&apos;s position</div>
     <table class="kv">
       <tbody>
         <tr><td>Capital</td><td class="num">${eurPlain(d.capital)} €</td></tr>
         <tr><td>Side fund</td><td class="num">${eurPlain(d.sideFund)} €</td></tr>
         <tr><td>Total stake</td><td class="num">${eurPlain(d.total)} €</td></tr>
-        <tr><td>Share of member equity</td><td class="num">${fmtPct01(d.equityShare, 2)}</td></tr>
+        <tr><td>Share of director equity</td><td class="num">${fmtPct01(d.equityShare, 2)}</td></tr>
         <tr><td>Share of contributed capital</td><td class="num">${fmtPct01(d.capitalShare, 2)}</td></tr>
       </tbody>
     </table>
-    <div class="section-title">Organisation reference (all members)</div>
+    <div class="section-title">Organisation reference (all directors)</div>
     <table class="kv">
       <tbody>
-        <tr><td>Total member equity</td><td class="num">${eurPlain(members.totalEquity)} €</td></tr>
-        <tr><td>Total contributed capital</td><td class="num">${eurPlain(members.totalCapital)} €</td></tr>
+        <tr><td>Total director equity</td><td class="num">${eurPlain(directorsBlock.totalEquity)} €</td></tr>
+        <tr><td>Total contributed capital</td><td class="num">${eurPlain(directorsBlock.totalCapital)} €</td></tr>
         <tr><td>Total assets (Bank and project-linked assets)</td><td class="num">${eurPlain(p.totalAssets)} €</td></tr>
       </tbody>
     </table>

@@ -186,13 +186,14 @@ export function incomeExpenseMix(transactions) {
 export function downloadChartOfAccountsCsv(accounts, balances, groups, filename = "zweck-chart-of-accounts.csv") {
   if (!accounts || !balances) return;
   const esc = (s) => `"${String(s ?? "").replace(/"/g, '""')}"`;
-  const lines = [["group", "key", "name", "balance_display_eur"].map(esc).join(",")];
+  const lines = [["group", "code", "key", "name", "balance_display_eur"].map(esc).join(",")];
   for (const g of groups) {
     for (const [key, meta] of Object.entries(accounts)) {
       if (meta.group !== g) continue;
       const bal = balances[key] || 0;
       const display = g === "Income" || g === "Equity" ? -bal : bal;
-      lines.push([g, key, meta.name, String(display)].map(esc).join(","));
+      const code = meta.code != null ? String(meta.code) : "";
+      lines.push([g, code, key, meta.name, String(display)].map(esc).join(","));
     }
   }
   const blob = new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
@@ -206,12 +207,15 @@ export function downloadChartOfAccountsCsv(accounts, balances, groups, filename 
 
 export function downloadTransactionsCsv(transactions, filename = "zweck-transactions.csv") {
   const esc = (s) => `"${String(s ?? "").replace(/"/g, '""')}"`;
-  const headers = ["date", "type", "amount", "director", "description"];
+  const headers = ["reference", "date", "type", "currency", "amount", "director", "description"];
   const lines = [headers.join(",")];
   for (const t of transactions) {
+    const ref = t.reference || (t.id != null ? `ZWC-${String(t.id).padStart(7, "0")}` : "");
     const row = [
+      ref,
       t.date,
       t.type,
+      t.currency || "EUR",
       t.amount,
       t.director?.name || "",
       (t.description || "").replace(/\r?\n/g, " ")

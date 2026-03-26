@@ -192,6 +192,7 @@ export default function ChartOfAccounts() {
               <table className="min-w-full text-sm">
                 <thead className="text-left text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   <tr>
+                    <th className="py-2 pr-3">Code</th>
                     <th className="py-2 pr-3">Account</th>
                     <th className="py-2 pr-3">Key</th>
                     {g === "Assets" ? <th className="py-2 pr-3 text-right">% of assets</th> : null}
@@ -217,7 +218,7 @@ export default function ChartOfAccounts() {
                     );
                   })}
                   <tr className="bg-slate-50 dark:bg-slate-900/60">
-                    <td className="py-2 pr-3 font-semibold" colSpan={g === "Assets" ? 3 : 2}>
+                    <td className="py-2 pr-3 font-semibold" colSpan={g === "Assets" ? 4 : 3}>
                       Subtotal
                     </td>
                     <td className="py-2 pr-3 text-right font-semibold">{eur(displaySubtotal)}</td>

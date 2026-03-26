@@ -66,7 +66,7 @@ const APP_FEATURES = [
   {
     title: "Directors",
     to: "/directors",
-    description: "Member profiles, rounds, and avatars."
+    description: "Director profiles, rounds, and avatars."
   },
   {
     title: "Portfolio",

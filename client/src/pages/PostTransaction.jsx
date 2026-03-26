@@ -1,15 +1,23 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useOutletContext } from "react-router-dom";
 import DirectorAvatar from "../components/DirectorAvatar";
 import ErrorBanner from "../components/ErrorBanner";
 import { postTransaction, deleteTransaction, updateTransaction, listTransactions, txItems } from "../api/transactions";
 import { listDirectors } from "../api/directors";
-import { eur, fmtDate, parseMoneyAmountInput, roundToCents } from "../lib/format";
-import { TX_ACCOUNT_MAP, TX_TYPE_GROUPS, TX_TYPE_LABELS } from "../lib/transactionTypes";
+import { fmtDate, formatMoney, formatTxRef, parseMoneyAmountInput, roundToCents } from "../lib/format";
+import {
+  TX_ACCOUNT_MAP,
+  TX_TYPE_GROUPS,
+  TX_TYPE_LABELS,
+  TX_POSTING_CATEGORY,
+  POSTING_BUCKET_OPTIONS,
+  filterTxTypeGroupsForBucket,
+  firstTxTypeInBucket
+} from "../lib/transactionTypes";
 const TEMPLATES = [
   { id: "monthly-fee", label: "Monthly charges", type: "TX_CHARGE", amount: "25", description: "Monthly bank/service charges" },
-  { id: "registration", label: "Registration fee", type: "REGISTRATION", amount: "50", description: "Member registration charge" },
+  { id: "registration", label: "Registration fee", type: "REGISTRATION", amount: "50", description: "Director registration charge" },
   { id: "legal", label: "Legal filing", type: "LEGAL", amount: "120", description: "Legal/compliance filing fee" }
 ];
 
@@ -25,8 +33,10 @@ export default function PostTransaction() {
     }
   });
 
+  const [postingBucket, setPostingBucket] = useState("ALL");
   const [type, setType] = useState("CONTRIBUTION");
   const [directorId, setDirectorId] = useState("");
+  const [currency, setCurrency] = useState("EUR");
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [description, setDescription] = useState("");
@@ -38,6 +48,17 @@ export default function PostTransaction() {
 
   const map = TX_ACCOUNT_MAP[type];
   const needsDirector = map?.needsDirector;
+
+  const typeGroupsFiltered = useMemo(() => filterTxTypeGroupsForBucket(postingBucket), [postingBucket]);
+
+  useEffect(() => {
+    if (postingBucket === "ALL") return;
+    const cat = TX_POSTING_CATEGORY[type];
+    if (cat !== postingBucket) {
+      const next = firstTxTypeInBucket(postingBucket);
+      if (next) setType(next);
+    }
+  }, [postingBucket]);
 
   const mPost = useMutation({
     mutationFn: (payload) => postTransaction(payload),
@@ -88,29 +109,29 @@ export default function PostTransaction() {
   });
 
   const preview = useMemo(() => {
-    const parsed = parseMoneyAmountInput(amount);
+    const parsed = parseMoneyAmountInput(amount, currency);
     let n = 0;
     if (parsed.ok) n = parsed.value;
     else {
       const x = Number(amount);
-      n = Number.isFinite(x) ? roundToCents(x) : 0;
+      n = Number.isFinite(x) ? (currency === "UGX" ? Math.round(x) : roundToCents(x)) : 0;
     }
     return {
       debit: map?.debit,
       credit: map?.credit,
       amount: Number.isFinite(n) ? n : 0
     };
-  }, [amount, map]);
+  }, [amount, currency, map]);
 
   const validation = useMemo(() => {
-    const parsed = parseMoneyAmountInput(amount);
+    const parsed = parseMoneyAmountInput(amount, currency);
     if (!parsed.ok) {
       if (amount.trim() === "") return "Enter amount.";
       return parsed.error;
     }
     if (needsDirector && !directorId) return "Select director for this transaction type.";
     return "";
-  }, [amount, needsDirector, directorId]);
+  }, [amount, currency, needsDirector, directorId]);
 
   const selectedDirector = useMemo(() => {
     if (!needsDirector || !directorId) return null;
@@ -121,11 +142,12 @@ export default function PostTransaction() {
   function onSubmit(e) {
     e.preventDefault();
     setSuccess(null);
-    const parsedAmount = parseMoneyAmountInput(amount);
+    const parsedAmount = parseMoneyAmountInput(amount, currency);
     if (!parsedAmount.ok) return;
     const payload = {
       type,
       amount: parsedAmount.value,
+      currency,
       date: new Date(`${date}T12:00:00.000Z`).toISOString(),
       description: description || undefined,
       directorId: needsDirector ? Number(directorId) : undefined
@@ -170,6 +192,7 @@ export default function PostTransaction() {
     const t = list[0];
     const dirId = t.director?.id ?? t.directorId;
     setType(t.type);
+    setCurrency(t.currency || "EUR");
     setAmount(String(t.amount ?? ""));
     setDirectorId(dirId != null && dirId !== "" ? String(dirId) : "");
     setDescription(t.description || "");
@@ -179,11 +202,21 @@ export default function PostTransaction() {
   }
 
   function exportRecentCsv() {
-    const headers = ["date", "type", "director", "amount", "description"];
+    const headers = ["reference", "date", "type", "currency", "director", "amount", "description"];
     const esc = (v) => `"${String(v ?? "").replaceAll('"', '""')}"`;
     const lines = [
       headers.join(","),
-      ...recentFiltered.map((t) => [esc(fmtDate(t.date)), esc(t.type), esc(t.director?.name || ""), esc(t.amount), esc(t.description || "")].join(","))
+      ...recentFiltered.map((t) =>
+        [
+          esc(t.reference || formatTxRef(t.id)),
+          esc(fmtDate(t.date)),
+          esc(t.type),
+          esc(t.currency || "EUR"),
+          esc(t.director?.name || ""),
+          esc(t.amount),
+          esc(t.description || "")
+        ].join(",")
+      )
     ];
     const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -228,9 +261,23 @@ export default function PostTransaction() {
       <form onSubmit={onSubmit} className="space-y-4 rounded-xl ui-surface p-4">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div>
+            <label className="text-xs font-medium text-slate-700">Category</label>
+            <select
+              className="mt-1 w-full rounded-lg border-slate-300"
+              value={postingBucket}
+              onChange={(e) => setPostingBucket(e.target.value)}
+            >
+              {POSTING_BUCKET_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
             <label className="text-xs font-medium text-slate-700">Type</label>
             <select className="mt-1 w-full rounded-lg border-slate-300" value={type} onChange={(e) => setType(e.target.value)}>
-              {TX_TYPE_GROUPS.map((g) => (
+              {typeGroupsFiltered.map((g) => (
                 <optgroup key={g.label} label={g.label}>
                   {g.options.map((o) => (
                     <option key={o.value} value={o.value}>
@@ -266,19 +313,30 @@ export default function PostTransaction() {
           ) : null}
 
           <div>
-            <label className="text-xs font-medium text-slate-700">Amount (€)</label>
+            <label className="text-xs font-medium text-slate-700">Currency</label>
+            <select className="mt-1 w-full rounded-lg border-slate-300" value={currency} onChange={(e) => setCurrency(e.target.value)}>
+              <option value="EUR">EUR</option>
+              <option value="USD">USD</option>
+              <option value="UGX">UGX</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-slate-700">Amount ({currency})</label>
             <input
               className="mt-1 w-full rounded-lg border-slate-300"
               inputMode="decimal"
               type="number"
-              step="0.01"
+              step={currency === "UGX" ? "1" : "0.01"}
               min="0"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               required
-              placeholder="0.00"
+              placeholder={currency === "UGX" ? "0" : "0.00"}
             />
-            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">You can include cents (e.g. 2.23).</p>
+            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+              {currency === "UGX" ? "Whole numbers only (no cents)." : "You can include cents (e.g. 2.23)."}
+            </p>
           </div>
 
           <div>
@@ -301,7 +359,7 @@ export default function PostTransaction() {
             <span className="rounded bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">{preview.debit}</span>{" "}
             and <span className="font-medium">credit</span>{" "}
             <span className="rounded bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700">{preview.credit}</span>{" "}
-            by <span className="font-semibold">{eur(preview.amount)}</span>.
+            by <span className="font-semibold">{formatMoney(preview.amount, currency)}</span>.
           </div>
         </div>
         {validation ? (
@@ -318,6 +376,7 @@ export default function PostTransaction() {
                 setSuccess(null);
                 setType("CONTRIBUTION");
                 setDirectorId("");
+                setCurrency("EUR");
                 setAmount("");
                 setDescription("");
               }}
@@ -380,6 +439,7 @@ export default function PostTransaction() {
             <table className="min-w-full text-left">
               <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-600">
                 <tr>
+                  <th className="px-3 py-2">Ref</th>
                   <th className="px-3 py-2">Date</th>
                   <th className="px-3 py-2">Type</th>
                   <th className="px-3 py-2">Director</th>
@@ -390,6 +450,9 @@ export default function PostTransaction() {
               <tbody className="divide-y divide-slate-100">
                 {recentFiltered.map((t) => (
                   <tr key={t.id}>
+                    <td className="px-3 py-2 whitespace-nowrap font-mono text-xs text-slate-600">
+                      {t.reference || formatTxRef(t.id)}
+                    </td>
                     <td className="px-3 py-2 whitespace-nowrap">{fmtDate(t.date)}</td>
                     <td className="px-3 py-2 whitespace-nowrap text-xs font-semibold">
                       {TX_TYPE_LABELS[t.type] || t.type.replaceAll("_", " ")}
@@ -398,7 +461,7 @@ export default function PostTransaction() {
                       {t.director?.name || <span className="text-slate-400">—</span>}
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap text-right font-semibold">
-                      {eur(t.amount)}
+                      {formatMoney(t.amount, t.currency || "EUR")}
                     </td>
                     <td className="px-3 py-2">
                       <div className="flex gap-2">
@@ -408,6 +471,7 @@ export default function PostTransaction() {
                           onClick={() => {
                             setEditingId(t.id);
                             setType(t.type);
+                            setCurrency(t.currency || "EUR");
                             setAmount(String(t.amount));
                             setDate(new Date(t.date).toISOString().slice(0, 10));
                             setDescription(t.description || "");
@@ -441,7 +505,7 @@ export default function PostTransaction() {
                 ))}
                 {recentFiltered.length === 0 && (
                   <tr>
-                    <td className="px-3 py-4 text-center text-slate-500" colSpan={5}>
+                    <td className="px-3 py-4 text-center text-slate-500" colSpan={6}>
                       No transactions match this filter.
                     </td>
                   </tr>

@@ -113,12 +113,12 @@ router.get("/", async (_req, res) => {
       totalAssets > 0
         ? { bank: bank / totalAssets, mmf: mmf / totalAssets, ypa: ypa / totalAssets }
         : { bank: 0, mmf: 0, ypa: 0 },
-    members: {
+    directors: {
       totalEquity,
       totalCapital,
       count: directors.length,
       activeCount: directors.filter((d) => d.active).length,
-      directors: memberRows
+      list: memberRows
     }
   });
 });

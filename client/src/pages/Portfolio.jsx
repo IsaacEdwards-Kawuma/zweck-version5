@@ -58,7 +58,7 @@ function filenameSlug(name) {
     .slice(0, 48) || "director";
 }
 
-function DirectorProfileCard({ d, portfolio: pf, members: m }) {
+function DirectorProfileCard({ d, portfolio: pf, directorsBlock: m }) {
   return (
     <div
       className={[
@@ -110,7 +110,7 @@ function DirectorProfileCard({ d, portfolio: pf, members: m }) {
       <div className="mt-3 space-y-2">
         <div>
           <div className="flex justify-between text-xs ui-body-text">
-            <span>Share of member equity</span>
+            <span>Share of director equity</span>
             <span className="font-semibold ui-page-heading">{pctFmt01(d.equityShare, 1)}</span>
           </div>
           <div className="mt-1 h-2 w-full rounded-full bg-slate-100 dark:bg-slate-700/80">
@@ -166,29 +166,29 @@ export default function Portfolio() {
   const q = usePortfolio();
   const [scenarioAmount, setScenarioAmount] = useState("");
 
-  const members = q.data?.members;
+  const directorsBlock = q.data?.directors;
 
   const barData = useMemo(() => {
-    if (!members?.directors?.length) return [];
-    return members.directors.map((d) => ({
+    if (!directorsBlock?.list?.length) return [];
+    return directorsBlock.list.map((d) => ({
       label: d.initials || String(d.name).slice(0, 10),
       fullName: d.name,
       equityPct: Math.round((d.equityShare || 0) * 1000) / 10,
       capitalPct: Math.round((d.capitalShare || 0) * 1000) / 10,
       total: d.total
     }));
-  }, [members]);
+  }, [directorsBlock]);
 
   const pieData = useMemo(() => {
-    if (!members?.directors?.length) return [];
-    return members.directors
+    if (!directorsBlock?.list?.length) return [];
+    return directorsBlock.list
       .filter((d) => (d.equityShare || 0) > 0)
       .map((d) => ({
         name: d.initials || d.name,
         fullName: d.name,
         value: Math.round((d.equityShare || 0) * 10000) / 100
       }));
-  }, [members]);
+  }, [directorsBlock]);
 
   if (q.isLoading) return <Loading label="Loading portfolio..." />;
   if (q.error) return <ErrorBanner error={q.error} />;
@@ -244,12 +244,12 @@ export default function Portfolio() {
           >
             Print page
           </button>
-          {members ? (
+          {directorsBlock ? (
             <>
               <button
                 type="button"
                 className="ui-btn-outline font-medium text-slate-800"
-                onClick={() => printGeneralDirectorsStatement(p, members)}
+                onClick={() => printGeneralDirectorsStatement(p, directorsBlock)}
               >
                 Print general statement
               </button>
@@ -257,7 +257,7 @@ export default function Portfolio() {
                 type="button"
                 className="ui-btn-outline font-medium text-slate-800"
                 onClick={() =>
-                  downloadTextFile(`zweck-directors-statement-${stmtDate}.csv`, buildGeneralDirectorsCsv(p, members))
+                  downloadTextFile(`zweck-directors-statement-${stmtDate}.csv`, buildGeneralDirectorsCsv(p, directorsBlock))
                 }
               >
                 Export all (CSV)
@@ -269,7 +269,7 @@ export default function Portfolio() {
 
       <PrintStatementHeader
         title="Portfolio statement"
-        subtitle="Asset allocation & member equity overview"
+        subtitle="Asset allocation & director equity overview"
         meta={`Generated ${new Date().toLocaleString()} · EUR · ZweckOS`}
       />
 
@@ -279,31 +279,31 @@ export default function Portfolio() {
         <AssetCard title="Active Projects" value={Math.max(0, p.totalAssets - bankValue)} pct={total ? (p.totalAssets - bankValue) / total : 0} />
       </div>
 
-      {members && (
+      {directorsBlock && (
         <section className="space-y-4 print:break-inside-avoid">
           <div>
             <div className="text-base font-semibold ui-page-heading">Director portfolio analysis</div>
             <div className="text-sm text-slate-600">
-              Equity share = each member&apos;s capital + side fund as a percentage of all members&apos;
+              Equity share = each director&apos;s capital + side fund as a percentage of all directors&apos;
               combined stake. Capital share = share of total contributions only (excludes side fund).
             </div>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-xl ui-surface p-4">
-              <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Total member equity</div>
-              <div className="mt-1 text-xl font-semibold ui-page-heading">{eur(members.totalEquity)}</div>
+              <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Total director equity</div>
+              <div className="mt-1 text-xl font-semibold ui-page-heading">{eur(directorsBlock.totalEquity)}</div>
               <div className="mt-1 text-xs text-slate-500">Sum of capital + side fund</div>
             </div>
             <div className="rounded-xl ui-surface p-4">
               <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Contributed capital</div>
-              <div className="mt-1 text-xl font-semibold ui-page-heading">{eur(members.totalCapital)}</div>
+              <div className="mt-1 text-xl font-semibold ui-page-heading">{eur(directorsBlock.totalCapital)}</div>
               <div className="mt-1 text-xs text-slate-500">CONTRIBUTION transactions only</div>
             </div>
             <div className="rounded-xl ui-surface p-4">
               <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Directors</div>
-              <div className="mt-1 text-xl font-semibold ui-page-heading">{members.count}</div>
-              <div className="mt-1 text-xs text-slate-500">{members.activeCount} active</div>
+              <div className="mt-1 text-xl font-semibold ui-page-heading">{directorsBlock.count}</div>
+              <div className="mt-1 text-xs text-slate-500">{directorsBlock.activeCount} active</div>
             </div>
             <div className="rounded-xl ui-surface p-4">
               <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Total assets</div>
@@ -312,16 +312,16 @@ export default function Portfolio() {
             </div>
           </div>
 
-          {members.totalEquity <= 0 ? (
+          {directorsBlock.totalEquity <= 0 ? (
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-              No member equity recorded yet. Post contribution or side fund transactions to see per-director
+              No director equity recorded yet. Post contribution or side fund transactions to see per-director
               analysis.
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
               <div className="rounded-2xl ui-surface p-4 print:hidden">
                 <div className="text-sm font-semibold ui-page-heading">Equity share by director (%)</div>
-                <div className="mt-2 text-xs text-slate-500">Of total member equity pool</div>
+                <div className="mt-2 text-xs text-slate-500">Of total director equity pool</div>
                 <div className="mt-3" style={{ height: barHeight }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart layout="vertical" data={barData} margin={{ left: 8, right: 16, top: 8, bottom: 8 }}>
@@ -377,10 +377,10 @@ export default function Portfolio() {
           )}
 
           <div>
-            <div className="mb-3 text-sm font-semibold ui-page-heading">Member profiles</div>
+            <div className="mb-3 text-sm font-semibold ui-page-heading">Director profiles</div>
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              {members.directors.map((d) => (
-                <DirectorProfileCard key={d.id} d={d} portfolio={p} members={members} />
+              {directorsBlock.list.map((d) => (
+                <DirectorProfileCard key={d.id} d={d} portfolio={p} directorsBlock={directorsBlock} />
               ))}
             </div>
           </div>

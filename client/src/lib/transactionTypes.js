@@ -131,3 +131,76 @@ export const TX_ACCOUNT_MAP = {
 };
 
 export const ALL_TX_TYPE_VALUES = Object.keys(TX_ACCOUNT_MAP);
+
+/**
+ * Post Transaction first-level filter (Income / Expense / Other).
+ * OTHER = capital, equity moves, loans, inter-account transfers, balance-sheet items.
+ */
+export const TX_POSTING_CATEGORY = {
+  CONTRIBUTION: "OTHER",
+  CAPITAL_WITHDRAWAL: "OTHER",
+  SIDE_FUND: "OTHER",
+  MMF_DEPLOY: "OTHER",
+  MMF_RETURN: "INCOME",
+  YPA_INVEST: "OTHER",
+  REGISTRATION: "EXPENSE",
+  TX_CHARGE: "EXPENSE",
+  LEGAL: "EXPENSE",
+  PENALTY: "INCOME",
+  LOAN_IN: "OTHER",
+  OTHER_OUT: "EXPENSE",
+  INVESTMENT_RETURN: "INCOME",
+  PROJECT_REVENUE: "INCOME",
+  INTEREST_INCOME: "INCOME",
+  DIVIDEND_INCOME: "INCOME",
+  OTHER_INCOME: "INCOME",
+  PROJECT_DISBURSEMENT: "EXPENSE",
+  ASSET_PURCHASE: "EXPENSE",
+  LOAN_REPAYMENT_RECEIVED: "OTHER",
+  LOAN_ADVANCED: "OTHER",
+  TRANSPORT_TRAVEL: "EXPENSE",
+  COMMUNICATION_INTERNET: "EXPENSE",
+  OFFICE_ADMINISTRATION: "EXPENSE",
+  PRINTING_STATIONERY: "EXPENSE",
+  SALARIES_WAGES: "EXPENSE",
+  UTILITIES: "EXPENSE",
+  INSURANCE: "EXPENSE",
+  MEALS_ENTERTAINMENT: "EXPENSE",
+  DIRECTOR_LOAN_TO_COMPANY: "OTHER",
+  DIRECTOR_LOAN_REPAYMENT: "OTHER",
+  LOAN_REPAYMENT_EXTERNAL: "OTHER",
+  WITHHOLDING_TAX: "EXPENSE",
+  VAT_PAYABLE: "EXPENSE",
+  CORPORATE_TAX_PROVISION: "EXPENSE",
+  FOREIGN_EXCHANGE_GAIN: "INCOME",
+  FOREIGN_EXCHANGE_LOSS: "EXPENSE"
+};
+
+/** @type {{ value: string, label: string }[]} */
+export const POSTING_BUCKET_OPTIONS = [
+  { value: "ALL", label: "All types" },
+  { value: "INCOME", label: "Income" },
+  { value: "EXPENSE", label: "Expense" },
+  { value: "OTHER", label: "Other (capital, loans, transfers)" }
+];
+
+/**
+ * @param {string} bucket ALL | INCOME | EXPENSE | OTHER
+ */
+export function filterTxTypeGroupsForBucket(bucket) {
+  if (bucket === "ALL") return TX_TYPE_GROUPS;
+  return TX_TYPE_GROUPS.map((g) => ({
+    ...g,
+    options: g.options.filter((o) => TX_POSTING_CATEGORY[o.value] === bucket)
+  })).filter((g) => g.options.length > 0);
+}
+
+/**
+ * @param {string} bucket
+ * @returns {string|undefined} first tx type value in bucket, or undefined
+ */
+export function firstTxTypeInBucket(bucket) {
+  const groups = filterTxTypeGroupsForBucket(bucket);
+  const first = groups[0]?.options[0];
+  return first?.value;
+}

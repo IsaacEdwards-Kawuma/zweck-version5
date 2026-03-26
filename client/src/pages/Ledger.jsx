@@ -8,7 +8,7 @@ import { useTransactions } from "../hooks/useTransactions";
 import { listDirectors } from "../api/directors";
 import { useQuery } from "@tanstack/react-query";
 import { deleteTransaction, listTransactions, txItems } from "../api/transactions";
-import { eur } from "../lib/format";
+import { eur, formatTxRef } from "../lib/format";
 import { TX_TYPE_GROUPS } from "../lib/transactionTypes";
 
 export default function Ledger() {
@@ -199,6 +199,9 @@ export default function Ledger() {
         <div>
           <div className="uppercase tracking-wide text-[10px] ui-page-muted">Total amount (filtered)</div>
           <div className="mt-0.5 font-semibold">{eur(stats.total)}</div>
+          <div className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">
+            Mixed currencies are summed as-is (no FX conversion).
+          </div>
         </div>
         <div>
           <div className="uppercase tracking-wide text-[10px] text-slate-500">Count (filtered)</div>

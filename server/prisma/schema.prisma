@@ -299,6 +299,8 @@ model Transaction {
   type        TxType
   date        DateTime
   amount      Float
+  /** ISO 4217 code; amounts are stored in this currency (single-currency books per posting). */
+  currency    String    @default("EUR") @db.VarChar(3)
   description String?
   directorId  Int?
   director    Director? @relation(fields: [directorId], references: [id])

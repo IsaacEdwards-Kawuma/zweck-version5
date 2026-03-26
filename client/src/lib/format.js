@@ -1,3 +1,22 @@
+/**
+ * @param {number|string|null|undefined} amount
+ * @param {string} [currency]
+ */
+export function formatMoney(amount, currency = "EUR") {
+  const c = currency || "EUR";
+  const n = Number(amount || 0);
+  if (c === "UGX") {
+    return new Intl.NumberFormat(undefined, { style: "currency", currency: "UGX", maximumFractionDigits: 0 }).format(n);
+  }
+  const iso = c === "USD" ? "USD" : "EUR";
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: iso,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(n);
+}
+
 export function eur(amount) {
   const n = Number(amount || 0);
   return new Intl.NumberFormat(undefined, { style: "currency", currency: "EUR" }).format(n);
@@ -42,11 +61,29 @@ export function roundToCents(n) {
   return Math.round(x * 100) / 100;
 }
 
+/** Whole units (e.g. UGX). */
+export function roundToWhole(n) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return NaN;
+  return Math.round(x);
+}
+
+/**
+ * Stable display reference for a transaction id (matches server).
+ * @param {number|string|null|undefined} id
+ */
+export function formatTxRef(id) {
+  if (id == null || id === "") return "—";
+  return `ZWC-${String(id).padStart(7, "0")}`;
+}
+
 /**
  * Parse a user-typed money string (e.g. "2.23", "10,50" with comma as decimal).
- * Returns { ok: true, value } in euros with at most cent precision, or { ok: false, error }.
+ * UGX: whole numbers only. EUR/USD: max 2 decimal places.
+ * @param {string} raw
+ * @param {string} [currency]
  */
-export function parseMoneyAmountInput(raw) {
+export function parseMoneyAmountInput(raw, currency = "EUR") {
   const s = String(raw ?? "")
     .trim()
     .replace(",", ".");
@@ -54,6 +91,13 @@ export function parseMoneyAmountInput(raw) {
   const n = Number(s);
   if (Number.isNaN(n)) return { ok: false, error: "Amount must be numeric." };
   if (n <= 0) return { ok: false, error: "Amount must be greater than zero." };
+  if (currency === "UGX") {
+    const dot = s.indexOf(".");
+    if (dot !== -1) return { ok: false, error: "UGX amounts must be whole numbers (no decimals)." };
+    const rounded = roundToWhole(n);
+    if (Math.abs(n - rounded) > 1e-9) return { ok: false, error: "UGX amounts must be whole numbers." };
+    return { ok: true, value: rounded };
+  }
   const dot = s.indexOf(".");
   if (dot !== -1 && s.length - dot - 1 > 2) {
     return { ok: false, error: "Use at most two decimal places (cents)." };

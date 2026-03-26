@@ -143,7 +143,7 @@ export default function AboutCompany() {
         <div className="ui-surface rounded-xl border-2 border-dashed border-brand-300/80 p-6 shadow-sm dark:border-brand-500/40">
           <h2 className="text-sm font-semibold text-brand-900 dark:text-brand-200">Edit About page</h2>
           <p className="mt-1 text-xs ui-page-muted">
-            Changes apply to everyone. Member cards below still come from the Directors directory.
+            Changes apply to everyone. Director cards below still come from the Directors directory.
           </p>
           <div className="mt-5">
             <AboutPageEditor payload={draft} onChange={setDraft} />
@@ -206,7 +206,7 @@ export default function AboutCompany() {
                 <ErrorBanner error={q.error} />
               </div>
             ) : directors.length === 0 ? (
-              <p className="mt-6 text-sm ui-body-text">No active members listed yet.</p>
+              <p className="mt-6 text-sm ui-body-text">No active directors listed yet.</p>
             ) : (
               <div className="mt-6 grid gap-4 sm:grid-cols-2">
                 {directors.map((d) => (
@@ -223,7 +223,7 @@ export default function AboutCompany() {
                       {d.occupation ? (
                         <p className="mt-1 line-clamp-2 text-sm ui-body-text">{d.occupation}</p>
                       ) : (
-                        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Member</p>
+                        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Director</p>
                       )}
                       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
                         <span>Round {d.joinedRound ?? "—"}</span>

@@ -8,7 +8,8 @@ import DirectorAvatar from "../components/DirectorAvatar";
 import PrintStatementHeader from "../components/PrintStatementHeader";
 import { deleteDirectorAvatar, getDirector, uploadDirectorAvatar } from "../api/directors";
 import { directorAccount } from "../api/accounts";
-import { eur, eurCompact, fmtDate } from "../lib/format";
+import { eur, eurCompact, fmtDate, formatTxRef } from "../lib/format";
+import { TX_ACCOUNT_MAP } from "../lib/transactionTypes";
 import { downloadTransactionsCsv } from "../lib/reportsAnalytics";
 import { TX_TYPE_LABELS } from "../lib/dashboardAnalytics";
 import {
@@ -45,6 +46,20 @@ export default function DirectorDetail() {
       .map(([type, total]) => ({ type, name: TX_TYPE_LABELS[type] || type, total }))
       .sort((a, b) => b.total - a.total);
   }, [txsEarly]);
+
+  const contributionRows = useMemo(() => {
+    const txs = qProfile.data?.transactions ?? [];
+    return txs.map((t) => {
+      const map = TX_ACCOUNT_MAP[t.type];
+      return {
+        ...t,
+        reference: formatTxRef(t.id),
+        debitAccount: map?.debit ?? "",
+        creditAccount: map?.credit ?? "",
+        currency: t.currency || "EUR"
+      };
+    });
+  }, [qProfile.data?.transactions]);
 
   const capitalPie = useMemo(() => {
     if (!totalsEarly) return [];
@@ -143,7 +158,7 @@ export default function DirectorDetail() {
               <span>
                 Joined round <span className="font-medium text-slate-700">{director.joinedRound}</span>
               </span>
-              <span>Member since {fmtDate(director.createdAt)}</span>
+              <span>Director since {fmtDate(director.createdAt)}</span>
             </div>
             {canManagePhoto ? (
               <div className="mt-3 flex flex-wrap items-center gap-2">

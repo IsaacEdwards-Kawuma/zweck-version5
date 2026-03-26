@@ -11,12 +11,31 @@ const router = Router();
 
 const MAX_TX_LIMIT = 100_000;
 
+function sideFundAllocationFor(currency: "EUR" | "USD" | "UGX"): number {
+  if (currency === "UGX") return 10_000;
+  return 10;
+}
+
+function formatTxRef(id: number): string {
+  return `ZWC-${String(id).padStart(7, "0")}`;
+}
+
+function validateAmountForCurrency(amount: number, currency: string): boolean {
+  if (!Number.isFinite(amount) || amount <= 0) return false;
+  if (currency === "UGX") {
+    return Math.abs(amount - Math.round(amount)) < 1e-9;
+  }
+  const cents = Math.round(amount * 100);
+  return Math.abs(amount - cents / 100) < 1e-9;
+}
+
 function shapeTransactionRow(
   t: {
     id: number;
     type: TxType;
     date: Date;
     amount: Prisma.Decimal | number;
+    currency?: string | null;
     description: string | null;
     director: {
       id: number;
@@ -29,11 +48,14 @@ function shapeTransactionRow(
   }
 ) {
   const map = TX_ACCOUNT_MAP[t.type];
+  const currency = t.currency && t.currency.length ? t.currency : "EUR";
   return {
     id: t.id,
+    reference: formatTxRef(t.id),
     type: t.type,
     date: t.date,
     amount: t.amount,
+    currency,
     description: t.description,
     director: t.director
       ? {
@@ -50,28 +72,33 @@ function shapeTransactionRow(
   };
 }
 
-const baseSchema = z.object({
-  type: z.nativeEnum(TxType),
-  date: z.string().datetime(),
-  amount: z
-    .number()
-    .positive()
-    .refine(
-      (n) => {
-        if (!Number.isFinite(n)) return false;
-        const cents = Math.round(n * 100);
-        return Math.abs(n - cents / 100) < 1e-9;
-      },
-      "Amount must have max 2 decimal places"
-    ),
-  description: z.string().max(300).optional(),
-  directorId: z.number().int().positive().optional()
-});
+const baseSchema = z
+  .object({
+    type: z.nativeEnum(TxType),
+    date: z.string().datetime(),
+    amount: z.number().positive(),
+    description: z.string().max(300).optional(),
+    directorId: z.number().int().positive().optional(),
+    currency: z.enum(["EUR", "USD", "UGX"]).default("EUR")
+  })
+  .refine((data) => validateAmountForCurrency(data.amount, data.currency), {
+    message: "Amount must match currency rules (EUR/USD: max 2 decimals; UGX: whole numbers only)",
+    path: ["amount"]
+  });
 
 const postSchema = baseSchema;
-const updateSchema = baseSchema.partial().refine((val) => Object.keys(val).length > 0, {
-  message: "No fields to update"
-});
+const updateSchema = z
+  .object({
+    type: z.nativeEnum(TxType).optional(),
+    date: z.string().datetime().optional(),
+    amount: z.number().positive().optional(),
+    description: z.string().max(300).optional(),
+    directorId: z.number().int().positive().optional().nullable(),
+    currency: z.enum(["EUR", "USD", "UGX"]).optional()
+  })
+  .refine((val) => Object.keys(val).length > 0, {
+    message: "No fields to update"
+  });
 
 router.get("/", async (req, res) => {
   const { from, to, type, directorId, limit: limitRaw, offset: offsetRaw } = req.query as Record<
@@ -166,26 +193,29 @@ router.post(
       if (!director) return res.status(400).json(apiError("Director not found", "directorId"));
     }
 
-    // Business rule: for each CONTRIBUTION, automatically allocate 10 EUR to side fund
-    // by splitting the original amount into:
-    // - CONTRIBUTION of (amount - 10)
-    // - SIDE_FUND of 10
+    const sideChunk = sideFundAllocationFor(body.currency);
+
+    // Business rule: for each CONTRIBUTION, automatically allocate a fixed side-fund slice by currency
     if (body.type === "CONTRIBUTION" && body.directorId) {
-      if (body.amount <= 10) {
-        return res
-          .status(400)
-          .json(apiError("Contribution must be greater than 10 to allocate 10 to side fund.", "amount"));
+      if (body.amount <= sideChunk) {
+        return res.status(400).json(
+          apiError(
+            `Contribution must be greater than ${sideChunk} ${body.currency} to allocate the side fund slice.`,
+            "amount"
+          )
+        );
       }
 
-      const mainAmount = body.amount - 10;
-      const sideAmount = 10;
+      const mainAmount = body.amount - sideChunk;
+      const sideAmount = sideChunk;
 
-      const [mainTx, sideTx] = await prisma.$transaction([
+      const [mainTx] = await prisma.$transaction([
         prisma.transaction.create({
           data: {
             type: "CONTRIBUTION",
             date: dt,
             amount: mainAmount,
+            currency: body.currency,
             description: body.description,
             directorId: body.directorId,
             createdBy: req.user!.id
@@ -196,9 +226,10 @@ router.post(
             type: "SIDE_FUND",
             date: dt,
             amount: sideAmount,
+            currency: body.currency,
             description:
               body.description ??
-              "Automatic side fund allocation (10 EUR) from contribution",
+              `Automatic side fund allocation (${sideAmount} ${body.currency}) from contribution`,
             directorId: body.directorId,
             createdBy: req.user!.id
           }
@@ -213,7 +244,8 @@ router.post(
             after: {
               contributionAmount: mainAmount,
               sideFundAmount: sideAmount,
-              directorId: body.directorId
+              directorId: body.directorId,
+              currency: body.currency
             }
           }
         })
@@ -227,6 +259,7 @@ router.post(
         type: body.type,
         date: dt,
         amount: body.amount,
+        currency: body.currency,
         description: body.description,
         directorId: body.directorId,
         createdBy: req.user!.id
@@ -287,7 +320,9 @@ router.put("/:id", requireRole("ADMIN"), validateBody(updateSchema), async (req,
   }
 
   const body = req.body as z.infer<typeof updateSchema>;
-  const data: any = {};
+  const data: Record<string, unknown> = {};
+
+  const nextCurrency = body.currency ?? existing.currency;
 
   if (body.date) {
     const dt = new Date(body.date);
@@ -297,13 +332,25 @@ router.put("/:id", requireRole("ADMIN"), validateBody(updateSchema), async (req,
     data.date = dt;
   }
 
-  if (typeof body.amount === "number") data.amount = body.amount;
+  if (typeof body.amount === "number") {
+    if (!validateAmountForCurrency(body.amount, nextCurrency)) {
+      return res.status(400).json(apiError("Invalid amount for currency", "amount"));
+    }
+    data.amount = body.amount;
+  } else if (body.currency && body.currency !== existing.currency) {
+    if (!validateAmountForCurrency(existing.amount, body.currency)) {
+      return res.status(400).json(apiError("Existing amount is not valid for the new currency", "currency"));
+    }
+  }
+
   if (typeof body.description === "string") data.description = body.description;
   if (body.type) data.type = body.type;
+  if (body.currency) data.currency = body.currency;
 
   if (body.directorId !== undefined) {
     const map = body.type ? TX_ACCOUNT_MAP[body.type] : TX_ACCOUNT_MAP[existing.type];
     if (map.needsDirector) {
+      if (!body.directorId) return res.status(400).json(apiError("directorId is required", "directorId"));
       const director = await prisma.director.findUnique({ where: { id: body.directorId } });
       if (!director) return res.status(400).json(apiError("Director not found", "directorId"));
       data.directorId = body.directorId;
@@ -312,7 +359,11 @@ router.put("/:id", requireRole("ADMIN"), validateBody(updateSchema), async (req,
     }
   }
 
-  const updated = await prisma.transaction.update({ where: { id }, data });
+  const updated = await prisma.transaction.update({
+    where: { id },
+    data: data as Prisma.TransactionUpdateInput,
+    include: { director: true }
+  });
 
   await prisma.auditLog.create({
     data: {
@@ -325,8 +376,7 @@ router.put("/:id", requireRole("ADMIN"), validateBody(updateSchema), async (req,
     }
   });
 
-  return res.json(updated);
+  return res.json(shapeTransactionRow(updated));
 });
 
 export default router;
-

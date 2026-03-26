@@ -35,43 +35,46 @@ export type AccountKey =
   | "tax_corporate"
   | "exp_fx";
 
-export const ACCOUNTS: Record<AccountKey, { name: string; group: "Assets" | "Liabilities" | "Equity" | "Income" | "Expenses" }> = {
-  bank: { name: "Bank Account", group: "Assets" },
-  mmf: { name: "MMF Investment", group: "Assets" },
-  ypa: { name: "YPA Goats Investment", group: "Assets" },
-  loan_receivable: { name: "Loans Receivable", group: "Assets" },
-  loan_liability: { name: "Loan Liability", group: "Liabilities" },
+export const ACCOUNTS: Record<
+  AccountKey,
+  { name: string; group: "Assets" | "Liabilities" | "Equity" | "Income" | "Expenses"; code: number }
+> = {
+  bank: { name: "Bank Account", group: "Assets", code: 1010 },
+  mmf: { name: "MMF Investment", group: "Assets", code: 1020 },
+  ypa: { name: "YPA Goats Investment", group: "Assets", code: 1030 },
+  loan_receivable: { name: "Loans Receivable", group: "Assets", code: 1200 },
+  loan_liability: { name: "Loan Liability", group: "Liabilities", code: 2010 },
 
-  capital: { name: "Capital Contributions", group: "Equity" },
-  side_fund: { name: "Side Fund", group: "Equity" },
+  capital: { name: "Directors Capital Contributions", group: "Equity", code: 3010 },
+  side_fund: { name: "Side Fund", group: "Equity", code: 3020 },
 
-  mmf_income: { name: "MMF Returns", group: "Income" },
-  penalties: { name: "Penalties & Surcharges", group: "Income" },
-  income_investment: { name: "Investment Returns", group: "Income" },
-  income_project: { name: "Project Revenue", group: "Income" },
-  income_interest: { name: "Interest Income", group: "Income" },
-  income_dividend: { name: "Dividend Income", group: "Income" },
-  income_other: { name: "Other Income", group: "Income" },
-  income_fx: { name: "Foreign Exchange Gain", group: "Income" },
+  mmf_income: { name: "MMF Returns", group: "Income", code: 4010 },
+  penalties: { name: "Penalties & Surcharges", group: "Income", code: 4020 },
+  income_investment: { name: "Investment Returns", group: "Income", code: 4030 },
+  income_project: { name: "Project Revenue", group: "Income", code: 4040 },
+  income_interest: { name: "Interest Income", group: "Income", code: 4050 },
+  income_dividend: { name: "Dividend Income", group: "Income", code: 4060 },
+  income_other: { name: "Other Income", group: "Income", code: 4070 },
+  income_fx: { name: "Foreign Exchange Gain", group: "Income", code: 4080 },
 
-  reg_costs: { name: "Registration Costs", group: "Expenses" },
-  tx_charge: { name: "Bank Charges & Fees", group: "Expenses" },
-  legal: { name: "Legal & Professional Fees", group: "Expenses" },
-  other_exp: { name: "Miscellaneous Expense", group: "Expenses" },
-  exp_transport: { name: "Transport & Travel", group: "Expenses" },
-  exp_communication: { name: "Communication & Internet", group: "Expenses" },
-  exp_office: { name: "Office & Administration", group: "Expenses" },
-  exp_printing: { name: "Printing & Stationery", group: "Expenses" },
-  exp_salaries: { name: "Salaries & Wages", group: "Expenses" },
-  exp_utilities: { name: "Utilities", group: "Expenses" },
-  exp_insurance: { name: "Insurance", group: "Expenses" },
-  exp_meals: { name: "Meals & Entertainment", group: "Expenses" },
-  project_exp: { name: "Project Disbursements", group: "Expenses" },
-  capex: { name: "Asset Purchases (Capex)", group: "Expenses" },
-  tax_wht: { name: "Withholding Tax (WHT)", group: "Expenses" },
-  tax_vat: { name: "VAT Payable", group: "Expenses" },
-  tax_corporate: { name: "Corporate Tax Provision", group: "Expenses" },
-  exp_fx: { name: "Foreign Exchange Loss", group: "Expenses" }
+  reg_costs: { name: "Registration Costs", group: "Expenses", code: 5010 },
+  tx_charge: { name: "Bank Charges & Fees", group: "Expenses", code: 5020 },
+  legal: { name: "Legal & Professional Fees", group: "Expenses", code: 5030 },
+  other_exp: { name: "Miscellaneous Expense", group: "Expenses", code: 5040 },
+  exp_transport: { name: "Transport & Travel", group: "Expenses", code: 5110 },
+  exp_communication: { name: "Communication & Internet", group: "Expenses", code: 5120 },
+  exp_office: { name: "Office & Administration", group: "Expenses", code: 5130 },
+  exp_printing: { name: "Printing & Stationery", group: "Expenses", code: 5140 },
+  exp_salaries: { name: "Salaries & Wages", group: "Expenses", code: 5150 },
+  exp_utilities: { name: "Utilities", group: "Expenses", code: 5160 },
+  exp_insurance: { name: "Insurance", group: "Expenses", code: 5170 },
+  exp_meals: { name: "Meals & Entertainment", group: "Expenses", code: 5180 },
+  project_exp: { name: "Project Disbursements", group: "Expenses", code: 5210 },
+  capex: { name: "Asset Purchases (Capex)", group: "Expenses", code: 5220 },
+  tax_wht: { name: "Withholding Tax (WHT)", group: "Expenses", code: 5310 },
+  tax_vat: { name: "VAT Payable", group: "Expenses", code: 5320 },
+  tax_corporate: { name: "Corporate Tax Provision", group: "Expenses", code: 5330 },
+  exp_fx: { name: "Foreign Exchange Loss", group: "Expenses", code: 5410 }
 };
 
 export const TX_ACCOUNT_MAP: Record<

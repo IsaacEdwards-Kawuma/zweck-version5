@@ -1,5 +1,5 @@
 import DirectorAvatar from "./DirectorAvatar";
-import { eur, fmtDate } from "../lib/format";
+import { fmtDate, formatMoney, formatTxRef } from "../lib/format";
 import { TX_TYPE_LABELS } from "../lib/transactionTypes";
 
 const typeLabel = (t) => TX_TYPE_LABELS[t] || t?.replaceAll("_", " ");
@@ -16,6 +16,7 @@ export default function TransactionTable({ rows, showDelete, onDelete, isDeletin
             <th className="px-4 py-3">Director</th>
             <th className="px-4 py-3">Debit</th>
             <th className="px-4 py-3">Credit</th>
+            <th className="px-4 py-3">Ccy</th>
             <th className="px-4 py-3 text-right">Amount</th>
             {showDelete ? <th className="px-4 py-3 text-right">Actions</th> : null}
           </tr>
@@ -23,6 +24,9 @@ export default function TransactionTable({ rows, showDelete, onDelete, isDeletin
         <tbody className="ui-table-divide">
           {(rows || []).map((r) => (
             <tr key={r.id} className="ui-table-row-hover">
+              <td className="px-4 py-3 whitespace-nowrap font-mono text-xs text-slate-600 dark:text-slate-400">
+                {r.reference || formatTxRef(r.id)}
+              </td>
               <td className="px-4 py-3 whitespace-nowrap text-slate-700 dark:text-slate-300">{fmtDate(r.date)}</td>
               <td
                 className="max-w-[14rem] truncate px-4 py-3 font-medium text-slate-900 dark:text-slate-100"
@@ -53,8 +57,11 @@ export default function TransactionTable({ rows, showDelete, onDelete, isDeletin
                   {r.creditAccount}
                 </span>
               </td>
+              <td className="px-4 py-3 whitespace-nowrap text-xs font-medium text-slate-600 dark:text-slate-400">
+                {r.currency || "EUR"}
+              </td>
               <td className="px-4 py-3 whitespace-nowrap text-right font-semibold text-slate-900 dark:text-slate-100">
-                {eur(r.amount)}
+                {formatMoney(r.amount, r.currency || "EUR")}
               </td>
               {showDelete ? (
                 <td className="px-4 py-3 text-right">
@@ -75,7 +82,7 @@ export default function TransactionTable({ rows, showDelete, onDelete, isDeletin
           ))}
           {(rows || []).length === 0 ? (
             <tr>
-              <td className="px-4 py-6 text-center text-slate-500 dark:text-slate-400" colSpan={showDelete ? 8 : 7}>
+              <td className="px-4 py-6 text-center text-slate-500 dark:text-slate-400" colSpan={showDelete ? 10 : 9}>
                 No transactions yet.
               </td>
             </tr>
