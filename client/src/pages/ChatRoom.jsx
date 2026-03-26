@@ -359,6 +359,10 @@ export default function ChatRoom() {
     [editingId, clearLongPressTimer]
   );
 
+  const endMessageLongPress = useCallback(() => {
+    clearLongPressTimer();
+  }, [clearLongPressTimer]);
+
   const onMessagePointerMove = useCallback(
     (e) => {
       // Swipe-to-reply: trigger as soon as the gesture looks valid.
@@ -404,10 +408,6 @@ export default function ChatRoom() {
     },
     [clearLongPressTimer, endMessageLongPress]
   );
-
-  const endMessageLongPress = useCallback(() => {
-    clearLongPressTimer();
-  }, [clearLongPressTimer]);
 
   const onMessageBubblePointerDown = useCallback(
     (e, m) => {
