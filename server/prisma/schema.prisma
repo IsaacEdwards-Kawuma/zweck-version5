@@ -384,6 +384,21 @@ model AuditLog {
   before     Json?
   after      Json?
   createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
+}
+
+/** Singleton row `id = 1`: company / reporting defaults (admin-editable). */
+model AppSettings {
+  id                   Int      @id @default(1)
+  companyName          String   @default("Zweck Tukula Co. Ltd") @db.VarChar(200)
+  baseCurrency         String   @default("EUR") @db.VarChar(3)
+  /** Month the fiscal year starts (1–12). */
+  fiscalYearStartMonth Int      @default(1)
+  /** Default width in days for report date pickers (hint only; UI may ignore). */
+  defaultReportDays    Int      @default(90)
+  updatedAt            DateTime @updatedAt
 }
 
 model Meeting {

@@ -9,6 +9,7 @@ import pinoHttp from "pino-http";
 import swaggerUi from "swagger-ui-express";
 import { buildCorsOptions, isOriginAllowed } from "./lib/cors.js";
 import { isS3AvatarStorageConfigured } from "./lib/avatarStorage.js";
+import { prisma } from "./lib/prisma.js";
 import { logger } from "./lib/logger.js";
 import { apiError } from "./lib/http.js";
 import { Sentry } from "./instrument.js";
@@ -91,12 +92,15 @@ export function createApp(): express.Express {
 
   app.use("/api", apiLimiter);
 
-  app.get("/api/health", (_req, res) =>
-    res.json({
-      ok: true,
-      avatarStorage: isS3AvatarStorageConfigured() ? "s3" : "local"
-    })
-  );
+  app.get("/api/health", async (_req, res) => {
+    const avatarStorage = isS3AvatarStorageConfigured() ? "s3" : "local";
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      return res.json({ ok: true, database: "ok", avatarStorage });
+    } catch {
+      return res.status(503).json({ ok: false, database: "error", avatarStorage });
+    }
+  });
 
   app.get("/api/openapi.json", (_req, res) => res.json(openapiDocument));
   app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(openapiDocument));

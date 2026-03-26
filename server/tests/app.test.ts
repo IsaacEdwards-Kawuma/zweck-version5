@@ -12,6 +12,7 @@ describe("createApp", () => {
     const res = await request(app).get("/api/health");
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
+    expect(res.body.database).toBe("ok");
     expect(["local", "s3"]).toContain(res.body.avatarStorage);
   });
 

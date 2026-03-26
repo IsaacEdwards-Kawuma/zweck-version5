@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import Loading from "../components/Loading";
 import ErrorBanner from "../components/ErrorBanner";
@@ -454,6 +455,14 @@ export default function Reports() {
     from || to
       ? `${from || "…"} → ${to || "…"}`
       : "All dates";
+
+  const ledgerHref = useMemo(() => {
+    const q = new URLSearchParams();
+    if (from) q.set("from", from);
+    if (to) q.set("to", to);
+    const s = q.toString();
+    return s ? `/ledger?${s}` : "/ledger";
+  }, [from, to]);
   const reportMeta = `${new Date().toLocaleString()} · ${rangeLabel} · EUR`;
   const comparePct = (current, previous) => {
     if (!Number.isFinite(current) || !Number.isFinite(previous)) return "—";
@@ -810,6 +819,12 @@ export default function Reports() {
           >
             Export CSV
           </button>
+          <Link
+            to={ledgerHref}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+          >
+            Open in ledger
+          </Link>
         </div>
       </div>
 

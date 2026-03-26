@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { useOutletContext } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useOutletContext, useSearchParams } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Loading from "../components/Loading";
 import ErrorBanner from "../components/ErrorBanner";
@@ -14,11 +14,25 @@ import { TX_TYPE_GROUPS } from "../lib/transactionTypes";
 export default function Ledger() {
   const { me } = useOutletContext() || {};
   const qc = useQueryClient();
+  const [searchParams] = useSearchParams();
   const [type, setType] = useState("");
   const [directorId, setDirectorId] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    const f = searchParams.get("from") || "";
+    const t = searchParams.get("to") || "";
+    const ty = searchParams.get("type") || "";
+    const d = searchParams.get("directorId") || "";
+    if (!f && !t && !ty && !d) return;
+    setFrom(f);
+    setTo(t);
+    setType(ty);
+    setDirectorId(d);
+    setPage(1);
+  }, [searchParams]);
   const pageSize = 20;
 
   const filters = useMemo(() => {

@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Loading from "../components/Loading";
 import ErrorBanner from "../components/ErrorBanner";
 import ThemeSettings from "../components/ThemeSettings";
-import { getHealth, getSettings, updateNotificationPreferences } from "../api/settings";
+import { getHealth, getSettings, updateNotificationPreferences, updateOrgSettings } from "../api/settings";
 import { listUsers, updateUserRole, listLoginEvents, listMyLoginEvents } from "../api/users";
 import { pingIntegration } from "../api/integrations";
 
@@ -204,12 +204,37 @@ export default function Settings() {
       setTimeout(() => setCopyMsg(""), 2500);
     }
   });
+  const [orgDraft, setOrgDraft] = useState({
+    companyName: "",
+    baseCurrency: "EUR",
+    fiscalYearStartMonth: 1,
+    defaultReportDays: 90
+  });
+  const mOrg = useMutation({
+    mutationFn: (partial) => updateOrgSettings(partial),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["settings"] });
+      setCopyMsg("Organization settings saved.");
+      setTimeout(() => setCopyMsg(""), 2500);
+    }
+  });
 
   const [nowMs, setNowMs] = useState(() => Date.now());
   useEffect(() => {
     const id = window.setInterval(() => setNowMs(Date.now()), 60_000);
     return () => window.clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    const o = qSettings.data?.org;
+    if (!o) return;
+    setOrgDraft({
+      companyName: o.companyName ?? "",
+      baseCurrency: o.baseCurrency ?? "EUR",
+      fiscalYearStartMonth: o.fiscalYearStartMonth ?? 1,
+      defaultReportDays: o.defaultReportDays ?? 90
+    });
+  }, [qSettings.data?.org]);
 
   const s = qSettings.data;
   const app = s?.app || {};
@@ -651,13 +676,105 @@ export default function Settings() {
 
       <ThemeSettings />
 
+      {isAdmin ? (
+        <section id="settings-organization" className={SECTION}>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            Organization
+          </h2>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Company defaults for reports and UI (About page header still overrides print layout when set).
+          </p>
+          <div className="mt-4 grid max-w-xl gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400" htmlFor="org-name">
+                Company name
+              </label>
+              <input
+                id="org-name"
+                type="text"
+                value={orgDraft.companyName}
+                onChange={(e) => setOrgDraft((d) => ({ ...d, companyName: e.target.value }))}
+                className="ui-input mt-1 w-full"
+                maxLength={200}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400" htmlFor="org-ccy">
+                Base currency (ISO 4217)
+              </label>
+              <input
+                id="org-ccy"
+                type="text"
+                value={orgDraft.baseCurrency}
+                onChange={(e) => setOrgDraft((d) => ({ ...d, baseCurrency: e.target.value.toUpperCase().slice(0, 3) }))}
+                className="ui-input mt-1 w-28 font-mono uppercase"
+                maxLength={3}
+              />
+            </div>
+            <div className="flex flex-wrap gap-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400" htmlFor="org-fy">
+                  Fiscal year starts (month 1–12)
+                </label>
+                <input
+                  id="org-fy"
+                  type="number"
+                  min={1}
+                  max={12}
+                  value={orgDraft.fiscalYearStartMonth}
+                  onChange={(e) =>
+                    setOrgDraft((d) => ({ ...d, fiscalYearStartMonth: Number(e.target.value) || 1 }))
+                  }
+                  className="ui-input mt-1 w-24"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400" htmlFor="org-days">
+                  Default report range (days)
+                </label>
+                <input
+                  id="org-days"
+                  type="number"
+                  min={1}
+                  max={3660}
+                  value={orgDraft.defaultReportDays}
+                  onChange={(e) =>
+                    setOrgDraft((d) => ({ ...d, defaultReportDays: Number(e.target.value) || 90 }))
+                  }
+                  className="ui-input mt-1 w-28"
+                />
+              </div>
+            </div>
+            <button
+              type="button"
+              disabled={mOrg.isPending}
+              className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-sm font-medium text-brand-900 hover:bg-brand-100 disabled:opacity-60 dark:border-brand-500/40 dark:bg-brand-950/50 dark:text-brand-200 dark:hover:bg-brand-900/60"
+              onClick={() =>
+                mOrg.mutate({
+                  companyName: orgDraft.companyName.trim(),
+                  baseCurrency: orgDraft.baseCurrency.trim(),
+                  fiscalYearStartMonth: orgDraft.fiscalYearStartMonth,
+                  defaultReportDays: orgDraft.defaultReportDays
+                })
+              }
+            >
+              {mOrg.isPending ? "Saving…" : "Save organization"}
+            </button>
+          </div>
+        </section>
+      ) : null}
+
       {isAdmin ? <section id="settings-status" className={SECTION}>
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">API &amp; live status</h2>
         {qHealth.error ? (
           <p className="mt-2 text-sm text-rose-700">Health check failed — API may be unreachable.</p>
         ) : (
           <div className="mt-3 flex flex-wrap items-center gap-4 text-sm">
-            <StatusDot ok={qHealth.data?.ok} label={qHealth.data?.ok ? "API reachable" : "Unknown"} />
+            <StatusDot ok={qHealth.data?.ok} label={qHealth.data?.ok ? "API reachable" : "Degraded"} />
+            <StatusDot
+              ok={qHealth.data?.database === "ok"}
+              label={qHealth.data?.database === "ok" ? "Database reachable" : "Database check failed"}
+            />
             <span className="text-slate-600 dark:text-slate-300">
               Avatar storage:{" "}
               <strong className="text-slate-900 dark:text-slate-100">{qHealth.data?.avatarStorage ?? "—"}</strong>

@@ -65,16 +65,32 @@
     "/health": {
       "get": {
         "tags": ["health"],
-        "summary": "Health check",
+        "summary": "Health check (liveness + database ping)",
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "OK — process up and database reachable",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
                     "ok": { "type": "boolean" },
+                    "database": { "type": "string", "enum": ["ok", "error"] },
+                    "avatarStorage": { "type": "string", "enum": ["local", "s3"] }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Process up but database unreachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "database": { "type": "string", "enum": ["error"] },
                     "avatarStorage": { "type": "string", "enum": ["local", "s3"] }
                   }
                 }
@@ -272,9 +288,27 @@
     "/audit": {
       "get": {
         "tags": ["audit"],
-        "summary": "Audit log (admin)",
+        "summary": "Audit log (admin); JSON or CSV via format=csv",
         "security": [{ "bearerAuth": [] }],
-        "responses": { "200": { "description": "OK" } }
+        "parameters": [
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 200, "maximum": 5000 } },
+          { "name": "from", "in": "query", "schema": { "type": "string", "format": "date-time" } },
+          { "name": "to", "in": "query", "schema": { "type": "string", "format": "date-time" } },
+          { "name": "userId", "in": "query", "schema": { "type": "integer" } },
+          { "name": "action", "in": "query", "schema": { "type": "string" } },
+          { "name": "entityType", "in": "query", "schema": { "type": "string" } },
+          { "name": "format", "in": "query", "schema": { "type": "string", "enum": ["csv"] } }
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON array or CSV when format=csv",
+            "content": {
+              "application/json": { "schema": { "type": "array" } },
+              "text/csv": { "schema": { "type": "string", "format": "binary" } }
+            }
+          },
+          "400": { "description": "Invalid filter query" }
+        }
       }
     },
     "/settings": {

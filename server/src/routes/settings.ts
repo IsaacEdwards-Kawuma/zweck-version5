@@ -1,9 +1,12 @@
 import { Router } from "express";
+import type { Prisma } from "@prisma/client";
 import { isS3AvatarStorageConfigured } from "../lib/avatarStorage.js";
 import { getPublicAppUrl } from "../lib/publicAppUrl.js";
 import { getServerPackageVersion } from "../lib/serverVersion.js";
 import { prisma } from "../lib/prisma.js";
 import { apiError } from "../lib/http.js";
+import { getOrCreateAppSettings } from "../lib/appSettings.js";
+import { requireRole } from "../middleware/auth.js";
 
 const router = Router();
 
@@ -14,15 +17,18 @@ const router = Router();
 router.get("/", async (req, res) => {
   const user = req.user!;
   const isAdmin = user.role === "ADMIN";
-  const dbUser = await prisma.user.findUnique({
-    where: { id: user.id },
-    select: {
-      lastLoginAt: true,
-      emailMeetingReminders: true,
-      inAppMeetingReminders: true,
-      inAppChatMessages: true
-    }
-  });
+  const [dbUser, orgRow] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: user.id },
+      select: {
+        lastLoginAt: true,
+        emailMeetingReminders: true,
+        inAppMeetingReminders: true,
+        inAppChatMessages: true
+      }
+    }),
+    getOrCreateAppSettings()
+  ]);
   res.json({
     app: {
       name: "ZweckOS API",
@@ -100,6 +106,12 @@ router.get("/", async (req, res) => {
       health: "/api/health",
       openapi: "/api/openapi.json",
       docs: "/api/docs"
+    },
+    org: {
+      companyName: orgRow.companyName,
+      baseCurrency: orgRow.baseCurrency,
+      fiscalYearStartMonth: orgRow.fiscalYearStartMonth,
+      defaultReportDays: orgRow.defaultReportDays
     }
   });
 });
@@ -135,6 +147,55 @@ router.patch("/notifications", async (req, res) => {
     where: { id: user.id },
     data,
     select: { emailMeetingReminders: true, inAppMeetingReminders: true, inAppChatMessages: true }
+  });
+  res.json(updated);
+});
+
+router.patch("/org", requireRole("ADMIN"), async (req, res) => {
+  const body = req.body || {};
+  const data: Prisma.AppSettingsUpdateInput = {};
+  if ("companyName" in body) {
+    if (typeof body.companyName !== "string" || body.companyName.length > 200) {
+      return res.status(400).json(apiError("companyName must be a string with length at most 200"));
+    }
+    data.companyName = body.companyName.trim();
+  }
+  if ("baseCurrency" in body) {
+    const c = typeof body.baseCurrency === "string" ? body.baseCurrency.trim().toUpperCase() : "";
+    if (!/^[A-Z]{3}$/.test(c)) {
+      return res.status(400).json(apiError("baseCurrency must be a 3-letter ISO 4217 code"));
+    }
+    data.baseCurrency = c;
+  }
+  if ("fiscalYearStartMonth" in body) {
+    const m = Number(body.fiscalYearStartMonth);
+    if (!Number.isInteger(m) || m < 1 || m > 12) {
+      return res.status(400).json(apiError("fiscalYearStartMonth must be an integer from 1 to 12"));
+    }
+    data.fiscalYearStartMonth = m;
+  }
+  if ("defaultReportDays" in body) {
+    const d = Number(body.defaultReportDays);
+    if (!Number.isInteger(d) || d < 1 || d > 3660) {
+      return res.status(400).json(apiError("defaultReportDays must be an integer from 1 to 3660"));
+    }
+    data.defaultReportDays = d;
+  }
+  if (Object.keys(data).length === 0) {
+    return res.status(400).json(
+      apiError("Provide at least one of companyName, baseCurrency, fiscalYearStartMonth, defaultReportDays")
+    );
+  }
+  await getOrCreateAppSettings();
+  const updated = await prisma.appSettings.update({
+    where: { id: 1 },
+    data,
+    select: {
+      companyName: true,
+      baseCurrency: true,
+      fiscalYearStartMonth: true,
+      defaultReportDays: true
+    }
   });
   res.json(updated);
 });
