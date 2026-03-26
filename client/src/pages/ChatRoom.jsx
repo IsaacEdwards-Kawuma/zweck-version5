@@ -134,7 +134,8 @@ export default function ChatRoom() {
   const [showReaders, setShowReaders] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [editDraft, setEditDraft] = useState("");
-  const [reactionPickerMessageId, setReactionPickerMessageId] = useState(null);
+  /** Long-press or right-click: emoji reactions + message actions (copy, pin, star, etc.). */
+  const [messageMenuMessageId, setMessageMenuMessageId] = useState(null);
   const [addMemberEmail, setAddMemberEmail] = useState("");
   const fileInputRef = useRef(null);
   const messagesRef = useRef([]);
@@ -324,7 +325,7 @@ export default function ChatRoom() {
       longPressRef.current.startY = e.clientY;
       longPressRef.current.timer = window.setTimeout(() => {
         longPressRef.current.timer = null;
-        setReactionPickerMessageId(messageId);
+        setMessageMenuMessageId(messageId);
         try {
           if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(30);
         } catch {
@@ -352,14 +353,14 @@ export default function ChatRoom() {
   }, [clearLongPressTimer]);
 
   useEffect(() => {
-    if (reactionPickerMessageId == null) return;
+    if (messageMenuMessageId == null) return;
     const onKey = (e) => {
-      if (e.key === "Escape") setReactionPickerMessageId(null);
+      if (e.key === "Escape") setMessageMenuMessageId(null);
     };
     const onDocPointerDown = (e) => {
       const t = e.target;
-      if (t instanceof Element && t.closest(".chat-reaction-picker")) return;
-      setReactionPickerMessageId(null);
+      if (t instanceof Element && t.closest(".chat-message-menu")) return;
+      setMessageMenuMessageId(null);
     };
     document.addEventListener("keydown", onKey);
     document.addEventListener("mousedown", onDocPointerDown);
@@ -369,7 +370,7 @@ export default function ChatRoom() {
       document.removeEventListener("mousedown", onDocPointerDown);
       document.removeEventListener("touchstart", onDocPointerDown);
     };
-  }, [reactionPickerMessageId]);
+  }, [messageMenuMessageId]);
 
   const onDraftChange = (e) => {
     setDraft(e.target.value);
@@ -776,12 +777,12 @@ export default function ChatRoom() {
                       if (!targetAllowsLongPress(e.target)) return;
                       e.preventDefault();
                       clearLongPressTimer();
-                      setReactionPickerMessageId(m.id);
+                      setMessageMenuMessageId(m.id);
                     }}
                   >
-                    {reactionPickerMessageId === m.id ? (
+                    {messageMenuMessageId === m.id ? (
                       <div
-                        className={`chat-reaction-picker absolute z-30 flex max-w-[min(96vw,22rem)] flex-col gap-1 rounded-2xl border border-slate-200 bg-white px-2 py-1.5 shadow-lg dark:border-slate-600 dark:bg-slate-900 ${
+                        className={`chat-message-menu absolute z-30 flex max-w-[min(96vw,22rem)] flex-col gap-1 rounded-2xl border border-slate-200 bg-white px-2 py-1.5 shadow-lg dark:border-slate-600 dark:bg-slate-900 ${
                           isMe ? "bottom-full right-0 mb-1" : "bottom-full left-0 mb-1"
                         }`}
                         onPointerDown={(e) => e.stopPropagation()}
@@ -790,6 +791,9 @@ export default function ChatRoom() {
                           e.stopPropagation();
                         }}
                       >
+                        <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                          Reactions
+                        </div>
                         <div className="flex max-w-[min(92vw,18rem)] flex-wrap items-center gap-0.5">
                           {QUICK_EMOJIS.map((em) => (
                             <button
@@ -798,7 +802,7 @@ export default function ChatRoom() {
                               className="rounded-full px-2 py-1 text-lg leading-none hover:bg-brand-50 dark:hover:bg-brand-950/50"
                               onClick={() => {
                                 mReaction.mutate({ messageId: m.id, emoji: em });
-                                setReactionPickerMessageId(null);
+                                setMessageMenuMessageId(null);
                               }}
                             >
                               {em}
@@ -814,12 +818,126 @@ export default function ChatRoom() {
                                 className="rounded px-1.5 py-0.5 text-base leading-none hover:bg-brand-50 dark:hover:bg-brand-950/50"
                                 onClick={() => {
                                   mReaction.mutate({ messageId: m.id, emoji: em });
-                                  setReactionPickerMessageId(null);
+                                  setMessageMenuMessageId(null);
                                 }}
                               >
                                 {em}
                               </button>
                             ))}
+                          </div>
+                        </div>
+                        <div className="mt-1 border-t border-slate-200 pt-1.5 dark:border-slate-600">
+                          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                            Message
+                          </div>
+                          <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1 text-[10px]">
+                            <button
+                              type="button"
+                              data-no-longpress
+                              className="text-brand-700 hover:underline dark:text-brand-300"
+                              onClick={() => {
+                                const t = m.body || m.attachmentName || "";
+                                void navigator.clipboard.writeText(t);
+                                setMessageMenuMessageId(null);
+                              }}
+                            >
+                              Copy
+                            </button>
+                            <button
+                              type="button"
+                              data-no-longpress
+                              className="text-brand-700 hover:underline dark:text-brand-300"
+                              onClick={() => {
+                                setReplyTo({
+                                  id: m.id,
+                                  senderEmail: m.senderEmail,
+                                  bodySnippet: (m.body || "").slice(0, 200)
+                                });
+                                setMessageMenuMessageId(null);
+                              }}
+                            >
+                              Reply
+                            </button>
+                            <button
+                              type="button"
+                              data-no-longpress
+                              className="text-brand-700 hover:underline dark:text-brand-300"
+                              onClick={() => {
+                                toggleStar(m.id);
+                                setMessageMenuMessageId(null);
+                              }}
+                            >
+                              {starredIds.has(m.id) ? "★" : "☆"}
+                            </button>
+                            <button
+                              type="button"
+                              data-no-longpress
+                              className="text-brand-700 hover:underline dark:text-brand-300"
+                              disabled={mPin.isPending}
+                              onClick={() => {
+                                mPin.mutate(m.id);
+                                setMessageMenuMessageId(null);
+                              }}
+                            >
+                              Pin
+                            </button>
+                            {room?.pinnedMessageId === m.id ? (
+                              <button
+                                type="button"
+                                data-no-longpress
+                                className="text-slate-600 hover:underline dark:text-slate-400"
+                                disabled={mPin.isPending}
+                                onClick={() => {
+                                  mPin.mutate(null);
+                                  setMessageMenuMessageId(null);
+                                }}
+                              >
+                                Unpin
+                              </button>
+                            ) : null}
+                            {isMe ? (
+                              <>
+                                <button
+                                  type="button"
+                                  data-no-longpress
+                                  className="text-xs text-brand-700 hover:underline dark:text-brand-300"
+                                  onClick={() => {
+                                    setEditingId(m.id);
+                                    setEditDraft(m.body || "");
+                                    setMessageMenuMessageId(null);
+                                  }}
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  data-no-longpress
+                                  className="text-xs text-rose-600 hover:underline"
+                                  onClick={() => {
+                                    if (window.confirm("Delete this message?")) {
+                                      mDelete.mutate(m.id);
+                                      setMessageMenuMessageId(null);
+                                    }
+                                  }}
+                                >
+                                  Delete
+                                </button>
+                              </>
+                            ) : canModerate ? (
+                              <button
+                                type="button"
+                                data-no-longpress
+                                className="text-xs text-rose-600 hover:underline"
+                                onClick={() => {
+                                  if (window.confirm("Delete this message as admin?")) {
+                                    mDelete.mutate(m.id);
+                                    setMessageMenuMessageId(null);
+                                  }
+                                }}
+                              >
+                                Delete
+                              </button>
+                            ) : null}
                           </div>
                         </div>
                       </div>
@@ -919,99 +1037,6 @@ export default function ChatRoom() {
                         Read receipts
                       </button>
                     </div>
-                    {editingId !== m.id ? (
-                      <div className="mt-2 flex flex-wrap items-center justify-end gap-2 text-[10px]">
-                        <button
-                          type="button"
-                          data-no-longpress
-                          className="text-brand-700 hover:underline dark:text-brand-300"
-                          onClick={() => {
-                            const t = m.body || m.attachmentName || "";
-                            void navigator.clipboard.writeText(t);
-                          }}
-                        >
-                          Copy
-                        </button>
-                        <button
-                          type="button"
-                          data-no-longpress
-                          className="text-brand-700 hover:underline dark:text-brand-300"
-                          onClick={() =>
-                            setReplyTo({
-                              id: m.id,
-                              senderEmail: m.senderEmail,
-                              bodySnippet: (m.body || "").slice(0, 200)
-                            })
-                          }
-                        >
-                          Reply
-                        </button>
-                        <button
-                          type="button"
-                          data-no-longpress
-                          className="text-brand-700 hover:underline dark:text-brand-300"
-                          onClick={() => toggleStar(m.id)}
-                        >
-                          {starredIds.has(m.id) ? "★" : "☆"}
-                        </button>
-                        <button
-                          type="button"
-                          data-no-longpress
-                          className="text-brand-700 hover:underline dark:text-brand-300"
-                          disabled={mPin.isPending}
-                          onClick={() => mPin.mutate(m.id)}
-                        >
-                          Pin
-                        </button>
-                        {room?.pinnedMessageId === m.id ? (
-                          <button
-                            type="button"
-                            data-no-longpress
-                            className="text-slate-600 hover:underline dark:text-slate-400"
-                            disabled={mPin.isPending}
-                            onClick={() => mPin.mutate(null)}
-                          >
-                            Unpin
-                          </button>
-                        ) : null}
-                        {isMe ? (
-                          <>
-                            <button
-                              type="button"
-                              data-no-longpress
-                              className="text-xs text-brand-700 hover:underline dark:text-brand-300"
-                              onClick={() => {
-                                setEditingId(m.id);
-                                setEditDraft(m.body || "");
-                              }}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              data-no-longpress
-                              className="text-xs text-rose-600 hover:underline"
-                              onClick={() => {
-                                if (window.confirm("Delete this message?")) mDelete.mutate(m.id);
-                              }}
-                            >
-                              Delete
-                            </button>
-                          </>
-                        ) : canModerate ? (
-                          <button
-                            type="button"
-                            data-no-longpress
-                            className="text-xs text-rose-600 hover:underline"
-                            onClick={() => {
-                              if (window.confirm("Delete this message as admin?")) mDelete.mutate(m.id);
-                            }}
-                          >
-                            Delete
-                          </button>
-                        ) : null}
-                      </div>
-                    ) : null}
                     {Array.isArray(m.reactions) && m.reactions.length ? (
                       <div className="mt-2 flex flex-wrap gap-1 text-xs text-slate-600 dark:text-slate-300">
                         {Object.entries(
