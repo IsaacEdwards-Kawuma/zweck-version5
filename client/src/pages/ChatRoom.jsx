@@ -85,14 +85,18 @@ const LONG_PRESS_MS = 520;
 const LONG_PRESS_MOVE_CANCEL_PX = 14;
 /** Touch / pen (and mouse drag for testing): horizontal swipe on a bubble starts a reply. */
 // Thresholds are tuned for real finger jitter: we primarily need "mostly horizontal".
-const SWIPE_REPLY_MIN_PX = 24;
-const SWIPE_REPLY_MAX_VERTICAL_PX = 140;
-const SWIPE_REPLY_HORIZONTAL_RATIO = 0.75;
+const SWIPE_REPLY_MIN_PX = 38;
+const SWIPE_REPLY_MAX_VERTICAL_PX = 95;
+// Require the gesture to be *clearly* horizontal (WhatsApp-like).
+// Condition: absX >= absY * SWIPE_REPLY_HORIZONTAL_RATIO
+const SWIPE_REPLY_HORIZONTAL_RATIO = 1.15;
 
 function isSwipeReplyPointer(e) {
   if (e.pointerType === "touch" || e.pointerType === "pen") return true;
   // Some WebViews briefly report an empty type on touch pointers.
   if (!e.pointerType && typeof navigator !== "undefined" && navigator.maxTouchPoints > 0) return true;
+  // Some mobile WebViews report touch as "mouse" pointers.
+  if (e.pointerType === "mouse" && typeof navigator !== "undefined" && navigator.maxTouchPoints > 0) return true;
   return false;
 }
 
