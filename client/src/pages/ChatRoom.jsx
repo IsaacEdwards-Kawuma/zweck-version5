@@ -83,6 +83,10 @@ const MORE_EMOJIS = [
 ];
 const LONG_PRESS_MS = 520;
 const LONG_PRESS_MOVE_CANCEL_PX = 14;
+/** Touch: horizontal swipe on a bubble starts a reply (WhatsApp-style). */
+const SWIPE_REPLY_MIN_PX = 52;
+const SWIPE_REPLY_MAX_VERTICAL_PX = 56;
+const SWIPE_REPLY_HORIZONTAL_RATIO = 1.15;
 
 function targetAllowsLongPress(target) {
   if (!(target instanceof Element)) return false;
@@ -351,6 +355,83 @@ export default function ChatRoom() {
   const endMessageLongPress = useCallback(() => {
     clearLongPressTimer();
   }, [clearLongPressTimer]);
+
+  const onMessageBubblePointerDown = useCallback(
+    (e, messageId) => {
+      if (editingId === messageId) return;
+      if (!targetAllowsLongPress(e.target)) {
+        if (e.pointerType === "touch") {
+          swipeReplyRef.current = { startX: 0, startY: 0, messageId: null, pointerId: null };
+        }
+        return;
+      }
+      if (e.pointerType === "touch" && e.currentTarget instanceof Element) {
+        try {
+          e.currentTarget.setPointerCapture(e.pointerId);
+        } catch {
+          /* ignore */
+        }
+      }
+      startMessageLongPress(e, messageId);
+      if (e.pointerType === "touch") {
+        swipeReplyRef.current = {
+          startX: e.clientX,
+          startY: e.clientY,
+          messageId,
+          pointerId: e.pointerId
+        };
+      } else {
+        swipeReplyRef.current = { startX: 0, startY: 0, messageId: null, pointerId: null };
+      }
+    },
+    [startMessageLongPress, editingId]
+  );
+
+  const onMessageBubblePointerUp = useCallback(
+    (e, m) => {
+      endMessageLongPress();
+      if (e.pointerType !== "touch") return;
+      if (editingId === m.id) {
+        swipeReplyRef.current = { startX: 0, startY: 0, messageId: null, pointerId: null };
+        return;
+      }
+      const s = swipeReplyRef.current;
+      if (s.pointerId != null && e.pointerId !== s.pointerId) return;
+      if (s.messageId !== m.id) return;
+
+      const dx = e.clientX - s.startX;
+      const dy = e.clientY - s.startY;
+      swipeReplyRef.current = { startX: 0, startY: 0, messageId: null, pointerId: null };
+
+      const absX = Math.abs(dx);
+      const absY = Math.abs(dy);
+      if (absY > SWIPE_REPLY_MAX_VERTICAL_PX) return;
+      if (absX < SWIPE_REPLY_MIN_PX) return;
+      if (absX < absY * SWIPE_REPLY_HORIZONTAL_RATIO) return;
+
+      setReplyTo({
+        id: m.id,
+        senderEmail: m.senderEmail,
+        bodySnippet: (m.body || "").slice(0, 200)
+      });
+      try {
+        if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(22);
+      } catch {
+        /* ignore */
+      }
+    },
+    [endMessageLongPress, editingId]
+  );
+
+  const onMessageBubblePointerCancel = useCallback(
+    (e) => {
+      endMessageLongPress();
+      if (e.pointerType === "touch") {
+        swipeReplyRef.current = { startX: 0, startY: 0, messageId: null, pointerId: null };
+      }
+    },
+    [endMessageLongPress]
+  );
 
   useEffect(() => {
     if (messageMenuMessageId == null) return;
@@ -768,10 +849,10 @@ export default function ChatRoom() {
                         : "relative inline-block max-w-[min(100%,28rem)] rounded-xl bg-slate-50 px-3 py-2 text-left touch-manipulation dark:bg-slate-800/40") +
                       (highlightId === m.id ? " ring-2 ring-brand-500 ring-offset-2 dark:ring-offset-slate-900" : "")
                     }
-                    onPointerDown={(e) => startMessageLongPress(e, m.id)}
+                    onPointerDown={(e) => onMessageBubblePointerDown(e, m.id)}
                     onPointerMove={onMessagePointerMove}
-                    onPointerUp={endMessageLongPress}
-                    onPointerCancel={endMessageLongPress}
+                    onPointerUp={(e) => onMessageBubblePointerUp(e, m)}
+                    onPointerCancel={onMessageBubblePointerCancel}
                     onContextMenu={(e) => {
                       if (editingId === m.id) return;
                       if (!targetAllowsLongPress(e.target)) return;
