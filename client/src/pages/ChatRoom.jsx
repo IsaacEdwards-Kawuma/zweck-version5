@@ -83,10 +83,14 @@ const MORE_EMOJIS = [
 ];
 const LONG_PRESS_MS = 520;
 const LONG_PRESS_MOVE_CANCEL_PX = 14;
-/** Touch: horizontal swipe on a bubble starts a reply (WhatsApp-style). */
-const SWIPE_REPLY_MIN_PX = 52;
-const SWIPE_REPLY_MAX_VERTICAL_PX = 56;
-const SWIPE_REPLY_HORIZONTAL_RATIO = 1.15;
+/** Touch / pen: horizontal swipe on a bubble starts a reply (WhatsApp-style). */
+const SWIPE_REPLY_MIN_PX = 40;
+const SWIPE_REPLY_MAX_VERTICAL_PX = 72;
+const SWIPE_REPLY_HORIZONTAL_RATIO = 1.05;
+
+function isSwipeReplyPointer(e) {
+  return e.pointerType === "touch" || e.pointerType === "pen";
+}
 
 function targetAllowsLongPress(target) {
   if (!(target instanceof Element)) return false;
@@ -131,6 +135,7 @@ export default function ChatRoom() {
   const lastMarkedReadIdRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const longPressRef = useRef({ timer: null, startX: 0, startY: 0 });
+  const swipeReplyRef = useRef({ startX: 0, startY: 0, messageId: null, pointerId: null });
   const [typingUsers, setTypingUsers] = useState({});
   const [searchQ, setSearchQ] = useState("");
   const [showSearch, setShowSearch] = useState(false);
@@ -373,7 +378,7 @@ export default function ChatRoom() {
         }
       }
       startMessageLongPress(e, messageId);
-      if (e.pointerType === "touch") {
+      if (isSwipeReplyPointer(e)) {
         swipeReplyRef.current = {
           startX: e.clientX,
           startY: e.clientY,
@@ -390,7 +395,7 @@ export default function ChatRoom() {
   const onMessageBubblePointerUp = useCallback(
     (e, m) => {
       endMessageLongPress();
-      if (e.pointerType !== "touch") return;
+      if (!isSwipeReplyPointer(e)) return;
       if (editingId === m.id) {
         swipeReplyRef.current = { startX: 0, startY: 0, messageId: null, pointerId: null };
         return;
@@ -426,7 +431,7 @@ export default function ChatRoom() {
   const onMessageBubblePointerCancel = useCallback(
     (e) => {
       endMessageLongPress();
-      if (e.pointerType === "touch") {
+      if (isSwipeReplyPointer(e)) {
         swipeReplyRef.current = { startX: 0, startY: 0, messageId: null, pointerId: null };
       }
     },
