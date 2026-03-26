@@ -107,11 +107,13 @@ export function buildDirectorStatementCsv(d, p, directorsBlock) {
 function printStyles() {
   return `
     :root {
-      --zweck-blue: #0B3C6D;
-      --zweck-gold: #C9A227;
-      --zweck-white: #FFFFFF;
+      --brand-dark: #0b2547;
+      --brand-mid: #1d4e89;
+      --brand-accent: #c9a227;
+      --line-soft: #e2e8f0;
+      --paper-soft: #f8fbff;
     }
-    @page { margin: 14mm 16mm; size: A4; }
+    @page { margin: 12mm 12mm; size: A4; }
     * { box-sizing: border-box; }
     body {
       font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
@@ -121,134 +123,129 @@ function printStyles() {
       margin: 0;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
+      background: #fff;
     }
-    .doc { max-width: 760px; margin: 0 auto; }
+    .doc { max-width: 980px; margin: 0 auto; padding: 2px 4px; }
+
     .letterhead {
-      border-bottom: 3px solid var(--zweck-blue);
-      padding-bottom: 14px;
-      margin-bottom: 20px;
+      border-radius: 12px;
+      padding: 14px 16px;
+      color: #ffffff;
+      background: linear-gradient(135deg, var(--brand-dark) 0%, var(--brand-mid) 62%, var(--brand-accent) 160%);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.15);
     }
     .letterhead__brand {
       font-size: 10px;
       font-weight: 700;
       letter-spacing: 0.16em;
       text-transform: uppercase;
-      color: var(--zweck-gold);
+      color: #dbeafe;
       margin-bottom: 6px;
     }
     .letterhead__title {
       font-size: 22px;
-      font-weight: 700;
-      letter-spacing: -0.03em;
-      color: #0f172a;
+      font-weight: 800;
       margin: 0;
-      line-height: 1.2;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      color: #ffffff;
     }
     .letterhead__meta {
-      margin-top: 8px;
+      margin-top: 7px;
       font-size: 10px;
-      color: #64748b;
+      color: #dbeafe;
     }
+
+    .rule {
+      height: 4px;
+      margin: 14px 0 16px;
+      background: linear-gradient(90deg, var(--brand-dark) 0%, var(--brand-mid) 60%, var(--brand-accent) 100%);
+      border: 0;
+      border-radius: 999px;
+    }
+
     .summary {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
       gap: 10px;
-      margin-bottom: 22px;
+      margin: 18px 0 22px;
     }
     @media print {
       .summary { break-inside: avoid; page-break-inside: avoid; }
     }
     .summary-card {
-      border: 1px solid #e2e8f0;
-      border-radius: 8px;
+      border: 1px solid var(--line-soft);
+      border-radius: 10px;
       padding: 10px 12px;
-      background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+      background: linear-gradient(180deg, var(--paper-soft) 0%, #ffffff 100%);
     }
     .summary-card__label {
       font-size: 9px;
-      font-weight: 600;
+      font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.06em;
-      color: var(--zweck-blue);
+      color: var(--brand-mid);
     }
     .summary-card__value {
-      font-size: 15px;
-      font-weight: 700;
-      font-variant-numeric: tabular-nums;
-      color: #0f172a;
       margin-top: 4px;
+      font-size: 16px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      color: var(--brand-dark);
     }
+
     .section-title {
       font-size: 10px;
-      font-weight: 700;
+      font-weight: 800;
       text-transform: uppercase;
       letter-spacing: 0.1em;
-      color: var(--zweck-blue);
-      margin: 20px 0 10px 0;
+      color: var(--brand-mid);
+      margin: 18px 0 10px 0;
       padding-bottom: 6px;
-      border-bottom: 1px solid #e2e8f0;
+      border-bottom: 1px solid var(--line-soft);
     }
-    table.data {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 10px;
-      margin-bottom: 16px;
-    }
-    table.data thead th {
-      background: var(--zweck-blue);
-      color: var(--zweck-white);
-      font-weight: 600;
-      text-align: left;
-      padding: 9px 10px;
-      border: 1px solid var(--zweck-blue);
-    }
-    table.data thead th.num { text-align: right; }
-    table.data tbody td {
-      border: 1px solid #e2e8f0;
-      padding: 8px 10px;
-      vertical-align: middle;
-    }
-    table.data tbody tr:nth-child(even) td { background: #f9f4e5; }
-    .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+    table.data,
     table.kv {
       width: 100%;
-      border-collapse: collapse;
+      border-collapse: separate;
+      border-spacing: 0;
       font-size: 10px;
       margin-bottom: 16px;
+      border: 1px solid var(--line-soft);
+      border-radius: 10px;
+      overflow: hidden;
     }
-    table.kv th {
-      background: #f9f4e5;
-      color: var(--zweck-blue);
-      font-weight: 600;
+    table.data thead th,
+    table.kv thead th {
+      background: var(--brand-dark);
+      color: #ffffff;
+      font-weight: 700;
       text-align: left;
+      padding: 9px 10px;
+    }
+    table.data thead th.num,
+    table.kv thead th.num { text-align: right; }
+
+    table.data tbody td,
+    table.kv tbody td {
       padding: 8px 10px;
-      border: 1px solid #e2e8f0;
+      vertical-align: middle;
+      border-bottom: 1px solid var(--line-soft);
     }
-    table.kv td {
-      border: 1px solid #e2e8f0;
-      padding: 8px 10px;
-    }
-    table.kv .num { font-weight: 600; color: #0f172a; }
-    table.totals {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 10px;
-      margin-top: 8px;
-    }
-    table.totals td {
-      border: 1px solid #e2e8f0;
-      padding: 8px 10px;
-    }
-    table.totals td:first-child {
-      font-weight: 500;
-      color: var(--zweck-blue);
-      width: 58%;
-      background: #f9f4e5;
-    }
+    table.data tbody tr:last-child td,
+    table.kv tbody tr:last-child td { border-bottom: 0; }
+
+    tbody tr:nth-child(even) td { background: #f9f4e5; }
+
+    .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+    table.kv .num { font-weight: 700; color: #0f172a; }
+
     .footer {
-      margin-top: 24px;
+      margin-top: 18px;
       padding-top: 12px;
-      border-top: 1px solid #e2e8f0;
+      border-top: 1px solid var(--line-soft);
       font-size: 9px;
       color: #94a3b8;
       text-align: center;
@@ -265,11 +262,16 @@ function escapeHtml(s) {
     .replace(/"/g, "&quot;");
 }
 
-export function openPrintableStatement(title, innerHtml) {
+export function openPrintableStatement(title, innerHtml, companyInfo) {
   const w = window.open("", "_blank");
   if (!w) return;
+  const companyName = companyInfo?.companyName || "Zweck Co. Ltd";
+  const companyLocation = companyInfo?.companyLocation || "Kampala, Uganda";
+  const productName = companyInfo?.productName || "ZweckOS";
   w.document.write(
-    `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width"/><title>${escapeHtml(title)}</title><style>${printStyles()}</style></head><body><div class="doc">${innerHtml}<p class="footer">Zweck Co. Ltd · Kampala, Uganda · ZweckOS · Internal use only</p></div></body></html>`
+    `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width"/><title>${escapeHtml(title)}</title><style>${printStyles()}</style></head><body><div class="doc">${innerHtml}<p class="footer">${escapeHtml(
+      companyName
+    )} · ${escapeHtml(companyLocation)} · ${escapeHtml(productName)} · Internal use only</p></div></body></html>`
   );
   w.document.close();
   w.focus();
@@ -278,10 +280,12 @@ export function openPrintableStatement(title, innerHtml) {
   });
 }
 
-function letterhead(docTitle, metaLine) {
+function letterhead(docTitle, metaLine, companyInfo) {
+  const companyName = companyInfo?.companyName || "Zweck Co. Ltd";
+  const companyLocation = companyInfo?.companyLocation || "Kampala, Uganda";
   return `
     <header class="letterhead">
-      <div class="letterhead__brand">Zweck Co. Ltd · Kampala</div>
+      <div class="letterhead__brand">${escapeHtml(companyName)} · ${escapeHtml(companyLocation.split(",")[0] || companyLocation)}</div>
       <h1 class="letterhead__title">${escapeHtml(docTitle)}</h1>
       <div class="letterhead__meta">${escapeHtml(metaLine)}</div>
     </header>
@@ -292,7 +296,7 @@ function letterhead(docTitle, metaLine) {
  * @param {object} p
  * @param {object} directorsBlock
  */
-export function printGeneralDirectorsStatement(p, directorsBlock) {
+export function printGeneralDirectorsStatement(p, directorsBlock, companyInfo) {
   const rows = (directorsBlock.list || [])
     .map(
       (d) => `<tr>
@@ -311,7 +315,8 @@ export function printGeneralDirectorsStatement(p, directorsBlock) {
   const meta = `Generated ${new Date().toLocaleString()} · ${directorsBlock.list?.length || 0} director(s) · EUR`;
 
   const html = `
-    ${letterhead("Directors equity statement", meta)}
+    ${letterhead("Directors equity statement", meta, companyInfo)}
+    <div class="rule"></div>
     <div class="summary">
       <div class="summary-card">
         <div class="summary-card__label">Total director equity</div>
@@ -340,7 +345,7 @@ export function printGeneralDirectorsStatement(p, directorsBlock) {
       <tbody>${rows}</tbody>
     </table>
   `;
-  openPrintableStatement("Directors statement — ZweckOS", html);
+  openPrintableStatement("Directors statement", html, companyInfo);
 }
 
 /**
@@ -348,11 +353,12 @@ export function printGeneralDirectorsStatement(p, directorsBlock) {
  * @param {object} p
  * @param {object} directorsBlock
  */
-export function printDirectorStatement(d, p, directorsBlock) {
+export function printDirectorStatement(d, p, directorsBlock, companyInfo) {
   const meta = `${escapeHtml(d.name)} · Generated ${new Date().toLocaleString()} · EUR`;
 
   const html = `
-    ${letterhead("Director equity statement", meta)}
+    ${letterhead("Director equity statement", meta, companyInfo)}
+    <div class="rule"></div>
     <div class="section-title">Director profile</div>
     <table class="kv">
       <tbody>
@@ -381,5 +387,5 @@ export function printDirectorStatement(d, p, directorsBlock) {
       </tbody>
     </table>
   `;
-  openPrintableStatement(`Statement — ${d.name}`, html);
+  openPrintableStatement(`Statement — ${d.name}`, html, companyInfo);
 }

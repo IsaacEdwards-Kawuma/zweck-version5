@@ -1,6 +1,8 @@
 import { Link } from "react-router-dom";
 import Loading from "../components/Loading";
 import ErrorBanner from "../components/ErrorBanner";
+import { useQuery } from "@tanstack/react-query";
+import { getAboutPage } from "../api/aboutPage";
 import { usePortfolio } from "../hooks/useDashboard";
 import { eur, pct01, pctFmt01, fmtDate } from "../lib/format";
 import {
@@ -58,7 +60,7 @@ function filenameSlug(name) {
     .slice(0, 48) || "director";
 }
 
-function DirectorProfileCard({ d, portfolio: pf, directorsBlock: m }) {
+function DirectorProfileCard({ d, portfolio: pf, directorsBlock: m, companyInfo }) {
   return (
     <div
       className={[
@@ -135,7 +137,14 @@ function DirectorProfileCard({ d, portfolio: pf, directorsBlock: m }) {
       </div>
 
       <div className="mt-3 flex flex-wrap gap-2 print:hidden">
-        <button type="button" className="ui-btn-outline-xs font-medium text-slate-800" onClick={() => printDirectorStatement(d, pf, m)}>
+        <button
+          type="button"
+          className="ui-btn-outline-xs font-medium text-slate-800"
+          onClick={() => {
+            if (!companyInfo) return window.alert("Loading company information for printing…");
+            printDirectorStatement(d, pf, m, companyInfo);
+          }}
+        >
           Print statement
         </button>
         <button
@@ -166,6 +175,11 @@ export default function Portfolio() {
   const q = usePortfolio();
   const [scenarioAmount, setScenarioAmount] = useState("");
 
+  const qAbout = useQuery({
+    queryKey: ["about-page"],
+    queryFn: getAboutPage
+  });
+
   const directorsBlock = q.data?.directors;
 
   const barData = useMemo(() => {
@@ -192,6 +206,16 @@ export default function Portfolio() {
 
   if (q.isLoading) return <Loading label="Loading portfolio..." />;
   if (q.error) return <ErrorBanner error={q.error} />;
+
+  const aboutPayload = qAbout.data?.payload;
+  const productName = aboutPayload?.headerProductName || "ZweckOS";
+  const companyInfo = aboutPayload
+    ? {
+        companyName: aboutPayload.headerCompanyName,
+        companyLocation: aboutPayload.headerLocation,
+        productName
+      }
+    : undefined;
 
   const p = q.data;
   const split = p.split || [{ key: "bank", name: "Bank", value: p.assets.bank || 0 }];
@@ -249,7 +273,10 @@ export default function Portfolio() {
               <button
                 type="button"
                 className="ui-btn-outline font-medium text-slate-800"
-                onClick={() => printGeneralDirectorsStatement(p, directorsBlock)}
+                onClick={() => {
+                  if (!companyInfo) return window.alert("Loading company information for printing…");
+                  printGeneralDirectorsStatement(p, directorsBlock, companyInfo);
+                }}
               >
                 Print general statement
               </button>
@@ -380,7 +407,13 @@ export default function Portfolio() {
             <div className="mb-3 text-sm font-semibold ui-page-heading">Director profiles</div>
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               {directorsBlock.list.map((d) => (
-                <DirectorProfileCard key={d.id} d={d} portfolio={p} directorsBlock={directorsBlock} />
+                <DirectorProfileCard
+                  key={d.id}
+                  d={d}
+                  portfolio={p}
+                  directorsBlock={directorsBlock}
+                  companyInfo={companyInfo}
+                />
               ))}
             </div>
           </div>
