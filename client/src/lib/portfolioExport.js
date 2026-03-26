@@ -243,13 +243,40 @@ function printStyles() {
     table.kv .num { font-weight: 700; color: #0f172a; }
 
     .footer {
-      margin-top: 18px;
+      margin-top: 16px;
       padding-top: 12px;
       border-top: 1px solid var(--line-soft);
       font-size: 9px;
       color: #94a3b8;
       text-align: center;
       letter-spacing: 0.02em;
+    }
+    .signatures {
+      margin-top: 20px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 28px;
+    }
+    .sig-card {
+      border: 1px solid var(--line-soft);
+      border-radius: 10px;
+      background: linear-gradient(180deg, #ffffff 0%, var(--paper-soft) 100%);
+      padding: 10px 12px;
+    }
+    .sig-title {
+      font-size: 10px;
+      color: var(--brand-mid);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      font-weight: 700;
+      margin-bottom: 26px;
+    }
+    .sig-line {
+      border-top: 2px solid var(--brand-mid);
+      padding-top: 6px;
+      color: #0f172a;
+      font-size: 12px;
+      font-weight: 700;
     }
   `;
 }
@@ -289,6 +316,23 @@ function letterhead(docTitle, metaLine, companyInfo) {
       <h1 class="letterhead__title">${escapeHtml(docTitle)}</h1>
       <div class="letterhead__meta">${escapeHtml(metaLine)}</div>
     </header>
+  `;
+}
+
+function signatureSection(companyInfo) {
+  const preparedBy = companyInfo?.preparedBy || "Director Signature:";
+  const authorisedBy = companyInfo?.authorisedBy || "Authorised - Treasurer:";
+  return `
+    <div class="signatures">
+      <div class="sig-card">
+        <div class="sig-title">Prepared by</div>
+        <div class="sig-line">${escapeHtml(preparedBy)}</div>
+      </div>
+      <div class="sig-card">
+        <div class="sig-title">Authorised by</div>
+        <div class="sig-line">${escapeHtml(authorisedBy)}</div>
+      </div>
+    </div>
   `;
 }
 
@@ -344,6 +388,7 @@ export function printGeneralDirectorsStatement(p, directorsBlock, companyInfo) {
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
+    ${signatureSection(companyInfo)}
   `;
   openPrintableStatement("Directors statement", html, companyInfo);
 }
@@ -386,6 +431,7 @@ export function printDirectorStatement(d, p, directorsBlock, companyInfo) {
         <tr><td>Total assets (Bank and project-linked assets)</td><td class="num">${eurPlain(p.totalAssets)} €</td></tr>
       </tbody>
     </table>
+    ${signatureSection(companyInfo)}
   `;
   openPrintableStatement(`Statement — ${d.name}`, html, companyInfo);
 }

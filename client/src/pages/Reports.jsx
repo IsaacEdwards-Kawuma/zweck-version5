@@ -96,7 +96,9 @@ function openPrintDocument(title, statementName, reportMeta, statementRef, inner
   const lh = {
     companyName: letterhead?.companyName ?? PRINT_COMPANY_NAME,
     companyLocation: letterhead?.companyLocation ?? PRINT_COMPANY_LOCATION,
-    productName: letterhead?.productName ?? "ZweckOS"
+    productName: letterhead?.productName ?? "ZweckOS",
+    preparedBy: letterhead?.preparedBy ?? PRINT_PREPARED_BY,
+    authorisedBy: letterhead?.authorisedBy ?? PRINT_AUTHORISED_BY
   };
   const w = window.open("", "_blank");
   if (!w) return;
@@ -157,8 +159,14 @@ function openPrintDocument(title, statementName, reportMeta, statementRef, inner
       .card .k { font-size: 10px; color: #334155; text-transform: uppercase; letter-spacing: .05em; }
       .card .v { margin-top: 4px; font-size: 16px; font-weight: 700; color: var(--brand-dark); }
       .signatures { margin-top: 26px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
-      .sig-title { font-size: 12px; color: #0f172a; margin-bottom: 34px; }
-      .sig-line { border-top: 2px solid var(--brand-mid); padding-top: 6px; color: #0f172a; font-size: 12px; font-weight: 600; }
+      .sig-card {
+        border: 1px solid var(--line-soft);
+        border-radius: 10px;
+        background: linear-gradient(180deg, #ffffff 0%, var(--paper-soft) 100%);
+        padding: 10px 12px;
+      }
+      .sig-title { font-size: 10px; color: var(--brand-mid); text-transform: uppercase; letter-spacing: .06em; font-weight: 700; margin-bottom: 26px; }
+      .sig-line { border-top: 2px solid var(--brand-mid); padding-top: 6px; color: #0f172a; font-size: 12px; font-weight: 700; }
       .footer { margin-top: 14px; display: flex; justify-content: space-between; gap: 20px; color: #475569; font-size: 11px; }
       @media print {
         .signatures { break-inside: avoid; }
@@ -185,13 +193,13 @@ function openPrintDocument(title, statementName, reportMeta, statementRef, inner
       </div>
       ${innerHtml}
       <div class="signatures">
-        <div>
+        <div class="sig-card">
           <div class="sig-title">Prepared by:</div>
-          <div class="sig-line">${escHtml(PRINT_PREPARED_BY)}</div>
+          <div class="sig-line">${escHtml(lh.preparedBy)}</div>
         </div>
-        <div>
+        <div class="sig-card">
           <div class="sig-title">Authorised by:</div>
-          <div class="sig-line">${escHtml(PRINT_AUTHORISED_BY)}</div>
+          <div class="sig-line">${escHtml(lh.authorisedBy)}</div>
         </div>
       </div>
       <div class="footer">
@@ -232,7 +240,13 @@ export default function Reports() {
   const aboutPayload = qAbout.data?.payload;
   const productName = aboutPayload?.headerProductName || "ZweckOS";
   const letterhead = aboutPayload
-    ? { companyName: aboutPayload.headerCompanyName, companyLocation: aboutPayload.headerLocation, productName }
+    ? {
+        companyName: aboutPayload.headerCompanyName,
+        companyLocation: aboutPayload.headerLocation,
+        productName,
+        preparedBy: aboutPayload.preparedByLabel,
+        authorisedBy: aboutPayload.authorisedByLabel
+      }
     : undefined;
 
   const rawTxs = useMemo(() => txItems(qTx.data), [qTx.data]);

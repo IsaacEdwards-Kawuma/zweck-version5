@@ -43,6 +43,27 @@ export default function AboutPageEditor({ payload, onChange }) {
         </div>
       </div>
 
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <Label>Prepared by label</Label>
+          <input
+            className={field}
+            value={payload.preparedByLabel || ""}
+            onChange={(e) => patch({ preparedByLabel: e.target.value })}
+            placeholder="Director Signature:"
+          />
+        </div>
+        <div>
+          <Label>Authorised by label</Label>
+          <input
+            className={field}
+            value={payload.authorisedByLabel || ""}
+            onChange={(e) => patch({ authorisedByLabel: e.target.value })}
+            placeholder="Authorised - Treasurer:"
+          />
+        </div>
+      </div>
+
       <div>
         <div className="flex items-center justify-between gap-2">
           <Label>Introduction paragraphs</Label>

@@ -14,6 +14,8 @@ export const aboutPayloadSchema = z.object({
   headerProductName: z.string().min(1).max(120),
   headerCompanyName: z.string().min(1).max(200),
   headerLocation: z.string().min(1).max(200),
+  preparedByLabel: z.string().min(1).max(160),
+  authorisedByLabel: z.string().min(1).max(160),
   introParagraphs: z.array(z.string().max(8000)).min(1).max(12),
   featuresSectionTitle: z.string().min(1).max(200),
   featureBullets: z
@@ -38,6 +40,8 @@ export function defaultAboutPayload(): AboutPayload {
     headerProductName: "ZweckOS",
     headerCompanyName: "Zweck Tukula Co. Ltd",
     headerLocation: "Kampala, Uganda",
+    preparedByLabel: "Director Signature:",
+    authorisedByLabel: "Authorised - Treasurer:",
     introParagraphs: [
       "Zweck Tukula Co. Ltd is a member-driven company built around transparent governance, shared financial discipline, and long-term portfolio growth. ZweckOS is our internal platform to run the business: one place for meetings, documents, accounting, reporting, and project work.",
       "The system reflects how we operate: clear roles, traceable decisions, and up-to-date figures everyone can rely on for board discussions and day-to-day management."

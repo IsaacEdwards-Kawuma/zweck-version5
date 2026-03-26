@@ -213,7 +213,9 @@ export default function Portfolio() {
     ? {
         companyName: aboutPayload.headerCompanyName,
         companyLocation: aboutPayload.headerLocation,
-        productName
+        productName,
+        preparedBy: aboutPayload.preparedByLabel,
+        authorisedBy: aboutPayload.authorisedByLabel
       }
     : undefined;
 
