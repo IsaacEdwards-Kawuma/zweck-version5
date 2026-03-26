@@ -7,6 +7,7 @@ import PrintStatementHeader from "../components/PrintStatementHeader";
 import { listTransactions, txItems } from "../api/transactions";
 import { trackReportEvent } from "../api/reports";
 import { listDirectors } from "../api/directors";
+import { getAboutPage } from "../api/aboutPage";
 import { eur, eurCompact, fmtDate } from "../lib/format";
 import { TX_TYPE_LABELS } from "../lib/dashboardAnalytics";
 import { useDirectorsAll, useSummary } from "../hooks/useDashboard";
@@ -65,8 +66,8 @@ function escHtml(value) {
     .replace(/"/g, "&quot;");
 }
 
-const PRINT_COMPANY_NAME = "YOUR COMPANY NAME";
-const PRINT_COMPANY_LOCATION = "Your city, Your country";
+const PRINT_COMPANY_NAME = "Zweck Tukula Co. Ltd";
+const PRINT_COMPANY_LOCATION = "Kampala, Uganda";
 const PRINT_PREPARED_BY = "Director Signature:";
 const PRINT_AUTHORISED_BY = "Authorised – Treasurer:";
 const REPORT_CUSTOM_PRESETS_KEY = "zweck_reports_date_presets_v1";
@@ -91,7 +92,12 @@ function makeStatementRef(statementCode, mode, from, to) {
   return `${statementCode}-${today}-${mode.toUpperCase()}-${fromPart}-${toPart}`;
 }
 
-function openPrintDocument(title, statementName, reportMeta, statementRef, innerHtml) {
+function openPrintDocument(title, statementName, reportMeta, statementRef, innerHtml, letterhead) {
+  const lh = {
+    companyName: letterhead?.companyName ?? PRINT_COMPANY_NAME,
+    companyLocation: letterhead?.companyLocation ?? PRINT_COMPANY_LOCATION,
+    productName: letterhead?.productName ?? "ZweckOS"
+  };
   const w = window.open("", "_blank");
   if (!w) return;
   w.document.write(`<!doctype html>
@@ -154,8 +160,8 @@ function openPrintDocument(title, statementName, reportMeta, statementRef, inner
     <div class="wrap">
       <div class="top">
         <div class="brand">
-          <h1>${escHtml(PRINT_COMPANY_NAME)}</h1>
-          <p>${escHtml(PRINT_COMPANY_LOCATION)}</p>
+          <h1>${escHtml(lh.companyName)}</h1>
+          <p>${escHtml(lh.companyLocation)}</p>
         </div>
         <div class="title">
           <h2>${escHtml(statementName)}</h2>
@@ -180,7 +186,7 @@ function openPrintDocument(title, statementName, reportMeta, statementRef, inner
         </div>
       </div>
       <div class="footer">
-        <div>Prepared by: ZweckOS</div>
+        <div>Prepared by: ${escHtml(lh.productName)}</div>
         <div>Print / Save as PDF</div>
       </div>
     </div>
@@ -205,10 +211,20 @@ export default function Reports() {
     queryKey: ["directors", "full", "reports"],
     queryFn: listDirectors
   });
+  const qAbout = useQuery({
+    queryKey: ["about-page"],
+    queryFn: getAboutPage
+  });
   const qTx = useQuery({
     queryKey: ["transactions", "reports"],
     queryFn: async () => listTransactions({ limit: 100000, offset: 0 })
   });
+
+  const aboutPayload = qAbout.data?.payload;
+  const productName = aboutPayload?.headerProductName || "ZweckOS";
+  const letterhead = aboutPayload
+    ? { companyName: aboutPayload.headerCompanyName, companyLocation: aboutPayload.headerLocation, productName }
+    : undefined;
 
   const rawTxs = useMemo(() => txItems(qTx.data), [qTx.data]);
   const txTotal = qTx.data?.total;
@@ -442,6 +458,10 @@ export default function Reports() {
       window.alert("No transactions in the selected range to print.");
       return;
     }
+    if (!letterhead) {
+      window.alert("Loading company information for printing…");
+      return;
+    }
     const statementRef = makeStatementRef("PL", mode, from, to);
     const rows =
       mode === "summary"
@@ -464,12 +484,17 @@ export default function Reports() {
       "Profit and Loss Statement",
       reportMeta,
       statementRef,
-      `<div class="section"><h3>Capital Position</h3><table><thead><tr><th>Line Item</th><th class="num">Amount</th></tr></thead><tbody>${rows}</tbody></table></div>`
+      `<div class="section"><h3>Capital Position</h3><table><thead><tr><th>Line Item</th><th class="num">Amount</th></tr></thead><tbody>${rows}</tbody></table></div>`,
+      letterhead
     );
     await logReportEvent("PRINT", "PROFIT_LOSS", mode);
   }
 
   async function printBalanceSheet(mode) {
+    if (!letterhead) {
+      window.alert("Loading company information for printing…");
+      return;
+    }
     const statementRef = makeStatementRef("BS", mode, from, to);
     const check = (qSummary.data?.assets ?? 0) - ((qSummary.data?.liabilities ?? 0) + (qSummary.data?.equity ?? 0));
     const body =
@@ -493,7 +518,8 @@ export default function Reports() {
       "Balance Sheet",
       reportMeta,
       statementRef,
-      `<div class="section"><h3>Position Summary</h3>${body}</div>`
+      `<div class="section"><h3>Position Summary</h3>${body}</div>`,
+      letterhead
     );
     await logReportEvent("PRINT", "BALANCE_SHEET", mode);
   }
@@ -501,6 +527,10 @@ export default function Reports() {
   async function printCashFlow(mode) {
     if (!txs.length) {
       window.alert("No transactions in the selected range to print.");
+      return;
+    }
+    if (!letterhead) {
+      window.alert("Loading company information for printing…");
       return;
     }
     const statementRef = makeStatementRef("CF", mode, from, to);
@@ -531,7 +561,8 @@ export default function Reports() {
       "Cash Flow Statement",
       reportMeta,
       statementRef,
-      `<div class="section"><h3>Cash Movement</h3><table><thead><tr><th>Line Item</th><th class="num">Amount</th></tr></thead><tbody>${rows}</tbody></table></div>`
+      `<div class="section"><h3>Cash Movement</h3><table><thead><tr><th>Line Item</th><th class="num">Amount</th></tr></thead><tbody>${rows}</tbody></table></div>`,
+      letterhead
     );
     await logReportEvent("PRINT", "CASH_FLOW", mode);
   }
@@ -539,6 +570,10 @@ export default function Reports() {
   async function printDirectorCapital(mode) {
     if (!directorCapital.rows.length) {
       window.alert("No director capital data available to print.");
+      return;
+    }
+    if (!letterhead) {
+      window.alert("Loading company information for printing…");
       return;
     }
     const statementRef = makeStatementRef("DCS", mode, from, to);
@@ -685,7 +720,8 @@ export default function Reports() {
         <div class="section"><h3>Capital Movement</h3><table><thead><tr><th>Line Item</th><th class="num">Amount</th></tr></thead><tbody>${rowsSingle}</tbody></table></div>
         ${monthlySection}
         ${transactionsRecordedSection}
-        ${txTable}`
+        ${txTable}`,
+        letterhead
       );
       await logReportEvent("PRINT", "DIRECTOR_STATEMENT", mode);
       return;
@@ -711,7 +747,8 @@ export default function Reports() {
       "Director Capital Statement",
       reportMeta,
       statementRef,
-      `<div class="section"><h3>Director Capital Register</h3><table><thead><tr><th>Director</th><th>Email</th><th class="num">Capital</th><th class="num">Side fund</th><th class="num">Total stake</th><th class="num">Equity %</th></tr></thead><tbody>${rows}</tbody></table></div>`
+      `<div class="section"><h3>Director Capital Register</h3><table><thead><tr><th>Director</th><th>Email</th><th class="num">Capital</th><th class="num">Side fund</th><th class="num">Total stake</th><th class="num">Equity %</th></tr></thead><tbody>${rows}</tbody></table></div>`,
+      letterhead
     );
     await logReportEvent("PRINT", "DIRECTOR_CAPITAL", mode);
   }
@@ -756,7 +793,10 @@ export default function Reports() {
       <PrintStatementHeader
         title="Financial report"
         subtitle={`Income, expenses & contributions — ${rangeLabel}`}
-        meta={`Generated ${new Date().toLocaleString()} · ZweckOS`}
+        meta={`Generated ${new Date().toLocaleString()} · ${productName}`}
+        companyName={aboutPayload?.headerCompanyName}
+        companyLocation={aboutPayload?.headerLocation}
+        productName={productName}
       />
 
       <div className="ui-animate-pop ui-surface rounded-xl p-4 print:hidden">
