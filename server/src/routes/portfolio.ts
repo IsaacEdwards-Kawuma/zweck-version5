@@ -74,7 +74,6 @@ router.get("/", async (_req, res) => {
       initials: true,
       email: true,
       avatarUrl: true,
-      joinedRound: true,
       active: true,
       createdAt: true
     }

@@ -33,7 +33,6 @@ export const createDirectorSchema = z.object({
   nextOfKinName: z.string().max(120).optional().nullable(),
   nextOfKinPhone: z.string().max(40).optional().nullable(),
   notes: z.string().max(2000).optional().nullable(),
-  joinedRound: z.number().int().positive().optional(),
   active: z.boolean().optional()
 });
 
@@ -55,7 +54,6 @@ router.post("/", requireRole("ADMIN"), validateBody(createDirectorSchema), async
     nextOfKinName: emptyToNull(body.nextOfKinName),
     nextOfKinPhone: emptyToNull(body.nextOfKinPhone),
     notes: emptyToNull(body.notes),
-    joinedRound: body.joinedRound ?? 1,
     active: body.active ?? true
   };
 

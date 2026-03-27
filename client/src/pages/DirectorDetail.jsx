@@ -155,9 +155,6 @@ export default function DirectorDetail() {
             </div>
             <div className="mt-1 text-sm text-slate-600">{director.email}</div>
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-              <span>
-                Joined round <span className="font-medium text-slate-700">{director.joinedRound}</span>
-              </span>
               <span>Director since {fmtDate(director.createdAt)}</span>
             </div>
             {canManagePhoto ? (

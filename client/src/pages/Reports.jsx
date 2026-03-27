@@ -400,7 +400,6 @@ export default function Reports() {
       email: profile.email || row.email || "",
       phone: profile.phone || "",
       address: profile.address || "",
-      joinedRound: profile.joinedRound ?? row.joinedRound ?? null,
       equitySharePct,
       openingCapital,
       openingSideFund,
@@ -758,7 +757,7 @@ export default function Reports() {
           <table><tbody>
             <tr><td>Name</td><td>${escHtml(selectedDirectorStatement.name)}</td><td>Role</td><td>${escHtml(selectedDirectorStatement.role)}</td></tr>
             <tr><td>Email</td><td>${escHtml(selectedDirectorStatement.email)}</td><td>Phone</td><td>${escHtml(selectedDirectorStatement.phone)}</td></tr>
-            <tr><td>Address</td><td>${escHtml(selectedDirectorStatement.address)}</td><td>Joined round</td><td>${escHtml(selectedDirectorStatement.joinedRound ?? "—")}</td></tr>
+            <tr><td>Address</td><td>${escHtml(selectedDirectorStatement.address)}</td><td></td><td></td></tr>
             <tr><td>Equity share</td><td>${escHtml(`${selectedDirectorStatement.equitySharePct.toFixed(2)}%`)}</td><td></td><td></td></tr>
           </tbody></table>
         </div>

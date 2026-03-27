@@ -49,7 +49,6 @@ export function buildGeneralDirectorsCsv(p, directorsBlock) {
       "Name",
       "Email",
       "Active",
-      "Joined round",
       "Capital (EUR)",
       "Side fund (EUR)",
       "Total stake (EUR)",
@@ -62,7 +61,6 @@ export function buildGeneralDirectorsCsv(p, directorsBlock) {
       d.name,
       d.email,
       d.active ? "Yes" : "No",
-      String(d.joinedRound),
       eurPlain(d.capital),
       eurPlain(d.sideFund),
       eurPlain(d.total),
@@ -87,7 +85,6 @@ export function buildDirectorStatementCsv(d, p, directorsBlock) {
     ["Email", d.email],
     ["Initials", d.initials],
     ["Status", d.active ? "Active" : "Inactive"],
-    ["Joined round", String(d.joinedRound)],
     [],
     ["Pool reference (all directors)"],
     ["Total director equity (EUR)", eurPlain(directorsBlock.totalEquity)],
@@ -410,7 +407,6 @@ export function printDirectorStatement(d, p, directorsBlock, companyInfo) {
         <tr><th colspan="2">${escapeHtml(d.name)} (${escapeHtml(d.initials)})</th></tr>
         <tr><td>Email</td><td>${escapeHtml(d.email)}</td></tr>
         <tr><td>Status</td><td>${d.active ? "Active" : "Inactive"}</td></tr>
-        <tr><td>Joined round</td><td>${d.joinedRound}</td></tr>
       </tbody>
     </table>
     <div class="section-title">This director&apos;s position</div>

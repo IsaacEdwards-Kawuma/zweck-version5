@@ -1,6 +1,6 @@
 export function downloadDirectorsCsv(directors, filename = "zweck-directors.csv") {
   const esc = (s) => `"${String(s ?? "").replace(/"/g, '""')}"`;
-  const headers = ["name", "email", "initials", "joined_round", "active", "capital_eur", "side_fund_eur", "total_eur"];
+  const headers = ["name", "email", "initials", "active", "capital_eur", "side_fund_eur", "total_eur"];
   const lines = [headers.join(",")];
   for (const d of directors) {
     lines.push(
@@ -8,7 +8,6 @@ export function downloadDirectorsCsv(directors, filename = "zweck-directors.csv"
         d.name,
         d.email,
         d.initials,
-        d.joinedRound ?? "",
         d.active ? "yes" : "no",
         d.capital ?? 0,
         d.sideFund ?? 0,

@@ -226,7 +226,6 @@ export default function AboutCompany() {
                         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Director</p>
                       )}
                       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
-                        <span>Round {d.joinedRound ?? "—"}</span>
                         <span className="font-medium text-brand-700 dark:text-brand-300">View profile →</span>
                       </div>
                     </div>

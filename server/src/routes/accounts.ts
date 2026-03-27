@@ -65,7 +65,7 @@ router.get("/director/:id", async (req, res) => {
 router.get("/directors/all", async (_req, res) => {
   const directors = await prisma.director.findMany({
     orderBy: { createdAt: "asc" },
-    select: { id: true, name: true, initials: true, email: true, active: true, avatarUrl: true, joinedRound: true, createdAt: true }
+    select: { id: true, name: true, initials: true, email: true, active: true, avatarUrl: true, createdAt: true }
   });
 
   const txs = await prisma.transaction.findMany({
@@ -98,7 +98,7 @@ router.get("/directors/all", async (_req, res) => {
 router.get("/directors", async (_req, res) => {
   const directors = await prisma.director.findMany({
     orderBy: { createdAt: "asc" },
-    select: { id: true, name: true, initials: true, email: true, active: true, avatarUrl: true, joinedRound: true, createdAt: true }
+    select: { id: true, name: true, initials: true, email: true, active: true, avatarUrl: true, createdAt: true }
   });
 
   const txs = await prisma.transaction.findMany({

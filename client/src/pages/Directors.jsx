@@ -45,7 +45,6 @@ export default function Directors() {
     nextOfKinName: "",
     nextOfKinPhone: "",
     notes: "",
-    joinedRound: "",
     active: true
   });
   const [editingId, setEditingId] = useState(null);
@@ -64,7 +63,6 @@ export default function Directors() {
         nextOfKinName: "",
         nextOfKinPhone: "",
         notes: "",
-        joinedRound: "",
         active: true
       });
       await Promise.all([
@@ -117,7 +115,6 @@ export default function Directors() {
     const sorted = [...list];
     if (sortBy === "name") sorted.sort((a, b) => a.name.localeCompare(b.name));
     else if (sortBy === "total") sorted.sort((a, b) => (b.total || 0) - (a.total || 0));
-    else if (sortBy === "round") sorted.sort((a, b) => (a.joinedRound || 0) - (b.joinedRound || 0));
     return showTopOnly ? sorted.slice(0, 10) : sorted;
   }, [directors, search, sortBy, activeFilter, minTotal, showTopOnly]);
 
@@ -152,7 +149,6 @@ export default function Directors() {
       nextOfKinName: "",
       nextOfKinPhone: "",
       notes: "",
-      joinedRound: "",
       active: true
     });
   }
@@ -171,7 +167,6 @@ export default function Directors() {
         nextOfKinName: director.nextOfKinName ?? "",
         nextOfKinPhone: director.nextOfKinPhone ?? "",
         notes: director.notes ?? "",
-        joinedRound: director.joinedRound,
         active: !director.active
       }
     });
@@ -231,7 +226,6 @@ export default function Directors() {
             >
               <option value="total">Total (high → low)</option>
               <option value="name">Name (A–Z)</option>
-              <option value="round">Joined round (low → high)</option>
             </select>
           </div>
           <div>
@@ -314,7 +308,6 @@ export default function Directors() {
                 nextOfKinName: form.nextOfKinName,
                 nextOfKinPhone: form.nextOfKinPhone,
                 notes: form.notes,
-                joinedRound: form.joinedRound ? Number(form.joinedRound) : undefined,
                 active: form.active
               };
               if (editingId) {
@@ -351,16 +344,6 @@ export default function Directors() {
                 value={form.email}
                 onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
                 required
-              />
-            </div>
-            <div>
-              <div className="text-xs font-medium text-slate-700">Joined round</div>
-              <input
-                className="mt-1 w-full rounded-lg border-slate-300"
-                type="number"
-                min={1}
-                value={form.joinedRound}
-                onChange={(e) => setForm((f) => ({ ...f, joinedRound: e.target.value }))}
               />
             </div>
             <div>
@@ -476,7 +459,6 @@ export default function Directors() {
                       nextOfKinName: d.nextOfKinName ?? "",
                       nextOfKinPhone: d.nextOfKinPhone ?? "",
                       notes: d.notes ?? "",
-                      joinedRound: d.joinedRound?.toString?.() ?? "",
                       active: d.active
                     });
                   }}

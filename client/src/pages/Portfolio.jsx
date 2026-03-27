@@ -86,9 +86,6 @@ function DirectorProfileCard({ d, portfolio: pf, directorsBlock: m, companyInfo 
           </div>
           <div className="mt-0.5 truncate text-sm ui-body-text">{d.email}</div>
           <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs ui-page-muted">
-            <span>
-              Joined round <span className="font-medium text-slate-700 dark:text-slate-300">{d.joinedRound}</span>
-            </span>
             <span>Member since {fmtDate(d.createdAt)}</span>
           </div>
         </div>

@@ -225,7 +225,6 @@ const registerBody = z.object({
       name: z.string().min(1).max(120),
       initials: z.string().min(1).max(3),
       email: z.string().email(),
-      joinedRound: z.number().int().positive().optional(),
       active: z.boolean().optional()
     })
     .optional()
@@ -276,7 +275,6 @@ async function handleRegister(
         name: body.director.name,
         initials: body.director.initials.toUpperCase(),
         email: dirEmail,
-        joinedRound: body.director.joinedRound ?? 1,
         active: body.director.active ?? true
       }
     });

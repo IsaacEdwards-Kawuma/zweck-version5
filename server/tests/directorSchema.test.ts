@@ -14,7 +14,6 @@ describe("director profile schemas", () => {
       nextOfKinName: "John Doe",
       nextOfKinPhone: "+256711111111",
       notes: "Trusted signatory",
-      joinedRound: 1,
       active: true
     });
 

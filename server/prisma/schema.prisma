@@ -22,7 +22,6 @@ model Director {
   nextOfKinPhone String?
   notes       String?
   avatarUrl   String?
-  joinedRound Int       @default(1)
   active      Boolean   @default(true)
   createdAt   DateTime  @default(now())
 
