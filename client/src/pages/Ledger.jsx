@@ -8,8 +8,9 @@ import { useTransactions } from "../hooks/useTransactions";
 import { listDirectors } from "../api/directors";
 import { useQuery } from "@tanstack/react-query";
 import { deleteTransaction, listTransactions, txItems } from "../api/transactions";
-import { eur, formatTxRef } from "../lib/format";
+import { eur } from "../lib/format";
 import { TX_TYPE_GROUPS } from "../lib/transactionTypes";
+import { downloadTransactionsCsv } from "../lib/reportsAnalytics";
 
 export default function Ledger() {
   const { me } = useOutletContext() || {};
@@ -97,38 +98,7 @@ export default function Ledger() {
     if (res.total > 100000) {
       window.alert(`Export includes first 100,000 rows only (${res.total} total matches). Narrow filters.`);
     }
-    const header = [
-      "id",
-      "date",
-      "type",
-      "description",
-      "director",
-      "debitAccount",
-      "creditAccount",
-      "amount"
-    ];
-    const lines = [
-      header.join(","),
-      ...all.map((t) =>
-        [
-          t.id,
-          new Date(t.date).toISOString(),
-          t.type,
-          `"${(t.description || "").replace(/"/g, '""')}"`,
-          `"${(t.director?.name || "").replace(/"/g, '""')}"`,
-          t.debitAccount,
-          t.creditAccount,
-          t.amount
-        ].join(",")
-      )
-    ];
-    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "zweckos-ledger.csv";
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadTransactionsCsv(all, "zweckos-ledger.csv");
   }
 
   function resetPage() {

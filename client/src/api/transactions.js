@@ -15,8 +15,25 @@ export function txItems(res) {
   return res.items ?? [];
 }
 
+export async function getPreviewReference() {
+  const { data } = await api.get("/transactions/preview-reference");
+  return data;
+}
+
 export async function postTransaction(payload) {
   const { data } = await api.post("/transactions", payload);
+  return data;
+}
+
+export async function uploadTransactionDocument(file) {
+  const fd = new FormData();
+  fd.append("file", file);
+  const { data } = await api.post("/transactions/upload-document", fd);
+  return data;
+}
+
+export async function reverseTransaction(id) {
+  const { data } = await api.post(`/transactions/${id}/reverse`);
   return data;
 }
 

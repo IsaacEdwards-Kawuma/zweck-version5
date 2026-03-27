@@ -3,8 +3,18 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useOutletContext } from "react-router-dom";
 import DirectorAvatar from "../components/DirectorAvatar";
 import ErrorBanner from "../components/ErrorBanner";
-import { postTransaction, deleteTransaction, updateTransaction, listTransactions, txItems } from "../api/transactions";
+import {
+  postTransaction,
+  deleteTransaction,
+  updateTransaction,
+  listTransactions,
+  txItems,
+  getPreviewReference,
+  uploadTransactionDocument,
+  reverseTransaction
+} from "../api/transactions";
 import { listDirectors } from "../api/directors";
+import { listProjects } from "../api/projects";
 import { fmtDate, formatMoney, formatTxRef, parseMoneyAmountInput, roundToCents } from "../lib/format";
 import {
   TX_ACCOUNT_MAP,
@@ -13,18 +23,38 @@ import {
   TX_POSTING_CATEGORY,
   POSTING_BUCKET_OPTIONS,
   filterTxTypeGroupsForBucket,
-  firstTxTypeInBucket
+  firstTxTypeInBucket,
+  needsProjectForType,
+  isExpenseBucketType,
+  INTER_ACCOUNT_TRANSFER_OPTIONS
 } from "../lib/transactionTypes";
+
 const TEMPLATES = [
   { id: "monthly-fee", label: "Monthly charges", type: "TX_CHARGE", amount: "25", description: "Monthly bank/service charges" },
   { id: "registration", label: "Registration fee", type: "REGISTRATION", amount: "50", description: "Director registration charge" },
   { id: "legal", label: "Legal filing", type: "LEGAL", amount: "120", description: "Legal/compliance filing fee" }
 ];
 
+function bankPreviewLabel(currency) {
+  if (currency === "UGX") return "1200 Cash at Bank (UGX)";
+  if (currency === "USD") return "1210 Cash at Bank (USD)";
+  return "1220 Cash at Bank (EUR)";
+}
+
+function mapPreviewAccount(key, currency) {
+  if (!key) return "—";
+  if (key === "bank") return bankPreviewLabel(currency);
+  const opt = INTER_ACCOUNT_TRANSFER_OPTIONS.find((o) => o.value === key);
+  if (opt) return opt.label;
+  return key;
+}
+
 export default function PostTransaction() {
   const qc = useQueryClient();
   const { me } = useOutletContext() || {};
   const qDirs = useQuery({ queryKey: ["directors"], queryFn: listDirectors });
+  const qProjects = useQuery({ queryKey: ["projects"], queryFn: listProjects });
+  const qPreviewRef = useQuery({ queryKey: ["tx-preview-ref"], queryFn: getPreviewReference });
   const qRecent = useQuery({
     queryKey: ["transactions", "recent-on-post"],
     queryFn: async () => {
@@ -40,6 +70,13 @@ export default function PostTransaction() {
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [description, setDescription] = useState("");
+  const [externalReference, setExternalReference] = useState("");
+  const [paymentAp, setPaymentAp] = useState(false);
+  const [projectId, setProjectId] = useState("");
+  const [transferFrom, setTransferFrom] = useState("");
+  const [transferTo, setTransferTo] = useState("");
+  const [documentUrl, setDocumentUrl] = useState("");
+  const [uploadingDoc, setUploadingDoc] = useState(false);
   const [success, setSuccess] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [recentQuery, setRecentQuery] = useState("");
@@ -47,7 +84,10 @@ export default function PostTransaction() {
   const [showOnlyDirectorTx, setShowOnlyDirectorTx] = useState(false);
 
   const map = TX_ACCOUNT_MAP[type];
-  const needsDirector = map?.needsDirector;
+  const needsDirector = Boolean(map?.needsDirector);
+  const needsProject = needsProjectForType(type);
+  const showExpensePayment = postingBucket === "EXPENSE" && isExpenseBucketType(type);
+  const showTransfer = type === "INTER_ACCOUNT_TRANSFER";
 
   const typeGroupsFiltered = useMemo(() => filterTxTypeGroupsForBucket(postingBucket), [postingBucket]);
 
@@ -60,21 +100,31 @@ export default function PostTransaction() {
     }
   }, [postingBucket]);
 
+  const invalidateAll = async () => {
+    await Promise.all([
+      qc.invalidateQueries({ queryKey: ["balances"] }),
+      qc.invalidateQueries({ queryKey: ["summary"] }),
+      qc.invalidateQueries({ queryKey: ["directors_all"] }),
+      qc.invalidateQueries({ queryKey: ["portfolio"] }),
+      qc.invalidateQueries({ queryKey: ["transactions"] }),
+      qc.invalidateQueries({ queryKey: ["tx-preview-ref"] })
+    ]);
+  };
+
   const mPost = useMutation({
     mutationFn: (payload) => postTransaction(payload),
     onSuccess: async () => {
       setSuccess("Transaction posted.");
       setAmount("");
       setDescription("");
+      setExternalReference("");
+      setDocumentUrl("");
+      setProjectId("");
+      setTransferFrom("");
+      setTransferTo("");
       setEditingId(null);
       if (!needsDirector) setDirectorId("");
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ["balances"] }),
-        qc.invalidateQueries({ queryKey: ["summary"] }),
-        qc.invalidateQueries({ queryKey: ["directors_all"] }),
-        qc.invalidateQueries({ queryKey: ["portfolio"] }),
-        qc.invalidateQueries({ queryKey: ["transactions"] })
-      ]);
+      await invalidateAll();
     }
   });
 
@@ -83,13 +133,7 @@ export default function PostTransaction() {
     onSuccess: async () => {
       setSuccess("Transaction updated.");
       setEditingId(null);
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ["balances"] }),
-        qc.invalidateQueries({ queryKey: ["summary"] }),
-        qc.invalidateQueries({ queryKey: ["directors_all"] }),
-        qc.invalidateQueries({ queryKey: ["portfolio"] }),
-        qc.invalidateQueries({ queryKey: ["transactions"] })
-      ]);
+      await invalidateAll();
     }
   });
 
@@ -98,13 +142,15 @@ export default function PostTransaction() {
     onSuccess: async () => {
       setSuccess("Transaction deleted.");
       if (editingId) setEditingId(null);
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ["balances"] }),
-        qc.invalidateQueries({ queryKey: ["summary"] }),
-        qc.invalidateQueries({ queryKey: ["directors_all"] }),
-        qc.invalidateQueries({ queryKey: ["portfolio"] }),
-        qc.invalidateQueries({ queryKey: ["transactions"] })
-      ]);
+      await invalidateAll();
+    }
+  });
+
+  const mReverse = useMutation({
+    mutationFn: (id) => reverseTransaction(id),
+    onSuccess: async () => {
+      setSuccess("Reversal posted.");
+      await invalidateAll();
     }
   });
 
@@ -116,22 +162,50 @@ export default function PostTransaction() {
       const x = Number(amount);
       n = Number.isFinite(x) ? (currency === "UGX" ? Math.round(x) : roundToCents(x)) : 0;
     }
+    if (type === "INTER_ACCOUNT_TRANSFER") {
+      return {
+        debit: mapPreviewAccount(transferTo || "bank", currency),
+        credit: mapPreviewAccount(transferFrom || "bank", currency),
+        amount: Number.isFinite(n) ? n : 0
+      };
+    }
+    if (type === "RETAINED_EARNINGS_TRANSFER") {
+      return {
+        debit: "3300 Retained Earnings",
+        credit: "3110–3150 Director Capital (split equally)",
+        amount: Number.isFinite(n) ? n : 0
+      };
+    }
+    const debit = map?.debit === "bank" ? bankPreviewLabel(currency) : map?.debit || "—";
+    let credit =
+      map?.credit === "bank"
+        ? showExpensePayment && paymentAp
+          ? "2100 Accounts Payable"
+          : bankPreviewLabel(currency)
+        : map?.credit === "capital"
+          ? "Director capital (selected director)"
+          : map?.credit || "—";
     return {
-      debit: map?.debit,
-      credit: map?.credit,
+      debit,
+      credit,
       amount: Number.isFinite(n) ? n : 0
     };
-  }, [amount, currency, map]);
+  }, [amount, currency, map, type, transferFrom, transferTo, showExpensePayment, paymentAp]);
 
   const validation = useMemo(() => {
+    if (!date) return "Select a date.";
     const parsed = parseMoneyAmountInput(amount, currency);
     if (!parsed.ok) {
       if (amount.trim() === "") return "Enter amount.";
       return parsed.error;
     }
+    if (parsed.value <= 0) return "Amount must be greater than zero.";
     if (needsDirector && !directorId) return "Select director for this transaction type.";
+    if (needsProject && !projectId) return "Select a project.";
+    if (showTransfer && (!transferFrom || !transferTo)) return "Select source and destination accounts.";
+    if (showTransfer && transferFrom === transferTo) return "Source and destination must differ.";
     return "";
-  }, [amount, currency, needsDirector, directorId]);
+  }, [amount, currency, needsDirector, directorId, needsProject, projectId, showTransfer, transferFrom, transferTo, date]);
 
   const selectedDirector = useMemo(() => {
     if (!needsDirector || !directorId) return null;
@@ -139,31 +213,57 @@ export default function PostTransaction() {
     return (qDirs.data || []).find((d) => d.id === id) || null;
   }, [needsDirector, directorId, qDirs.data]);
 
-  function onSubmit(e) {
-    e.preventDefault();
-    setSuccess(null);
+  function buildPayload() {
     const parsedAmount = parseMoneyAmountInput(amount, currency);
-    if (!parsedAmount.ok) return;
-    const payload = {
+    if (!parsedAmount.ok) return null;
+    const base = {
       type,
       amount: parsedAmount.value,
       currency,
       date: new Date(`${date}T12:00:00.000Z`).toISOString(),
       description: description || undefined,
-      directorId: needsDirector ? Number(directorId) : undefined
+      externalReference: externalReference.trim() || undefined,
+      documentUrl: documentUrl || undefined,
+      directorId: needsDirector ? Number(directorId) : undefined,
+      projectId: needsProject ? Number(projectId) : undefined,
+      transferFromAccountKey: showTransfer ? transferFrom : undefined,
+      transferToAccountKey: showTransfer ? transferTo : undefined
     };
+    if (showExpensePayment) {
+      base.expensePaymentMode = paymentAp ? "ACCOUNTS_PAYABLE" : "PAID";
+    }
+    return base;
+  }
+
+  function onSubmit(e) {
+    e.preventDefault();
+    setSuccess(null);
+    const payload = buildPayload();
+    if (!payload) return;
 
     if (editingId) {
-      // Backend does not support editing CONTRIBUTION transactions.
       if (type === "CONTRIBUTION") {
-        setSuccess(
-          "Editing contribution transactions is not supported. Delete and re-post instead."
-        );
+        setSuccess("Editing contribution transactions is not supported. Delete and re-post instead.");
         return;
       }
       mUpdate.mutate({ id: editingId, payload });
     } else {
       mPost.mutate(payload);
+    }
+  }
+
+  async function onPickDocument(ev) {
+    const f = ev.target.files?.[0];
+    ev.target.value = "";
+    if (!f) return;
+    setUploadingDoc(true);
+    try {
+      const { documentUrl: url } = await uploadTransactionDocument(f);
+      setDocumentUrl(url);
+    } catch {
+      setSuccess("Document upload failed.");
+    } finally {
+      setUploadingDoc(false);
     }
   }
 
@@ -174,7 +274,7 @@ export default function PostTransaction() {
       .filter((t) => (showOnlyDirectorTx ? Boolean(t.director?.id) : true))
       .filter((t) => {
         if (!q) return true;
-        const hay = `${t.type} ${t.description || ""} ${t.director?.name || ""}`.toLowerCase();
+        const hay = `${t.type} ${t.description || ""} ${t.director?.name || ""} ${t.referenceNumber || ""}`.toLowerCase();
         return hay.includes(q);
       });
   }, [qRecent.data, recentQuery, recentType, showOnlyDirectorTx]);
@@ -196,6 +296,7 @@ export default function PostTransaction() {
     setAmount(String(t.amount ?? ""));
     setDirectorId(dirId != null && dirId !== "" ? String(dirId) : "");
     setDescription(t.description || "");
+    setExternalReference(t.externalReference || "");
     setDate(new Date().toISOString().slice(0, 10));
     setSuccess(null);
     setEditingId(null);
@@ -208,7 +309,7 @@ export default function PostTransaction() {
       headers.join(","),
       ...recentFiltered.map((t) =>
         [
-          esc(t.reference || formatTxRef(t.id)),
+          esc(t.referenceNumber || t.reference || formatTxRef(t.id)),
           esc(fmtDate(t.date)),
           esc(t.type),
           esc(t.currency || "EUR"),
@@ -227,11 +328,16 @@ export default function PostTransaction() {
     URL.revokeObjectURL(url);
   }
 
+  const previewRefLabel = qPreviewRef.data?.referenceNumber || "…";
+
   return (
     <div className="max-w-2xl space-y-4">
       <div>
         <div className="text-lg font-semibold text-slate-900">Post Transaction</div>
-        <div className="text-sm text-slate-600">All balances will be derived from the transactions table.</div>
+        <div className="text-sm text-slate-600">
+          Debits and credits are assigned automatically from the transaction type. Currency maps to bank accounts: UGX → 1200,
+          USD → 1210, EUR → 1220.
+        </div>
       </div>
 
       {success ? (
@@ -289,6 +395,26 @@ export default function PostTransaction() {
             </select>
           </div>
 
+          <div>
+            <label className="text-xs font-medium text-slate-700">Reference number</label>
+            <input
+              className="mt-1 w-full rounded-lg border-slate-200 bg-slate-50 font-mono text-sm"
+              readOnly
+              value={editingId ? "—" : previewRefLabel}
+              title="Assigned when you post (sequential per month)"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-slate-700">External reference (optional)</label>
+            <input
+              className="mt-1 w-full rounded-lg border-slate-300"
+              value={externalReference}
+              onChange={(e) => setExternalReference(e.target.value)}
+              maxLength={200}
+              placeholder="Invoice #, bank ref, etc."
+            />
+          </div>
+
           {needsDirector ? (
             <div>
               <label className="text-xs font-medium text-slate-700">Director</label>
@@ -309,6 +435,78 @@ export default function PostTransaction() {
                 </select>
               </div>
               {qDirs.error ? <div className="mt-1 text-xs text-rose-700">Failed to load directors.</div> : null}
+            </div>
+          ) : null}
+
+          {needsProject ? (
+            <div className="md:col-span-2">
+              <label className="text-xs font-medium text-slate-700">Project</label>
+              <select
+                className="mt-1 w-full rounded-lg border-slate-300"
+                value={projectId}
+                onChange={(e) => setProjectId(e.target.value)}
+                required
+              >
+                <option value="">Select project...</option>
+                {(qProjects.data || []).map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.code} · {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+
+          {showTransfer ? (
+            <>
+              <div>
+                <label className="text-xs font-medium text-slate-700">From (source)</label>
+                <select
+                  className="mt-1 w-full rounded-lg border-slate-300 text-sm"
+                  value={transferFrom}
+                  onChange={(e) => setTransferFrom(e.target.value)}
+                  required
+                >
+                  <option value="">Select account...</option>
+                  {INTER_ACCOUNT_TRANSFER_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-700">To (destination)</label>
+                <select
+                  className="mt-1 w-full rounded-lg border-slate-300 text-sm"
+                  value={transferTo}
+                  onChange={(e) => setTransferTo(e.target.value)}
+                  required
+                >
+                  <option value="">Select account...</option>
+                  {INTER_ACCOUNT_TRANSFER_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
+          ) : null}
+
+          {showExpensePayment ? (
+            <div className="md:col-span-2">
+              <span className="text-xs font-medium text-slate-700">Payment status</span>
+              <div className="mt-1 flex flex-wrap gap-3 text-sm">
+                <label className="inline-flex cursor-pointer items-center gap-2">
+                  <input type="radio" checked={!paymentAp} onChange={() => setPaymentAp(false)} />
+                  Paid now (credit bank)
+                </label>
+                <label className="inline-flex cursor-pointer items-center gap-2">
+                  <input type="radio" checked={paymentAp} onChange={() => setPaymentAp(true)} />
+                  Accounts payable (credit 2100)
+                </label>
+              </div>
             </div>
           ) : null}
 
@@ -346,20 +544,39 @@ export default function PostTransaction() {
         </div>
 
         <div>
+          <label className="text-xs font-medium text-slate-700">Source document (PDF or image, optional)</label>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <input type="file" accept="application/pdf,image/*" onChange={onPickDocument} disabled={uploadingDoc || Boolean(editingId)} />
+            {uploadingDoc ? <span className="text-xs text-slate-500">Uploading…</span> : null}
+            {documentUrl ? (
+              <a href={documentUrl} target="_blank" rel="noreferrer" className="text-xs text-brand-700 underline">
+                View attached
+              </a>
+            ) : (
+              <span className="text-xs text-amber-700">If omitted, transaction posts with DOCUMENT MISSING.</span>
+            )}
+          </div>
+        </div>
+
+        <div>
           <label className="text-xs font-medium text-slate-700">Description (optional)</label>
           <input className="mt-1 w-full rounded-lg border-slate-300" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={300} />
         </div>
 
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
-          <div className="font-semibold text-slate-900">
-            {editingId ? "Edit transaction preview" : "Preview"}
-          </div>
+          <div className="font-semibold text-slate-900">{editingId ? "Edit transaction preview" : "Preview"}</div>
           <div className="mt-1 text-slate-700">
             On <span className="font-medium">{fmtDate(date)}</span>, this will <span className="font-medium">debit</span>{" "}
             <span className="rounded bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">{preview.debit}</span>{" "}
             and <span className="font-medium">credit</span>{" "}
             <span className="rounded bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700">{preview.credit}</span>{" "}
             by <span className="font-semibold">{formatMoney(preview.amount, currency)}</span>.
+            {type === "CONTRIBUTION" ? (
+              <span className="mt-2 block text-xs text-slate-600">
+                Capital contribution splits: remainder to director capital, {currency === "UGX" ? "10,000" : "10"} {currency} to side
+                fund (3200).
+              </span>
+            ) : null}
           </div>
         </div>
         {validation ? (
@@ -379,6 +596,11 @@ export default function PostTransaction() {
                 setCurrency("EUR");
                 setAmount("");
                 setDescription("");
+                setExternalReference("");
+                setDocumentUrl("");
+                setProjectId("");
+                setTransferFrom("");
+                setTransferTo("");
               }}
             >
               Cancel edit
@@ -388,13 +610,7 @@ export default function PostTransaction() {
             disabled={Boolean(validation) || mPost.isPending || mUpdate.isPending || (needsDirector && !directorId)}
             className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
           >
-            {editingId
-              ? mUpdate.isPending
-                ? "Saving..."
-                : "Save changes"
-              : mPost.isPending
-              ? "Posting..."
-              : "Post Transaction"}
+            {editingId ? (mUpdate.isPending ? "Saving..." : "Save changes") : mPost.isPending ? "Posting..." : "Post Transaction"}
           </button>
         </div>
       </form>
@@ -444,68 +660,96 @@ export default function PostTransaction() {
                   <th className="px-3 py-2">Type</th>
                   <th className="px-3 py-2">Director</th>
                   <th className="px-3 py-2 text-right">Amount</th>
+                  <th className="px-3 py-2">Doc</th>
                   <th className="px-3 py-2">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {recentFiltered.map((t) => (
-                  <tr key={t.id}>
-                    <td className="px-3 py-2 whitespace-nowrap font-mono text-xs text-slate-600">
-                      {t.reference || formatTxRef(t.id)}
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap">{fmtDate(t.date)}</td>
-                    <td className="px-3 py-2 whitespace-nowrap text-xs font-semibold">
-                      {TX_TYPE_LABELS[t.type] || t.type.replaceAll("_", " ")}
-                    </td>
-                    <td className="px-3 py-2">
-                      {t.director?.name || <span className="text-slate-400">—</span>}
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap text-right font-semibold">
-                      {formatMoney(t.amount, t.currency || "EUR")}
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          className="ui-btn-outline-xs font-medium text-slate-700"
-                          onClick={() => {
-                            setEditingId(t.id);
-                            setType(t.type);
-                            setCurrency(t.currency || "EUR");
-                            setAmount(String(t.amount));
-                            setDate(new Date(t.date).toISOString().slice(0, 10));
-                            setDescription(t.description || "");
-                            setDirectorId(t.director?.id?.toString?.() ?? "");
-                            window.scrollTo({ top: 0, behavior: "smooth" });
-                          }}
-                        >
-                          Edit
-                        </button>
-                        {me?.role === "ADMIN" && (
+                {recentFiltered.map((t) => {
+                  const canEdit = t.postingStatus === "PENDING";
+                  const isPosted = t.postingStatus === "POSTED" || t.postingStatus == null;
+                  const showReverse = isPosted && !t.reversalOfId;
+                  return (
+                    <tr key={t.id}>
+                      <td className="px-3 py-2 whitespace-nowrap font-mono text-xs text-slate-600">
+                        {t.referenceNumber || t.reference || formatTxRef(t.id)}
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap">{fmtDate(t.date)}</td>
+                      <td className="px-3 py-2 whitespace-nowrap text-xs font-semibold">
+                        {TX_TYPE_LABELS[t.type] || t.type.replaceAll("_", " ")}
+                      </td>
+                      <td className="px-3 py-2">
+                        {t.director?.name || <span className="text-slate-400">—</span>}
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap text-right font-semibold">
+                        {formatMoney(t.amount, t.currency || "EUR")}
+                      </td>
+                      <td className="px-3 py-2 text-xs text-slate-600">{t.documentStatus || "—"}</td>
+                      <td className="px-3 py-2">
+                        <div className="flex flex-wrap gap-2">
                           <button
                             type="button"
-                            disabled={mDelete.isPending}
-                            className="rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-50"
+                            className="ui-btn-outline-xs font-medium text-slate-700 disabled:opacity-40"
+                            disabled={!canEdit}
                             onClick={() => {
-                              if (
-                                window.confirm(
-                                  "Delete this transaction? This will remove it from the ledger and recompute balances."
-                                )
-                              ) {
-                                mDelete.mutate(t.id);
-                              }
+                              setEditingId(t.id);
+                              setType(t.type);
+                              setCurrency(t.currency || "EUR");
+                              setAmount(String(t.amount));
+                              setDate(new Date(t.date).toISOString().slice(0, 10));
+                              setDescription(t.description || "");
+                              setExternalReference(t.externalReference || "");
+                              setDirectorId(t.director?.id?.toString?.() ?? "");
+                              setProjectId(t.projectId != null ? String(t.projectId) : "");
+                              setTransferFrom(t.transferFromAccountKey || "");
+                              setTransferTo(t.transferToAccountKey || "");
+                              setDocumentUrl(t.documentUrl || "");
+                              setPaymentAp(t.expensePaymentMode === "ACCOUNTS_PAYABLE");
+                              window.scrollTo({ top: 0, behavior: "smooth" });
                             }}
                           >
-                            Delete
+                            Edit
                           </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                          {showReverse ? (
+                            <button
+                              type="button"
+                              className="ui-btn-outline-xs font-medium text-brand-800"
+                              disabled={mReverse.isPending}
+                              onClick={() => {
+                                if (window.confirm("Create an equal and opposite reversal entry?")) {
+                                  mReverse.mutate(t.id);
+                                }
+                              }}
+                            >
+                              Reverse
+                            </button>
+                          ) : null}
+                          {me?.role === "ADMIN" && (
+                            <button
+                              type="button"
+                              disabled={mDelete.isPending}
+                              className="rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-50"
+                              onClick={() => {
+                                if (
+                                  window.confirm(
+                                    "Delete this transaction? This will remove it from the ledger and recompute balances."
+                                  )
+                                ) {
+                                  mDelete.mutate(t.id);
+                                }
+                              }}
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
                 {recentFiltered.length === 0 && (
                   <tr>
-                    <td className="px-3 py-4 text-center text-slate-500" colSpan={6}>
+                    <td className="px-3 py-4 text-center text-slate-500" colSpan={7}>
                       No transactions match this filter.
                     </td>
                   </tr>
@@ -518,4 +762,3 @@ export default function PostTransaction() {
     </div>
   );
 }
-

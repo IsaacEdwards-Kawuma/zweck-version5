@@ -1,6 +1,5 @@
 /**
  * Transaction types for Post Transaction / Ledger — aligned with server `TxType` and `TX_ACCOUNT_MAP`.
- * Group labels match the chart used in operations.
  */
 
 export const TX_TYPE_GROUPS = [
@@ -9,7 +8,8 @@ export const TX_TYPE_GROUPS = [
     options: [
       { value: "CONTRIBUTION", label: "1. Director Capital Contribution" },
       { value: "CAPITAL_WITHDRAWAL", label: "2. Capital Withdrawal / Distribution" },
-      { value: "SIDE_FUND", label: "3. Side fund contributions" }
+      { value: "SIDE_FUND", label: "3. Side fund contributions" },
+      { value: "RETAINED_EARNINGS_TRANSFER", label: "Retained earnings → director capital (split)" }
     ]
   },
   {
@@ -20,6 +20,7 @@ export const TX_TYPE_GROUPS = [
       { value: "PROJECT_REVENUE", label: "5. Project Revenue" },
       { value: "INTEREST_INCOME", label: "6. Interest Income" },
       { value: "DIVIDEND_INCOME", label: "7. Dividend Income" },
+      { value: "RENTAL_INCOME", label: "8. Rental Income" },
       { value: "OTHER_INCOME", label: "9. Other Income" },
       { value: "PENALTY", label: "Penalty & surcharges (income)" }
     ]
@@ -46,6 +47,7 @@ export const TX_TYPE_GROUPS = [
       { value: "OFFICE_ADMINISTRATION", label: "19. Office & Administration" },
       { value: "PRINTING_STATIONERY", label: "20. Printing & Stationery" },
       { value: "SALARIES_WAGES", label: "21. Salaries & Wages" },
+      { value: "DIRECTOR_FEE_ALLOWANCE", label: "21b. Director Fee / Allowance" },
       { value: "UTILITIES", label: "22. Utilities" },
       { value: "INSURANCE", label: "23. Insurance" },
       { value: "MEALS_ENTERTAINMENT", label: "24. Meals & Entertainment" },
@@ -72,6 +74,7 @@ export const TX_TYPE_GROUPS = [
   {
     label: "Transfers",
     options: [
+      { value: "INTER_ACCOUNT_TRANSFER", label: "Inter-account transfer" },
       { value: "FOREIGN_EXCHANGE_GAIN", label: "35. Foreign Exchange — Gain" },
       { value: "FOREIGN_EXCHANGE_LOSS", label: "35. Foreign Exchange — Loss" }
     ]
@@ -83,7 +86,6 @@ export const TX_TYPE_LABELS = Object.fromEntries(
   TX_TYPE_GROUPS.flatMap((g) => g.options.map((o) => [o.value, o.label]))
 );
 
-/** Display label for a transaction type (keeps chart code from depending on TX_TYPE_LABELS binding in other modules). */
 export function labelForTxType(type) {
   if (type == null || type === "") return "UNKNOWN";
   return TX_TYPE_LABELS[type] || String(type).replaceAll("_", " ");
@@ -107,6 +109,7 @@ export const TX_ACCOUNT_MAP = {
   PROJECT_REVENUE: { debit: "bank", credit: "income_project", needsDirector: false },
   INTEREST_INCOME: { debit: "bank", credit: "income_interest", needsDirector: false },
   DIVIDEND_INCOME: { debit: "bank", credit: "income_dividend", needsDirector: false },
+  RENTAL_INCOME: { debit: "bank", credit: "rental_income", needsDirector: false },
   OTHER_INCOME: { debit: "bank", credit: "income_other", needsDirector: false },
   PROJECT_DISBURSEMENT: { debit: "project_exp", credit: "bank", needsDirector: false },
   ASSET_PURCHASE: { debit: "capex", credit: "bank", needsDirector: false },
@@ -117,6 +120,7 @@ export const TX_ACCOUNT_MAP = {
   OFFICE_ADMINISTRATION: { debit: "exp_office", credit: "bank", needsDirector: false },
   PRINTING_STATIONERY: { debit: "exp_printing", credit: "bank", needsDirector: false },
   SALARIES_WAGES: { debit: "exp_salaries", credit: "bank", needsDirector: false },
+  DIRECTOR_FEE_ALLOWANCE: { debit: "exp_salaries", credit: "bank", needsDirector: true },
   UTILITIES: { debit: "exp_utilities", credit: "bank", needsDirector: false },
   INSURANCE: { debit: "exp_insurance", credit: "bank", needsDirector: false },
   MEALS_ENTERTAINMENT: { debit: "exp_meals", credit: "bank", needsDirector: false },
@@ -127,15 +131,14 @@ export const TX_ACCOUNT_MAP = {
   VAT_PAYABLE: { debit: "tax_vat", credit: "bank", needsDirector: false },
   CORPORATE_TAX_PROVISION: { debit: "tax_corporate", credit: "bank", needsDirector: false },
   FOREIGN_EXCHANGE_GAIN: { debit: "bank", credit: "income_fx", needsDirector: false },
-  FOREIGN_EXCHANGE_LOSS: { debit: "exp_fx", credit: "bank", needsDirector: false }
+  FOREIGN_EXCHANGE_LOSS: { debit: "exp_fx", credit: "bank", needsDirector: false },
+  INTER_ACCOUNT_TRANSFER: { debit: "bank", credit: "bank", needsDirector: false },
+  RETAINED_EARNINGS_TRANSFER: { debit: "retained_earnings", credit: "capital", needsDirector: false }
 };
 
 export const ALL_TX_TYPE_VALUES = Object.keys(TX_ACCOUNT_MAP);
 
-/**
- * Post Transaction first-level filter (Income / Expense / Other).
- * OTHER = capital, equity moves, loans, inter-account transfers, balance-sheet items.
- */
+/** Posting bucket per type (Income / Expense / Other). */
 export const TX_POSTING_CATEGORY = {
   CONTRIBUTION: "OTHER",
   CAPITAL_WITHDRAWAL: "OTHER",
@@ -153,6 +156,7 @@ export const TX_POSTING_CATEGORY = {
   PROJECT_REVENUE: "INCOME",
   INTEREST_INCOME: "INCOME",
   DIVIDEND_INCOME: "INCOME",
+  RENTAL_INCOME: "INCOME",
   OTHER_INCOME: "INCOME",
   PROJECT_DISBURSEMENT: "EXPENSE",
   ASSET_PURCHASE: "EXPENSE",
@@ -163,6 +167,7 @@ export const TX_POSTING_CATEGORY = {
   OFFICE_ADMINISTRATION: "EXPENSE",
   PRINTING_STATIONERY: "EXPENSE",
   SALARIES_WAGES: "EXPENSE",
+  DIRECTOR_FEE_ALLOWANCE: "EXPENSE",
   UTILITIES: "EXPENSE",
   INSURANCE: "EXPENSE",
   MEALS_ENTERTAINMENT: "EXPENSE",
@@ -173,8 +178,18 @@ export const TX_POSTING_CATEGORY = {
   VAT_PAYABLE: "EXPENSE",
   CORPORATE_TAX_PROVISION: "EXPENSE",
   FOREIGN_EXCHANGE_GAIN: "INCOME",
-  FOREIGN_EXCHANGE_LOSS: "EXPENSE"
+  FOREIGN_EXCHANGE_LOSS: "EXPENSE",
+  INTER_ACCOUNT_TRANSFER: "OTHER",
+  RETAINED_EARNINGS_TRANSFER: "OTHER"
 };
+
+export function needsProjectForType(type) {
+  return type === "PROJECT_REVENUE" || type === "PROJECT_DISBURSEMENT";
+}
+
+export function isExpenseBucketType(type) {
+  return TX_POSTING_CATEGORY[type] === "EXPENSE";
+}
 
 /** @type {{ value: string, label: string }[]} */
 export const POSTING_BUCKET_OPTIONS = [
@@ -182,6 +197,32 @@ export const POSTING_BUCKET_OPTIONS = [
   { value: "INCOME", label: "Income" },
   { value: "EXPENSE", label: "Expense" },
   { value: "OTHER", label: "Other (capital, loans, transfers)" }
+];
+
+/**
+ * Accounts allowed for inter-account transfer (must match server).
+ */
+export const INTER_ACCOUNT_TRANSFER_OPTIONS = [
+  { value: "bank_ugx", label: "1200 Cash at Bank (UGX)" },
+  { value: "bank_usd", label: "1210 Cash at Bank (USD)" },
+  { value: "bank_eur", label: "1220 Cash at Bank (EUR)" },
+  { value: "cash_hand", label: "1100 Cash in Hand" },
+  { value: "investments_general", label: "1500 Investments — General" },
+  { value: "mmf", label: "1510 MMF Investment" },
+  { value: "ypa", label: "1520 YPA Goats Project" },
+  { value: "accounts_receivable", label: "1300 Accounts Receivable" },
+  { value: "loan_receivable", label: "1400 Loans Extended" },
+  { value: "capex", label: "1600 Fixed Assets" },
+  { value: "other_assets", label: "1700 Other Assets" },
+  { value: "accounts_payable", label: "2100 Accounts Payable" },
+  { value: "loan_liability", label: "2200 Loans Payable (External)" },
+  { value: "director_loan_to_company", label: "2300 Director Loans to Company" },
+  { value: "tax_vat", label: "2400 VAT Payable" },
+  { value: "tax_wht", label: "2500 Withholding Tax Payable" },
+  { value: "tax_corporate", label: "2600 Other Liabilities" },
+  { value: "capital", label: "3100 Director Capital (header)" },
+  { value: "side_fund", label: "3200 Side Fund" },
+  { value: "retained_earnings", label: "3300 Retained Earnings" }
 ];
 
 /**

@@ -30,11 +30,22 @@ export function buildPortfolioSplit(bank: number, activeProjects: ActiveProjectF
 
 router.get("/", async (_req, res) => {
   const txs = await prisma.transaction.findMany({
-    select: { type: true, amount: true, directorId: true }
+    select: {
+      type: true,
+      amount: true,
+      directorId: true,
+      currency: true,
+      expensePaymentMode: true,
+      transferFromAccountKey: true,
+      transferToAccountKey: true,
+      reversalOfId: true,
+      postingStatus: true
+    }
   });
-  const balances = deriveBalances(txs);
+  const balances = deriveBalances(txs as any);
 
-  const bank = balances.bank;
+  const bank =
+    (balances.bank_ugx || 0) + (balances.bank_usd || 0) + (balances.bank_eur || 0);
   const mmf = balances.mmf;
   const ypa = balances.ypa;
   const mmfReturns = -balances.mmf_income;

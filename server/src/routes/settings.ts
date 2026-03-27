@@ -24,7 +24,8 @@ router.get("/", async (req, res) => {
         lastLoginAt: true,
         emailMeetingReminders: true,
         inAppMeetingReminders: true,
-        inAppChatMessages: true
+        inAppChatMessages: true,
+        inAppChatMentionsOnly: true
       }
     }),
     getOrCreateAppSettings()
@@ -119,7 +120,12 @@ router.get("/", async (req, res) => {
 router.patch("/notifications", async (req, res) => {
   const user = req.user!;
   const body = req.body || {};
-  const data: { emailMeetingReminders?: boolean; inAppMeetingReminders?: boolean; inAppChatMessages?: boolean } = {};
+  const data: {
+    emailMeetingReminders?: boolean;
+    inAppMeetingReminders?: boolean;
+    inAppChatMessages?: boolean;
+    inAppChatMentionsOnly?: boolean;
+  } = {};
   if ("emailMeetingReminders" in body) {
     if (typeof body.emailMeetingReminders !== "boolean") {
       return res.status(400).json(apiError("emailMeetingReminders must be a boolean"));
@@ -138,15 +144,28 @@ router.patch("/notifications", async (req, res) => {
     }
     data.inAppChatMessages = body.inAppChatMessages;
   }
+  if ("inAppChatMentionsOnly" in body) {
+    if (typeof body.inAppChatMentionsOnly !== "boolean") {
+      return res.status(400).json(apiError("inAppChatMentionsOnly must be a boolean"));
+    }
+    data.inAppChatMentionsOnly = body.inAppChatMentionsOnly;
+  }
   if (Object.keys(data).length === 0) {
     return res.status(400).json(
-      apiError("Provide emailMeetingReminders, inAppMeetingReminders, and/or inAppChatMessages")
+      apiError(
+        "Provide emailMeetingReminders, inAppMeetingReminders, inAppChatMessages, and/or inAppChatMentionsOnly"
+      )
     );
   }
   const updated = await prisma.user.update({
     where: { id: user.id },
     data,
-    select: { emailMeetingReminders: true, inAppMeetingReminders: true, inAppChatMessages: true }
+    select: {
+      emailMeetingReminders: true,
+      inAppMeetingReminders: true,
+      inAppChatMessages: true,
+      inAppChatMentionsOnly: true
+    }
   });
   res.json(updated);
 });

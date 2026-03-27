@@ -1,4 +1,23 @@
 import { TX_TYPE_LABELS } from "./transactionTypes";
+import { formatTxRef } from "./format";
+
+function csvRefDisplay(t) {
+  return t.referenceNumber || t.reference || (t.id != null ? formatTxRef(t.id) : "");
+}
+
+function csvPostingLabel(s) {
+  if (s === "REVERSED") return "Reversed";
+  if (s === "PENDING") return "Pending";
+  if (s === "POSTED" || s == null) return "Posted";
+  return String(s);
+}
+
+function csvProjectDisplay(t) {
+  if (!t.project) return "";
+  const code = t.project.code || "";
+  const name = t.project.name || "";
+  return `${code} · ${name}`.trim();
+}
 
 /** Legacy Reports classification — keep in sync across aggregateReportByMonth, reportPeriodKpis, incomeExpenseMix. */
 function isContributionType(type) {
@@ -207,20 +226,47 @@ export function downloadChartOfAccountsCsv(accounts, balances, groups, filename 
 
 export function downloadTransactionsCsv(transactions, filename = "zweck-transactions.csv") {
   const esc = (s) => `"${String(s ?? "").replace(/"/g, '""')}"`;
-  const headers = ["reference", "date", "type", "currency", "amount", "director", "description"];
+  const headers = [
+    "id",
+    "reference",
+    "status",
+    "date",
+    "type",
+    "description",
+    "project",
+    "documentStatus",
+    "documentUrl",
+    "director",
+    "debitAccount",
+    "creditAccount",
+    "currency",
+    "amount"
+  ];
   const lines = [headers.join(",")];
   for (const t of transactions) {
-    const ref = t.reference || (t.id != null ? `ZWC-${String(t.id).padStart(7, "0")}` : "");
+    const dateVal =
+      t.date instanceof Date
+        ? t.date.toISOString()
+        : typeof t.date === "string"
+          ? t.date
+          : "";
     const row = [
-      ref,
-      t.date,
-      t.type,
-      t.currency || "EUR",
-      t.amount,
-      t.director?.name || "",
-      (t.description || "").replace(/\r?\n/g, " ")
+      t.id,
+      esc(csvRefDisplay(t)),
+      esc(csvPostingLabel(t.postingStatus)),
+      esc(dateVal),
+      esc(t.type),
+      esc((t.description || "").replace(/\r?\n/g, " ")),
+      esc(csvProjectDisplay(t)),
+      esc(t.documentStatus || ""),
+      esc(t.documentUrl || ""),
+      esc(t.director?.name || ""),
+      esc(String(t.debitAccount ?? "")),
+      esc(String(t.creditAccount ?? "")),
+      esc(t.currency || "EUR"),
+      t.amount
     ];
-    lines.push(row.map(esc).join(","));
+    lines.push(row.join(","));
   }
   const blob = new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);

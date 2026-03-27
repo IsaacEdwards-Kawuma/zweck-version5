@@ -11,7 +11,7 @@ export async function getHealth() {
   return data;
 }
 
-/** PATCH accepts any subset of { emailMeetingReminders, inAppMeetingReminders, inAppChatMessages }. */
+/** PATCH accepts any subset of notification booleans (see Settings page). */
 export async function updateNotificationPreferences(partial) {
   const { data } = await api.patch("/settings/notifications", partial);
   return data;

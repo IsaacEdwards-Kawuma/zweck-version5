@@ -4,8 +4,8 @@ generator client {
 
 // Use Neon, local Postgres, or any Postgres. Neon: append ?sslmode=require to DATABASE_URL.
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
@@ -46,6 +46,8 @@ model User {
   inAppMeetingReminders Boolean @default(true)
   /** When true, user receives in-app notifications for new chat messages (bell/inbox). */
   inAppChatMessages Boolean @default(true)
+  /** When true, chat bell notifications are created only when the user is @mentioned (applies after per-room prefs). */
+  inAppChatMentionsOnly Boolean @default(false)
   createdAt  DateTime  @default(now())
 
   notifications Notification[]
@@ -293,6 +295,7 @@ model Project {
 
   tasks     ProjectTask[]
   mmfEntries MMFEntry[]
+  accountingTransactions Transaction[] @relation("ProjectAccountingTransactions")
 }
 
 model ProjectTask {
@@ -316,6 +319,23 @@ model ProjectTask {
   updatedAt          DateTime        @updatedAt
 }
 
+enum DocumentStatus {
+  ATTACHED
+  MISSING
+  NOT_REQUIRED
+}
+
+enum TransactionPostingStatus {
+  POSTED
+  REVERSED
+  PENDING
+}
+
+model ReferenceSequence {
+  yearMonth String @id @db.VarChar(7)
+  lastSeq   Int    @default(0)
+}
+
 model Transaction {
   id          Int       @id @default(autoincrement())
   type        TxType
@@ -326,6 +346,22 @@ model Transaction {
   description String?
   directorId  Int?
   director    Director? @relation(fields: [directorId], references: [id])
+
+  referenceNumber     String   @unique @db.VarChar(48)
+  externalReference   String?  @db.VarChar(200)
+  documentUrl         String?  @db.VarChar(500)
+  documentStatus      DocumentStatus @default(MISSING)
+  postingStatus       TransactionPostingStatus @default(POSTED)
+  reversalOfId        Int?
+  reversalOf          Transaction? @relation("TransactionReversal", fields: [reversalOfId], references: [id], onDelete: SetNull)
+  reversalChildren    Transaction[] @relation("TransactionReversal")
+
+  expensePaymentMode  String?  @db.VarChar(24)
+  projectId           Int?
+  project               Project? @relation("ProjectAccountingTransactions", fields: [projectId], references: [id], onDelete: SetNull)
+  transferFromAccountKey String? @db.VarChar(40)
+  transferToAccountKey   String? @db.VarChar(40)
+
   createdBy   Int
   createdAt   DateTime  @default(now())
 }
@@ -368,6 +404,10 @@ enum TxType {
   FOREIGN_EXCHANGE_GAIN
   FOREIGN_EXCHANGE_LOSS
   LOAN_ADVANCED
+  RENTAL_INCOME
+  DIRECTOR_FEE_ALLOWANCE
+  INTER_ACCOUNT_TRANSFER
+  RETAINED_EARNINGS_TRANSFER
 }
 
 model MMFEntry {

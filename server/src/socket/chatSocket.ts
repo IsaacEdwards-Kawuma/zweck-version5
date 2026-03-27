@@ -365,9 +365,12 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
         if (recipientUserIds.length) {
           const prefs = await prisma.user.findMany({
             where: { id: { in: recipientUserIds } },
-            select: { id: true, inAppChatMessages: true }
+            select: { id: true, inAppChatMessages: true, inAppChatMentionsOnly: true }
           });
           const allowedInApp = new Set(prefs.filter((p) => p.inAppChatMessages).map((p) => p.id));
+          const globalChatMentionsOnly = new Set(
+            prefs.filter((p) => p.inAppChatMentionsOnly).map((p) => p.id)
+          );
 
           const memberPrefs = await prisma.chatRoomMember.findMany({
             where: { roomId, userId: { in: recipientUserIds } },
@@ -376,6 +379,7 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
           const prefMap = new Map(memberPrefs.map((m) => [m.userId, m]));
 
           const shouldNotify = (uid: number): boolean => {
+            if (globalChatMentionsOnly.has(uid) && !mentionedUserIds.includes(uid)) return false;
             const row = prefMap.get(uid);
             if (row?.mutedUntil && new Date(row.mutedUntil) > new Date()) return false;
             const np = row?.notifyPreference ?? "ALL";

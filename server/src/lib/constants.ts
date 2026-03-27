@@ -8,11 +8,11 @@ export type AccountKey =
   | "cash_hand"
   | "mmf"
   | "ypa"
+  | "investments_general"
   | "accounts_receivable"
-  | "investments"
+  | "loan_receivable"
   | "other_assets"
   | "loan_liability"
-  | "loan_receivable"
   | "accounts_payable"
   | "director_loan_to_company"
   | "capital"
@@ -56,11 +56,11 @@ export const ACCOUNTS: Record<
   bank_eur: { name: "Cash at Bank (EUR)", group: "Assets", code: 1220 },
 
   cash_hand: { name: "Cash in Hand", group: "Assets", code: 1100 },
-  mmf: { name: "MMF investment", group: "Assets", code: 1110 },
-  ypa: { name: "YPA goats project", group: "Assets", code: 1120 },
+  investments_general: { name: "Investments — General", group: "Assets", code: 1500 },
+  mmf: { name: "MMF Investment", group: "Assets", code: 1510 },
+  ypa: { name: "YPA Goats Project", group: "Assets", code: 1520 },
   accounts_receivable: { name: "Accounts Receivable", group: "Assets", code: 1300 },
   loan_receivable: { name: "Loans Extended", group: "Assets", code: 1400 },
-  investments: { name: "Investments", group: "Assets", code: 1500 },
   capex: { name: "Fixed Assets", group: "Assets", code: 1600 },
   other_assets: { name: "Other Assets", group: "Assets", code: 1700 },
 
@@ -71,7 +71,8 @@ export const ACCOUNTS: Record<
   tax_wht: { name: "Withholding Tax Payable", group: "Liabilities", code: 2500 },
   tax_corporate: { name: "Other Liabilities", group: "Liabilities", code: 2600 },
 
-  capital: { name: "Directors Capital Contributions (aggregate)", group: "Equity", code: 3100 },
+  /** Equity header — no postings; director lines use 3110–3150 in COA. */
+  capital: { name: "Director Capital (header — no postings)", group: "Equity", code: 3100 },
   side_fund: { name: "Side Fund", group: "Equity", code: 3200 },
   retained_earnings: { name: "Retained Earnings", group: "Equity", code: 3300 },
 
@@ -103,6 +104,56 @@ export const ACCOUNTS: Record<
   exp_fx: { name: "Miscellaneous Expense", group: "Expenses", code: 5990 }
 };
 
+/** Account keys allowed for inter-account transfers (no aggregate `bank`). */
+export const INTER_ACCOUNT_TRANSFER_KEYS: AccountKey[] = [
+  "bank_ugx",
+  "bank_usd",
+  "bank_eur",
+  "cash_hand",
+  "mmf",
+  "ypa",
+  "investments_general",
+  "accounts_receivable",
+  "loan_receivable",
+  "capex",
+  "other_assets",
+  "accounts_payable",
+  "loan_liability",
+  "director_loan_to_company",
+  "tax_vat",
+  "tax_wht",
+  "tax_corporate",
+  "capital",
+  "side_fund",
+  "retained_earnings"
+];
+
+const EXPENSE_TYPES: TxType[] = [
+  "REGISTRATION",
+  "TX_CHARGE",
+  "LEGAL",
+  "OTHER_OUT",
+  "PROJECT_DISBURSEMENT",
+  "ASSET_PURCHASE",
+  "TRANSPORT_TRAVEL",
+  "COMMUNICATION_INTERNET",
+  "OFFICE_ADMINISTRATION",
+  "PRINTING_STATIONERY",
+  "SALARIES_WAGES",
+  "UTILITIES",
+  "INSURANCE",
+  "MEALS_ENTERTAINMENT",
+  "WITHHOLDING_TAX",
+  "VAT_PAYABLE",
+  "CORPORATE_TAX_PROVISION",
+  "FOREIGN_EXCHANGE_LOSS",
+  "DIRECTOR_FEE_ALLOWANCE"
+];
+
+export function isExpenseTxType(t: TxType): boolean {
+  return EXPENSE_TYPES.includes(t);
+}
+
 export const TX_ACCOUNT_MAP: Record<
   TxType,
   { debit: AccountKey; credit: AccountKey; needsDirector: boolean }
@@ -123,6 +174,7 @@ export const TX_ACCOUNT_MAP: Record<
   PROJECT_REVENUE: { debit: "bank", credit: "income_project", needsDirector: false },
   INTEREST_INCOME: { debit: "bank", credit: "income_interest", needsDirector: false },
   DIVIDEND_INCOME: { debit: "bank", credit: "income_dividend", needsDirector: false },
+  RENTAL_INCOME: { debit: "bank", credit: "rental_income", needsDirector: false },
   OTHER_INCOME: { debit: "bank", credit: "income_other", needsDirector: false },
   PROJECT_DISBURSEMENT: { debit: "project_exp", credit: "bank", needsDirector: false },
   ASSET_PURCHASE: { debit: "capex", credit: "bank", needsDirector: false },
@@ -143,7 +195,11 @@ export const TX_ACCOUNT_MAP: Record<
   VAT_PAYABLE: { debit: "tax_vat", credit: "bank", needsDirector: false },
   CORPORATE_TAX_PROVISION: { debit: "tax_corporate", credit: "bank", needsDirector: false },
   FOREIGN_EXCHANGE_GAIN: { debit: "bank", credit: "income_fx", needsDirector: false },
-  FOREIGN_EXCHANGE_LOSS: { debit: "exp_fx", credit: "bank", needsDirector: false }
+  FOREIGN_EXCHANGE_LOSS: { debit: "exp_fx", credit: "bank", needsDirector: false },
+  DIRECTOR_FEE_ALLOWANCE: { debit: "exp_salaries", credit: "bank", needsDirector: true },
+  INTER_ACCOUNT_TRANSFER: { debit: "bank", credit: "bank", needsDirector: false },
+  /** Server splits amount across up to five directors; directorId on each line is set automatically. */
+  RETAINED_EARNINGS_TRANSFER: { debit: "retained_earnings", credit: "capital", needsDirector: false }
 };
 
 export function emptyBalances(): Record<AccountKey, number> {

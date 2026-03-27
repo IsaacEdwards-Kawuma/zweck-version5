@@ -2,7 +2,7 @@ import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
 import { deriveBalances } from "../lib/derive.js";
 import { apiError } from "../lib/http.js";
-import { ACCOUNTS, TX_ACCOUNT_MAP } from "../lib/constants.js";
+import { ACCOUNTS } from "../lib/constants.js";
 
 const router = Router();
 
@@ -15,8 +15,20 @@ function withEquityShareFromContribution<T extends { capital: number }>(rows: T[
 }
 
 router.get("/balances", async (_req, res) => {
-  const txs = await prisma.transaction.findMany({ select: { type: true, amount: true } });
-  const balances = deriveBalances(txs);
+  const txs = await prisma.transaction.findMany({
+    select: {
+      type: true,
+      amount: true,
+      currency: true,
+      directorId: true,
+      expensePaymentMode: true,
+      transferFromAccountKey: true,
+      transferToAccountKey: true,
+      reversalOfId: true,
+      postingStatus: true
+    }
+  });
+  const balances = deriveBalances(txs as any);
   return res.json(balances);
 });
 
@@ -115,7 +127,17 @@ router.get("/directors", async (_req, res) => {
 
 router.get("/summary", async (_req, res) => {
   const txs = await prisma.transaction.findMany({
-    select: { type: true, amount: true, currency: true, directorId: true }
+    select: {
+      type: true,
+      amount: true,
+      currency: true,
+      directorId: true,
+      expensePaymentMode: true,
+      transferFromAccountKey: true,
+      transferToAccountKey: true,
+      reversalOfId: true,
+      postingStatus: true
+    }
   });
 
   // Base balances from the ledger mapping (keeps existing dashboard/analytics semantics).
@@ -138,11 +160,6 @@ router.get("/summary", async (_req, res) => {
 
   const balancesForCOA: Record<string, number> = { ...(balancesBase as any) };
 
-  // Ensure currency-split bank accounts exist in the balance payload.
-  balancesForCOA.bank_ugx = 0;
-  balancesForCOA.bank_usd = 0;
-  balancesForCOA.bank_eur = 0;
-
   // Sign convention: liabilities/equity are displayed with flipped sign in the UI.
   // Tax-related tx types currently post to these accounts as debits; flip them here
   // so the COA shows these standard payable accounts correctly under Liabilities.
@@ -150,49 +167,24 @@ router.get("/summary", async (_req, res) => {
   balancesForCOA.tax_wht = -(Number(balancesForCOA.tax_wht) || 0);
   balancesForCOA.tax_corporate = -(Number(balancesForCOA.tax_corporate) || 0);
 
-  // Compute balances for cash-at-bank accounts by currency.
-  const bankAcc = { UGX: 0, USD: 0, EUR: 0 };
-  for (const tx of txs) {
-    const map = TX_ACCOUNT_MAP[tx.type];
-    if (!map) continue;
-    const amt = Number(tx.amount) || 0;
-    const ccyRaw = tx.currency || "EUR";
-    const ccy = ccyRaw === "UGX" || ccyRaw === "USD" || ccyRaw === "EUR" ? ccyRaw : "EUR";
+  // 3100 = header (no postings). Director lines: 3110, 3120, … 3150 for first five directors by creation order.
+  accountsForCOA.director_capital_header = {
+    name: "Director Capital (header — no postings)",
+    group: "Equity",
+    code: 3100
+  };
+  balancesForCOA.director_capital_header = 0;
 
-    if (map.debit === "bank") {
-      if (ccy === "UGX") bankAcc.UGX += amt;
-      if (ccy === "USD") bankAcc.USD += amt;
-      if (ccy === "EUR") bankAcc.EUR += amt;
-    } else if (map.credit === "bank") {
-      if (ccy === "UGX") bankAcc.UGX -= amt;
-      if (ccy === "USD") bankAcc.USD -= amt;
-      if (ccy === "EUR") bankAcc.EUR -= amt;
-    }
-  }
-  balancesForCOA.bank_ugx = bankAcc.UGX;
-  balancesForCOA.bank_usd = bankAcc.USD;
-  balancesForCOA.bank_eur = bankAcc.EUR;
-
-  // Add director-specific capital accounts (Director 1-5) and compute their balances.
   directorRows.slice(0, 5).forEach((d, idx) => {
     const key = `director_capital_${d.id}`;
-    const code = 3100 + idx * 10;
+    const code = 3110 + idx * 10;
     accountsForCOA[key] = {
       name: `Director Capital — ${d.name}`,
       group: "Equity",
       code
     };
-    balancesForCOA[key] = 0;
+    balancesForCOA[key] = Number((balancesBase as any)[key]) || 0;
   });
-
-  for (const tx of txs) {
-    if (!tx.directorId) continue;
-    const key = `director_capital_${tx.directorId}`;
-    if (!(key in balancesForCOA)) continue;
-    const amt = Number(tx.amount) || 0;
-    if (tx.type === "CONTRIBUTION") balancesForCOA[key] = (balancesForCOA[key] || 0) - amt;
-    if (tx.type === "CAPITAL_WITHDRAWAL") balancesForCOA[key] = (balancesForCOA[key] || 0) + amt;
-  }
 
   function sumGroupCOA(group: "Assets" | "Liabilities" | "Equity" | "Income" | "Expenses") {
     let total = 0;
