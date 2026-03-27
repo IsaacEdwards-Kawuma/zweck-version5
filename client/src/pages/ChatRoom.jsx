@@ -26,9 +26,17 @@ import {
   downloadChatExport,
   forwardChatMessage,
   patchChatMemberMe,
-  patchChatRoomSettings
+  patchChatRoomSettings,
+  getUserChatPublicKey
 } from "../api/chat";
 import MessageBody from "../components/chat/MessageBody";
+import {
+  decryptDmCiphertext,
+  deriveDmAesKey,
+  encryptDmPlaintext,
+  ensureRegisteredChatPublicKey,
+  isE2eeEncryptedBody
+} from "../lib/chatE2ee";
 
 function resolveSocketURL() {
   const env = import.meta.env.VITE_API_URL?.trim();
@@ -188,6 +196,140 @@ export default function ChatRoom() {
   const canManageGroup =
     room?.kind === "GROUP" && (me?.role === "ADMIN" || (room.createdById != null && room.createdById === me?.id));
   const canModerate = me?.role === "ADMIN";
+
+  const [dmAesKey, setDmAesKey] = useState(null);
+  const [dmE2eeReady, setDmE2eeReady] = useState(false);
+  const [dmDecryptMap, setDmDecryptMap] = useState({});
+  const [pinnedPlain, setPinnedPlain] = useState(null);
+  const dmDecryptMapRef = useRef({});
+
+  useEffect(() => {
+    dmDecryptMapRef.current = dmDecryptMap;
+  }, [dmDecryptMap]);
+
+  const qPeerPublicKey = useQuery({
+    queryKey: ["chat_peer_public_key", room?.otherUserId],
+    queryFn: () => getUserChatPublicKey(room?.otherUserId),
+    enabled: Boolean(token && room?.kind === "DM" && room?.otherUserId),
+    staleTime: 0,
+    refetchInterval: (q) => (!q.state.data?.publicKeyJwk ? 5000 : false)
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!me?.id || room?.kind !== "DM" || !room?.otherUserId) {
+      setDmAesKey(null);
+      setDmE2eeReady(false);
+      return;
+    }
+    void (async () => {
+      try {
+        const { privateJwk } = await ensureRegisteredChatPublicKey(me.id);
+        if (cancelled) return;
+        const peer = qPeerPublicKey.data?.publicKeyJwk;
+        if (!peer) {
+          setDmAesKey(null);
+          setDmE2eeReady(false);
+          return;
+        }
+        const key = await deriveDmAesKey(privateJwk, peer, numericRoomId);
+        if (cancelled) return;
+        setDmAesKey(key);
+        setDmE2eeReady(true);
+      } catch {
+        setDmAesKey(null);
+        setDmE2eeReady(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [me?.id, room?.kind, room?.otherUserId, numericRoomId, qPeerPublicKey.data?.publicKeyJwk]);
+
+  useEffect(() => {
+    if (!dmAesKey || !messages.length) {
+      if (!dmAesKey) setDmDecryptMap({});
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const next = {};
+      for (const m of messages) {
+        if (!isE2eeEncryptedBody(m.body)) continue;
+        try {
+          next[m.id] = await decryptDmCiphertext(m.body, dmAesKey);
+        } catch {
+          next[m.id] = null;
+        }
+      }
+      if (!cancelled) setDmDecryptMap(next);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [dmAesKey, messages]);
+
+  useEffect(() => {
+    if (!room?.pinnedMessage?.body) {
+      setPinnedPlain(null);
+      return;
+    }
+    const b = room.pinnedMessage.body;
+    if (!isE2eeEncryptedBody(b)) {
+      setPinnedPlain(b);
+      return;
+    }
+    if (!dmAesKey) {
+      setPinnedPlain("🔒 …");
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const p = await decryptDmCiphertext(b, dmAesKey);
+        if (!cancelled) setPinnedPlain(p);
+      } catch {
+        if (!cancelled) setPinnedPlain("🔒 …");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [dmAesKey, room?.pinnedMessageId, room?.pinnedMessage?.body]);
+
+  const displayBody = useCallback(
+    (m) => {
+      if (!m?.body) return "";
+      if (!isE2eeEncryptedBody(m.body)) return m.body;
+      const v = dmDecryptMap[m.id];
+      if (v === undefined) return "…";
+      if (v === null) return "🔒 Unable to decrypt";
+      return v;
+    },
+    [dmDecryptMap]
+  );
+
+  const displayReplyBody = useCallback(
+    (rt) => {
+      if (!rt?.body) return "…";
+      if (!isE2eeEncryptedBody(rt.body)) return rt.body;
+      const v = dmDecryptMap[rt.id];
+      if (v === undefined) return "…";
+      if (v === null) return "🔒 …";
+      return v;
+    },
+    [dmDecryptMap]
+  );
+
+  const snippetFromMessage = useCallback((m) => {
+    const b = m.body || "";
+    if (isE2eeEncryptedBody(b)) {
+      const d = dmDecryptMapRef.current[m.id];
+      if (d && d !== null) return d.slice(0, 200);
+      return "[encrypted message]";
+    }
+    return b.slice(0, 200);
+  }, []);
 
   useEffect(() => {
     try {
@@ -465,7 +607,7 @@ export default function ChatRoom() {
           pointerId: e.pointerId,
           tracking: true,
           senderEmail: m.senderEmail,
-          bodySnippet: (m.body || "").slice(0, 200)
+          bodySnippet: snippetFromMessage(m)
         };
       } else {
         swipeReplyRef.current = {
@@ -479,7 +621,7 @@ export default function ChatRoom() {
         };
       }
     },
-    [startMessageLongPress, editingId]
+    [startMessageLongPress, editingId, snippetFromMessage]
   );
 
   const onMessageBubblePointerUp = useCallback(
@@ -522,7 +664,7 @@ export default function ChatRoom() {
       setReplyTo({
         id: m.id,
         senderEmail: s.senderEmail || m.senderEmail,
-        bodySnippet: s.bodySnippet || (m.body || "").slice(0, 200)
+        bodySnippet: s.bodySnippet || snippetFromMessage(m)
       });
       try {
         if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(22);
@@ -530,7 +672,7 @@ export default function ChatRoom() {
         /* ignore */
       }
     },
-    [endMessageLongPress, editingId]
+    [endMessageLongPress, editingId, snippetFromMessage]
   );
 
   const onMessageBubblePointerCancel = useCallback(
@@ -615,7 +757,13 @@ export default function ChatRoom() {
   };
 
   const mPatch = useMutation({
-    mutationFn: ({ messageId, body }) => patchChatMessage(numericRoomId, messageId, body),
+    mutationFn: async ({ messageId, body }) => {
+      let out = body;
+      if (room?.kind === "DM" && dmE2eeReady && dmAesKey) {
+        out = await encryptDmPlaintext(body, dmAesKey);
+      }
+      return patchChatMessage(numericRoomId, messageId, out);
+    },
     onSuccess: () => {
       setEditingId(null);
       qc.invalidateQueries({ queryKey: ["chat_room_messages", roomId] });
@@ -826,6 +974,13 @@ export default function ChatRoom() {
             Mention with <code className="rounded bg-slate-100 px-0.5 dark:bg-slate-800">@email</code> · long-press for
             reactions and actions.
           </p>
+          {isDmRoom ? (
+            <p className="mt-1 text-[11px] text-emerald-800 dark:text-emerald-200/90">
+              {dmE2eeReady
+                ? "🔒 Direct messages are end-to-end encrypted on this device (the server only stores ciphertext)."
+                : "Setting up encryption… If the other person has not opened this chat yet, messages may be plaintext until both keys exist."}
+            </p>
+          ) : null}
           {threadView != null ? (
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <button type="button" className="ui-btn-outline text-xs" onClick={() => setThreadView(null)}>
@@ -1048,7 +1203,7 @@ export default function ChatRoom() {
             {room.pinnedMessage.sender?.email ? (
               <span className="font-medium">{room.pinnedMessage.sender.email}: </span>
             ) : null}
-            {(room.pinnedMessage.body || "").slice(0, 220)}
+            {(pinnedPlain ?? "").slice(0, 220)}
           </div>
           <button
             type="button"
@@ -1083,6 +1238,11 @@ export default function ChatRoom() {
           >
             Find
           </button>
+          {isDmRoom && dmE2eeReady ? (
+            <p className="w-full text-[11px] text-slate-500 dark:text-slate-400">
+              Search only matches plaintext. End-to-end encrypted messages are not searchable on the server.
+            </p>
+          ) : null}
           {mSearch.data?.items?.length ? (
             <ul className="w-full max-h-40 space-y-1 overflow-auto text-left text-xs text-slate-700 dark:text-slate-200">
               {mSearch.data.items.map((row) => (
@@ -1091,7 +1251,7 @@ export default function ChatRoom() {
                   className="flex items-start justify-between gap-2 rounded border border-slate-100 px-2 py-1 dark:border-slate-700"
                 >
                   <span className="min-w-0 flex-1 truncate">
-                    #{row.id}: {row.body?.slice(0, 120) || "(attachment)"}
+                    #{row.id}: {displayBody(row)?.slice(0, 120) || "(attachment)"}
                   </span>
                   <button
                     type="button"
@@ -1218,11 +1378,11 @@ export default function ChatRoom() {
                               type="button"
                               data-no-longpress
                               className="text-brand-700 hover:underline dark:text-brand-300"
-                              onClick={() => {
+                                onClick={() => {
                                 setReplyTo({
                                   id: m.id,
                                   senderEmail: m.senderEmail,
-                                  bodySnippet: (m.body || "").slice(0, 200)
+                                  bodySnippet: snippetFromMessage(m)
                                 });
                                 setMessageMenuMessageId(null);
                               }}
@@ -1245,7 +1405,10 @@ export default function ChatRoom() {
                               type="button"
                               data-no-longpress
                               className="text-brand-700 hover:underline dark:text-brand-300"
+                              disabled={isE2eeEncryptedBody(m.body)}
+                              title={isE2eeEncryptedBody(m.body) ? "Cannot forward encrypted messages" : undefined}
                               onClick={() => {
+                                if (isE2eeEncryptedBody(m.body)) return;
                                 const tid = window.prompt("Forward to room id (number):");
                                 const n = Number(tid);
                                 if (!Number.isFinite(n) || n <= 0) return;
@@ -1305,7 +1468,7 @@ export default function ChatRoom() {
                                   className="text-xs text-brand-700 hover:underline dark:text-brand-300"
                                   onClick={() => {
                                     setEditingId(m.id);
-                                    setEditDraft(m.body || "");
+                                    setEditDraft(displayBody(m) || "");
                                     setMessageMenuMessageId(null);
                                   }}
                                 >
@@ -1379,7 +1542,7 @@ export default function ChatRoom() {
                         {m.replyTo ? (
                           <div className="mb-2 border-l-2 border-brand-500 pl-2 text-left text-xs text-slate-600 dark:text-slate-400">
                             <div className="font-semibold">{m.replyTo.senderEmail || "User"}</div>
-                            <div className="line-clamp-3">{m.replyTo.body || "…"}</div>
+                            <div className="line-clamp-3">{displayReplyBody(m.replyTo)}</div>
                           </div>
                         ) : null}
                         {m.attachmentUrl && m.attachmentKind === "IMAGE" ? (
@@ -1484,29 +1647,42 @@ export default function ChatRoom() {
         className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white/70 p-3 dark:border-slate-700 dark:bg-slate-900/30"
         onSubmit={(e) => {
           e.preventDefault();
-          const body = draft.trim();
-          if (!body) return;
+          const plain = draft.trim();
+          if (!plain) return;
           if (!socketRef.current) return;
-          const rid = replyTo?.id;
-          const tr = threadViewRef.current;
-          socketRef.current.emit(
-            "chat:sendMessage",
-            {
-              roomId: numericRoomId,
-              body,
-              ...(rid ? { replyToId: rid } : {}),
-              ...(tr != null ? { threadRootId: tr } : {})
-            },
-            (ack) => {
-              if (!ack?.ok) {
+          void (async () => {
+            let body = plain;
+            if (room?.kind === "DM" && dmE2eeReady && dmAesKey) {
+              try {
+                body = await encryptDmPlaintext(plain, dmAesKey);
+              } catch {
                 // eslint-disable-next-line no-console
-                console.warn("send failed", ack);
+                console.warn("encrypt failed");
+                window.alert("Could not encrypt this message.");
+                return;
               }
             }
-          );
-          emitTyping(false);
-          setDraft("");
-          setReplyTo(null);
+            const rid = replyTo?.id;
+            const tr = threadViewRef.current;
+            socketRef.current?.emit(
+              "chat:sendMessage",
+              {
+                roomId: numericRoomId,
+                body,
+                ...(rid ? { replyToId: rid } : {}),
+                ...(tr != null ? { threadRootId: tr } : {})
+              },
+              (ack) => {
+                if (!ack?.ok) {
+                  // eslint-disable-next-line no-console
+                  console.warn("send failed", ack);
+                }
+              }
+            );
+            emitTyping(false);
+            setDraft("");
+            setReplyTo(null);
+          })();
         }}
       >
         {replyTo ? (

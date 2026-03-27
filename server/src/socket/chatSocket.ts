@@ -6,6 +6,7 @@ import { isAuthDisabled } from "../middleware/auth.js";
 import type { AuthUser } from "../middleware/auth.js";
 import { assertUserCanAccessChatRoom, normalizeChatBodyWithAttachment } from "../lib/chatPermissions.js";
 import { getMentionableUserIds, parseMentionEmails, resolveMentionUserIds } from "../lib/chatMentions.js";
+import { isE2eeEncryptedBody } from "../lib/chatE2ee.js";
 import { extractFirstHttpUrl, fetchLinkPreview } from "../lib/linkPreview.js";
 import { EMAIL_EVENTS, enqueueEmail } from "../services/emailBus.js";
 
@@ -285,7 +286,8 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
           if (!parent) throw new Error("Reply target not found");
         }
 
-        const mentionEmails = parseMentionEmails(body ?? "");
+        const mentionEmails =
+          room.kind === "DM" && isE2eeEncryptedBody(body ?? "") ? [] : parseMentionEmails(body ?? "");
         const mentionable = await getMentionableUserIds(roomId, room.kind);
         const mentionedUserIds = await resolveMentionUserIds(mentionEmails, mentionable);
 
@@ -391,7 +393,10 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
           };
 
           const senderLabel = out.senderEmail ? `from ${out.senderEmail}` : "new message";
-          const preview = body?.slice(0, 200) || (hasAttachment ? "[attachment]" : "");
+          const preview =
+            room.kind === "DM" && isE2eeEncryptedBody(body ?? "")
+              ? "[encrypted message]"
+              : body?.slice(0, 200) || (hasAttachment ? "[attachment]" : "");
           const title =
             room.kind === "DM"
               ? `DM ${senderLabel}`
@@ -432,7 +437,8 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
         io.to(String(roomId)).emit("chat:messageCreated", out);
         ack?.({ ok: true, messageId: message.id });
 
-        const url = extractFirstHttpUrl(body ?? "");
+        const url =
+          room.kind === "DM" && isE2eeEncryptedBody(body ?? "") ? null : extractFirstHttpUrl(body ?? "");
         if (url) {
           void (async () => {
             const preview = await fetchLinkPreview(url);

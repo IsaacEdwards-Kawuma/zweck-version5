@@ -1,5 +1,20 @@
 import api from "./client";
 
+export async function getMyChatCrypto() {
+  const { data } = await api.get("/chat/me/crypto");
+  return data;
+}
+
+export async function putMyChatPublicKey(publicKeyJwk) {
+  const { data } = await api.put("/chat/me/crypto", { publicKeyJwk });
+  return data;
+}
+
+export async function getUserChatPublicKey(userId) {
+  const { data } = await api.get(`/chat/users/${userId}/public-key`);
+  return data;
+}
+
 export async function listChatRooms({ includeArchived = false } = {}) {
   const { data } = await api.get("/chat/rooms", {
     params: includeArchived ? { includeArchived: "1" } : {}

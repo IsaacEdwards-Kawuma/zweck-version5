@@ -19,6 +19,7 @@ import {
 } from "../lib/chatPermissions.js";
 import { getMentionableUserIds, parseMentionEmails, resolveMentionUserIds } from "../lib/chatMentions.js";
 import { getChatIo } from "../socket/chatSocket.js";
+import { isE2eeEncryptedBody } from "../lib/chatE2ee.js";
 
 const router = Router();
 
@@ -179,6 +180,80 @@ async function getMemberClearedBeforeAt(userId: number, roomId: number): Promise
   });
   return m?.clearedBeforeAt ?? null;
 }
+
+const chatPublicKeyJwkSchema = z.object({
+  kty: z.literal("EC"),
+  crv: z.literal("P-256"),
+  x: z.string().min(1).max(200),
+  y: z.string().min(1).max(200),
+  ext: z.boolean().optional(),
+  key_ops: z.array(z.string()).optional()
+});
+
+router.get("/me/crypto", async (req, res) => {
+  const user = req.user!;
+  const row = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { chatPublicKeyJwk: true }
+  });
+  const raw = row?.chatPublicKeyJwk?.trim();
+  if (!raw) return res.json({ publicKeyJwk: null });
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return res.json({ publicKeyJwk: parsed });
+  } catch {
+    return res.json({ publicKeyJwk: null });
+  }
+});
+
+router.put("/me/crypto", async (req, res) => {
+  const user = req.user!;
+  const parsed = z.object({ publicKeyJwk: chatPublicKeyJwkSchema }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json(apiError("Invalid public key", "body"));
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { chatPublicKeyJwk: JSON.stringify(parsed.data.publicKeyJwk) }
+  });
+  res.json({ ok: true });
+});
+
+router.get("/users/:userId/public-key", async (req, res) => {
+  const user = req.user!;
+  const targetId = Number(req.params.userId);
+  if (!Number.isFinite(targetId) || targetId <= 0) return res.status(400).json(apiError("Invalid user id"));
+
+  if (targetId === user.id) {
+    const row = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { chatPublicKeyJwk: true }
+    });
+    const raw = row?.chatPublicKeyJwk?.trim();
+    if (!raw) return res.json({ publicKeyJwk: null });
+    try {
+      return res.json({ publicKeyJwk: JSON.parse(raw) as unknown });
+    } catch {
+      return res.json({ publicKeyJwk: null });
+    }
+  }
+
+  const a = Math.min(user.id, targetId);
+  const b = Math.max(user.id, targetId);
+  const roomKey = `DM:${a}:${b}`;
+  const dmRoom = await prisma.chatRoom.findUnique({ where: { roomKey }, select: { id: true } });
+  if (!dmRoom) return res.status(403).json(apiError("Forbidden", "user"));
+
+  const row = await prisma.user.findUnique({
+    where: { id: targetId },
+    select: { chatPublicKeyJwk: true }
+  });
+  const raw = row?.chatPublicKeyJwk?.trim();
+  if (!raw) return res.json({ publicKeyJwk: null });
+  try {
+    return res.json({ publicKeyJwk: JSON.parse(raw) as unknown });
+  } catch {
+    return res.json({ publicKeyJwk: null });
+  }
+});
 
 router.get("/rooms", async (req, res) => {
   const user = req.user!;
@@ -628,11 +703,21 @@ router.get("/rooms/:roomId/summary", async (req, res) => {
 
   const otherUserId = room.kind === "DM" ? getOtherDmUserId(room.roomKey, user.id) : null;
 
+  let dmPeerHasPublicKey = false;
+  if (otherUserId != null) {
+    const peer = await prisma.user.findUnique({
+      where: { id: otherUserId },
+      select: { chatPublicKeyJwk: true }
+    });
+    dmPeerHasPublicKey = Boolean(peer?.chatPublicKeyJwk?.trim());
+  }
+
   return res.json({
     room: {
       ...room,
       membership: membership ?? { archivedAt: null, clearedBeforeAt: null },
-      otherUserId
+      otherUserId,
+      dmPeerHasPublicKey
     }
   });
 });
@@ -982,7 +1067,7 @@ router.patch("/rooms/:roomId/messages/:messageId", async (req, res) => {
   if (!Number.isFinite(roomId) || roomId <= 0) return res.status(400).json(apiError("Invalid room id"));
   if (!Number.isFinite(messageId) || messageId <= 0) return res.status(400).json(apiError("Invalid message id"));
 
-  const bodySchema = z.object({ body: z.string().max(5000) });
+  const bodySchema = z.object({ body: z.string().max(20000) });
   const parsed = bodySchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json(apiError("Invalid body", "body"));
 
@@ -1011,7 +1096,7 @@ router.patch("/rooms/:roomId/messages/:messageId", async (req, res) => {
   const newBody = normalizeChatBody(parsed.data.body);
   if (!newBody) return res.status(400).json(apiError("Body required", "body"));
 
-  const mentionEmails = parseMentionEmails(newBody);
+  const mentionEmails = isE2eeEncryptedBody(newBody) ? [] : parseMentionEmails(newBody);
   const mentionable = await getMentionableUserIds(roomId, room.kind);
   const mentionedUserIds = await resolveMentionUserIds(mentionEmails, mentionable);
 
@@ -1439,6 +1524,9 @@ router.post("/rooms/:roomId/messages/:messageId/forward", async (req, res) => {
     include: { sender: { select: { email: true } } }
   });
   if (!src) return res.status(404).json(apiError("Message not found"));
+  if (isE2eeEncryptedBody(src.body)) {
+    return res.status(400).json(apiError("Cannot forward end-to-end encrypted messages", "forward"));
+  }
 
   const bodyText =
     (src.body && src.body.trim()) ||
