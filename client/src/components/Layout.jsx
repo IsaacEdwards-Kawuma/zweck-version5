@@ -2,11 +2,13 @@ import { Link, Outlet, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
+import OnboardingModal from "./OnboardingModal";
 import { useMe } from "../hooks/useMe";
 
 export default function Layout() {
   const token = localStorage.getItem("zweck_token");
   const qMe = useMe(Boolean(token));
+  const showOnboarding = Boolean(token) && qMe.isSuccess && qMe.data && qMe.data.onboardingCompletedAt == null;
   const location = useLocation();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
@@ -40,6 +42,7 @@ export default function Layout() {
         Skip to content
       </a>
       <Sidebar mobileOpen={mobileNavOpen} onClose={() => setMobileNavOpen(false)} me={qMe.data} />
+      {showOnboarding ? <OnboardingModal /> : null}
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar onToggleNav={() => setMobileNavOpen((v) => !v)} />
         <main
@@ -53,7 +56,13 @@ export default function Layout() {
           className="border-t border-slate-200/80 px-4 py-3 text-center text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400 print:hidden"
           role="contentinfo"
         >
-          <nav aria-label="Legal" className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
+          <nav aria-label="Help and legal" className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
+            <Link className="hover:text-brand-700 dark:hover:text-brand-300" to="/help">
+              Help
+            </Link>
+            <span aria-hidden className="text-slate-300 dark:text-slate-600">
+              ·
+            </span>
             <Link className="hover:text-brand-700 dark:hover:text-brand-300" to="/privacy">
               Privacy
             </Link>

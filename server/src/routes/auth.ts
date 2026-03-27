@@ -311,6 +311,7 @@ router.get("/me", requireAuth, async (req, res) => {
       directorId: true,
       createdAt: true,
       lastLoginAt: true,
+      onboardingCompletedAt: true,
       director: {
         select: {
           id: true,
@@ -329,10 +330,19 @@ router.get("/me", requireAuth, async (req, res) => {
       role: req.user.role,
       directorId: req.user.directorId,
       createdAt: new Date().toISOString(),
-      lastLoginAt: null
+      lastLoginAt: null,
+      onboardingCompletedAt: new Date().toISOString()
     });
   }
   return res.status(404).json(apiError("User not found"));
+});
+
+router.post("/me/complete-onboarding", requireAuth, async (req, res) => {
+  await prisma.user.update({
+    where: { id: req.user!.id },
+    data: { onboardingCompletedAt: new Date() }
+  });
+  return res.json({ ok: true });
 });
 
 /** Machine-readable export of the signed-in user's account + linked director profile (no password hash). */

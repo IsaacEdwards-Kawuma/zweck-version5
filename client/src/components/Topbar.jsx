@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import GlobalSearch from "./GlobalSearch";
 import NotificationBell from "./NotificationBell";
 
@@ -26,6 +27,13 @@ export default function Topbar({ onToggleNav }) {
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-2">
+        <Link
+          to="/help"
+          className="hidden rounded-lg border border-slate-200/90 bg-white/95 px-2.5 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-brand-50 hover:text-brand-800 sm:inline dark:border-slate-600 dark:bg-slate-800/95 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-brand-200"
+          title="Help and guides"
+        >
+          Help
+        </Link>
         <NotificationBell />
         <div className="hidden text-xs font-medium tracking-wide text-slate-500 sm:block dark:text-slate-400">
           ZweckOS Workspace

@@ -16,6 +16,7 @@ const links = [
   { to: "/directors", label: "Directors", icon: "directors" },
   { to: "/portfolio", label: "Portfolio", icon: "portfolio" },
   { to: "/projects", label: "Projects", icon: "projects" },
+  { to: "/help", label: "Help & guides", icon: "help" },
   { to: "/settings", label: "Settings", icon: "settings" }
 ];
 
@@ -112,6 +113,14 @@ function NavIcon({ name }) {
         <svg {...common}>
           <rect x="3" y="4" width="18" height="14" rx="2" />
           <path d="M8 4v14M3 9h18" />
+        </svg>
+      );
+    case "help":
+      return (
+        <svg {...common}>
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+          <path d="M8 7h8M8 11h6" />
         </svg>
       );
     case "settings":

@@ -20,6 +20,11 @@ export async function me() {
   return data;
 }
 
+export async function completeOnboarding() {
+  const { data } = await api.post("/auth/me/complete-onboarding");
+  return data;
+}
+
 export async function logout() {
   const { data } = await api.post("/auth/logout");
   return data;

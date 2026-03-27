@@ -30,6 +30,12 @@ describe("createApp", () => {
     expect(res.status).toBe(401);
   });
 
+  it("POST /api/auth/me/complete-onboarding without auth returns 401", async () => {
+    const app = createApp();
+    const res = await request(app).post("/api/auth/me/complete-onboarding");
+    expect(res.status).toBe(401);
+  });
+
   it("GET /api/notifications without auth returns 401", async () => {
     const app = createApp();
     const res = await request(app).get("/api/notifications");

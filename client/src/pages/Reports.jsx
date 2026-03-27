@@ -415,6 +415,14 @@ export default function Reports() {
     }));
   }, [byMonth]);
 
+  const ledgerHref = useMemo(() => {
+    const q = new URLSearchParams();
+    if (from) q.set("from", from);
+    if (to) q.set("to", to);
+    const s = q.toString();
+    return s ? `/ledger?${s}` : "/ledger";
+  }, [from, to]);
+
   if (qTx.isLoading || qSummary.isLoading || qDirectors.isLoading || qDirectorsFull.isLoading) {
     return <Loading label="Loading reports..." />;
   }
@@ -456,13 +464,6 @@ export default function Reports() {
       ? `${from || "…"} → ${to || "…"}`
       : "All dates";
 
-  const ledgerHref = useMemo(() => {
-    const q = new URLSearchParams();
-    if (from) q.set("from", from);
-    if (to) q.set("to", to);
-    const s = q.toString();
-    return s ? `/ledger?${s}` : "/ledger";
-  }, [from, to]);
   const reportMeta = `${new Date().toLocaleString()} · ${rangeLabel} · EUR`;
   const comparePct = (current, previous) => {
     if (!Number.isFinite(current) || !Number.isFinite(previous)) return "—";

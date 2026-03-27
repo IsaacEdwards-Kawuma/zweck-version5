@@ -184,6 +184,17 @@
         }
       }
     },
+    "/auth/me/complete-onboarding": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Mark first-run onboarding as completed",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
     "/auth/me/data-export": {
       "get": {
         "tags": ["auth"],

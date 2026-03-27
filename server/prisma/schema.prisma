@@ -48,6 +48,8 @@ model User {
   inAppChatMessages Boolean @default(true)
   /** When true, chat bell notifications are created only when the user is @mentioned (applies after per-room prefs). */
   inAppChatMentionsOnly Boolean @default(false)
+  /** Set when the user finishes (or skips) the first-run onboarding; null means show onboarding. */
+  onboardingCompletedAt DateTime?
   createdAt  DateTime  @default(now())
 
   notifications Notification[]

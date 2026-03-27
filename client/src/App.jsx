@@ -27,6 +27,7 @@ const AuditLog = lazy(() => import("./pages/AuditLog"));
 const Settings = lazy(() => import("./pages/Settings"));
 const AboutCompany = lazy(() => import("./pages/AboutCompany"));
 const Privacy = lazy(() => import("./pages/Privacy"));
+const HelpGuides = lazy(() => import("./pages/HelpGuides"));
 const DataRights = lazy(() => import("./pages/DataRights"));
 const Chat = lazy(() => import("./pages/Chat"));
 const ChatRoom = lazy(() => import("./pages/ChatRoom"));
@@ -52,6 +53,7 @@ export default function App() {
             <Route path="/audit" element={<AuditLog />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/about" element={<AboutCompany />} />
+            <Route path="/help" element={<HelpGuides />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/legal/data-rights" element={<DataRights />} />
             <Route path="/post" element={<PostTransaction />} />
