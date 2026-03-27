@@ -37,17 +37,10 @@ function resolveCapitalKey(tx: TxForDerive): string {
   return directorCapitalKey(tx.directorId);
 }
 
-function applyPair(
-  balances: Record<string, number>,
-  debitKey: string,
-  creditKey: string,
-  amount: number,
-  swap: boolean
-) {
-  const d = swap ? creditKey : debitKey;
-  const c = swap ? debitKey : creditKey;
-  balances[d] = (balances[d] || 0) + amount;
-  balances[c] = (balances[c] || 0) - amount;
+/** Signed convention: posting increases debitKey, decreases creditKey. */
+function applyPair(balances: Record<string, number>, debitKey: string, creditKey: string, amount: number) {
+  balances[debitKey] = (balances[debitKey] || 0) + amount;
+  balances[creditKey] = (balances[creditKey] || 0) - amount;
 }
 
 /**
@@ -56,7 +49,8 @@ function applyPair(
  * - Director capital uses dynamic keys `director_capital_{id}` (not the 3100 header).
  * - Expenses with ACCOUNTS_PAYABLE credit 2100 instead of bank.
  * - Inter-account transfer: debit destination, credit source.
- * - Reversal rows (`reversalOfId` set) swap debit and credit vs the normal map.
+ * - Reversal rows (`reversalOfId` set): swap resolved debit/credit before posting (negates the original posting).
+ * - `REVERSED` originals still contribute their original debit/credit; the reversing entry offsets them.
  */
 export function applyTransactionToBalances(balances: Record<string, number>, tx: TxForDerive) {
   if (tx.postingStatus === "PENDING") return;
@@ -67,7 +61,7 @@ export function applyTransactionToBalances(balances: Record<string, number>, tx:
   const map = TX_ACCOUNT_MAP[tx.type];
   if (!map) return;
 
-  const swap = Boolean(tx.reversalOfId);
+  const isReversalEntry = Boolean(tx.reversalOfId);
 
   if ((map.debit === "capital" || map.credit === "capital") && !tx.directorId) {
     return;
@@ -78,9 +72,12 @@ export function applyTransactionToBalances(balances: Record<string, number>, tx:
     const to = tx.transferToAccountKey as AccountKey | undefined;
     if (!from || !to) return;
     /** Debit destination, credit source (money leaves source, enters destination). */
-    const debitDest = resolveBankKey(to, tx.currency);
-    const creditSrc = resolveBankKey(from, tx.currency);
-    applyPair(balances, debitDest, creditSrc, amt, swap);
+    let debitDest = resolveBankKey(to, tx.currency);
+    let creditSrc = resolveBankKey(from, tx.currency);
+    if (isReversalEntry) {
+      [debitDest, creditSrc] = [creditSrc, debitDest];
+    }
+    applyPair(balances, debitDest, creditSrc, amt);
     return;
   }
 
@@ -101,7 +98,10 @@ export function applyTransactionToBalances(balances: Record<string, number>, tx:
     credit = "accounts_payable";
   }
 
-  applyPair(balances, debit, credit, amt, swap);
+  if (isReversalEntry) {
+    [debit, credit] = [credit, debit];
+  }
+  applyPair(balances, debit, credit, amt);
 }
 
 export function deriveBalances(transactions: TxForDerive[]): Balances {

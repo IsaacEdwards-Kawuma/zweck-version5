@@ -105,6 +105,13 @@ export default function Ledger() {
   const openingBalance = Number(qTx.data?.openingBalance || 0);
   const closingBalance = Number(qTx.data?.closingBalance || 0);
 
+  function ledgerKeyMatchesFilter(rowKey, filterKey) {
+    if (!filterKey || !rowKey) return false;
+    if (rowKey === filterKey) return true;
+    if (filterKey === "capital" && String(rowKey).startsWith("director_capital_")) return true;
+    return false;
+  }
+
   async function exportCsv() {
     const p = {
       limit: 100000,
@@ -264,7 +271,7 @@ export default function Ledger() {
           </thead>
           <tbody className="ui-table-divide">
             {rowsWithBalance.map((r) => {
-              const isDebitSide = accountKey ? r.debitAccountKey === accountKey : true;
+              const isDebitSide = accountKey ? ledgerKeyMatchesFilter(r.debitAccountKey, accountKey) : true;
               const accountCode = accountKey ? (isDebitSide ? r.debitAccountCode : r.creditAccountCode) : r.debitAccountCode;
               const accountName = accountKey ? (isDebitSide ? r.debitAccountName : r.creditAccountName) : r.debitAccountName;
               const statusLabel = r.postingStatus === "REVERSED" ? "Reversed" : r.postingStatus === "PENDING" ? "Pending" : "Posted";
@@ -281,8 +288,18 @@ export default function Ledger() {
                   <td className="px-4 py-3 whitespace-nowrap">{r.postedBy || "—"}</td>
                   <td className="px-4 py-3 whitespace-nowrap">{r.project ? `${r.project.code} · ${r.project.name}` : "—"}</td>
                   <td className="px-4 py-3 max-w-[20rem] truncate">{r.description || "—"}</td>
-                  <td className="px-4 py-3 whitespace-nowrap">{r.debitAccount}</td>
-                  <td className="px-4 py-3 whitespace-nowrap">{r.creditAccount}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <div>{r.debitAccount}</div>
+                    <div className="mt-0.5 font-mono text-xs font-semibold text-slate-800 dark:text-slate-100">
+                      {formatMoney(Number(r.amount || 0), r.currency || "EUR")}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <div>{r.creditAccount}</div>
+                    <div className="mt-0.5 font-mono text-xs font-semibold text-slate-800 dark:text-slate-100">
+                      {formatMoney(Number(r.amount || 0), r.currency || "EUR")}
+                    </div>
+                  </td>
                   <td className="px-4 py-3 whitespace-nowrap">{r.currency || "EUR"}</td>
                   <td className="px-4 py-3 whitespace-nowrap">{r.runningBalance != null ? formatMoney(r.runningBalance || 0, r.currency || "EUR") : "—"}</td>
                   <td className="px-4 py-3 whitespace-nowrap" title={r.documentStatus === "MISSING" ? "Document missing" : "Document attached"}>

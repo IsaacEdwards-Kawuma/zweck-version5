@@ -105,7 +105,8 @@ function shapeTransactionRow(
       const dirId = t.director?.id;
       const row = dirId != null ? directorCapitalCodeById.get(dirId) : undefined;
       if (!row) return { key: "capital", code: 3110, name: "Director Capital" };
-      return { key: "capital", code: row.code, name: `Director Capital — ${row.name}` };
+      /** Align with `derive.ts` balance keys (`director_capital_{id}`). */
+      return { key: `director_capital_${dirId}`, code: row.code, name: `Director Capital — ${row.name}` };
     }
     if (accountKey === "side_fund") {
       const code = ACCOUNTS.side_fund.code;
@@ -222,8 +223,11 @@ function shapeTransactionRow(
   }
   debit = map.debit === "bank" ? "bank" : map.debit;
 
-  const debitParts = resolveAccountParts(debit);
-  const creditParts = resolveAccountParts(credit);
+  let debitParts = resolveAccountParts(debit);
+  let creditParts = resolveAccountParts(credit);
+  if (t.reversalOfId) {
+    [debitParts, creditParts] = [creditParts, debitParts];
+  }
   return {
     id: t.id,
     reference: t.referenceNumber,
@@ -273,10 +277,25 @@ function accountNormalIsDebit(accountCode: number | null | undefined): boolean {
   return prefix === 1 || prefix === 5;
 }
 
-function runningDeltaForRow(row: any, accountKey: string): number {
+/** Filter value `capital` matches any `director_capital_{id}` ledger key (aligned with derive.ts). */
+function ledgerKeyMatchesFilter(rowKey: string | null | undefined, filterKey: string): boolean {
+  if (!rowKey) return false;
+  if (rowKey === filterKey) return true;
+  if (filterKey === "capital" && rowKey.startsWith("director_capital_")) return true;
+  return false;
+}
+
+function ledgerRowTouchesAccount(
+  row: { debitAccountKey?: string | null; creditAccountKey?: string | null },
+  filterKey: string
+): boolean {
+  return ledgerKeyMatchesFilter(row.debitAccountKey ?? "", filterKey) || ledgerKeyMatchesFilter(row.creditAccountKey ?? "", filterKey);
+}
+
+function runningDeltaForRow(row: any, filterAccountKey: string): number {
   const amount = Number(row.amount || 0);
-  const touchesDebit = row.debitAccountKey === accountKey;
-  const touchesCredit = row.creditAccountKey === accountKey;
+  const touchesDebit = ledgerKeyMatchesFilter(row.debitAccountKey, filterAccountKey);
+  const touchesCredit = ledgerKeyMatchesFilter(row.creditAccountKey, filterAccountKey);
   if (!touchesDebit && !touchesCredit) return 0;
   const code = touchesDebit ? row.debitAccountCode : row.creditAccountCode;
   const debitNormal = accountNormalIsDebit(code);
@@ -426,9 +445,7 @@ router.get("/", async (req, res) => {
 
   const shaped: any[] = rows.map((t) => shapeTransactionRow(t, directorCapitalCodeById, postedByNameByUserId));
 
-  const allByAccount = accountKey
-    ? shaped.filter((t) => t.debitAccountKey === accountKey || t.creditAccountKey === accountKey)
-    : shaped;
+  const allByAccount = accountKey ? shaped.filter((t) => ledgerRowTouchesAccount(t, accountKey)) : shaped;
 
   // Running balances are calculated server-side in chronological order.
   const balancesByAccount = new Map<string, number>();
@@ -437,12 +454,13 @@ router.get("/", async (req, res) => {
     const key = accountKey || row.debitAccountKey || "";
     if (!key) continue;
     const prev = balancesByAccount.get(key) || 0;
-    const next = prev + runningDeltaForRow(row, key);
+    const next = prev + runningDeltaForRow(row, accountKey || key);
     balancesByAccount.set(key, next);
     row.runningBalance = next;
     row.runningBalanceAccountKey = key;
-    row.ledgerAccountCode = key === row.debitAccountKey ? row.debitAccountCode : row.creditAccountCode;
-    row.ledgerAccountName = key === row.debitAccountKey ? row.debitAccountName : row.creditAccountName;
+    const onDebit = ledgerKeyMatchesFilter(row.debitAccountKey, accountKey || key);
+    row.ledgerAccountCode = onDebit ? row.debitAccountCode : row.creditAccountCode;
+    row.ledgerAccountName = onDebit ? row.debitAccountName : row.creditAccountName;
     if (accountKey && row === allByAccount[0]) openingBalance = 0;
   }
   const closingBalance = accountKey ? balancesByAccount.get(accountKey) || 0 : null;

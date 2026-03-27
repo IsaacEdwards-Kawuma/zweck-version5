@@ -19,4 +19,28 @@ describe("deriveBalances", () => {
     expect(balances.director_capital_1).toBeCloseTo(-100);
     expect(balances.mmf).toBeCloseTo(40);
   });
+
+  it("nets a contribution to zero when original is REVERSED and a reversing entry is posted", () => {
+    const balances = deriveBalances([
+      {
+        type: "CONTRIBUTION",
+        amount: 160,
+        currency: "EUR",
+        directorId: 1,
+        postingStatus: "REVERSED"
+      },
+      {
+        type: "CONTRIBUTION",
+        amount: 160,
+        currency: "EUR",
+        directorId: 1,
+        postingStatus: "POSTED",
+        reversalOfId: 1
+      }
+    ] as any);
+
+    expect(balances.bank_eur).toBeCloseTo(0);
+    expect(balances.director_capital_1).toBeCloseTo(0);
+  });
+
 });
