@@ -187,7 +187,7 @@ For ledger-grade auditability:
 
 ## 12) Chat: DM end-to-end encryption (E2EE)
 
-**Scope today:** **Direct message (DM) text and DM attachments.** Group, meeting, and project rooms use the same transport (TLS) but message bodies and attachment bytes are processed as plaintext on the server. In DMs, message bodies use the same AES key as text; image/file bytes are encrypted in the browser before upload and stored as ciphertext (attachment kinds `IMAGE_E2EE` / `FILE_E2EE`); the server sees names and sizes but not plaintext file content. Upload URLs remain under the public static path; confidentiality relies on encryption at rest in the stored file.
+**Scope today:** **Direct message (DM) text and DM attachments.** Group, meeting, and project rooms use the same transport (TLS) but message bodies and attachment bytes are processed as plaintext on the server. In DMs, message bodies use the same AES key as text; image/file bytes are encrypted in the browser before upload and stored as ciphertext (attachment kinds `IMAGE_E2EE` / `FILE_E2EE`); the server sees names and sizes but not plaintext file content. Files under `uploads/chat` are not served by anonymous static `/api/uploads`; `GET /api/uploads/chat/:filename` requires a JWT and membership in the room that owns the message referencing that URL. DM E2EE plaintext still depends on the client-held key.
 
 **Cryptography (client):**
 
@@ -211,10 +211,9 @@ For ledger-grade auditability:
 
 ### Recommended next steps (priority order)
 
-1. **Authenticated attachment download** — Serve chat uploads only to room members (URLs alone would not suffice); complements E2EE ciphertext on disk.
-2. **Group / room E2EE** — Requires group key agreement (e.g. sender keys or MLS-style design); significantly more complex than DM pairwise ECDH.
-3. **Password-protected backup** — Encrypt the JSON backup with a user passphrase before download (reduces risk if the file leaks).
-4. **Multi-device sync without manual backup** — Optional encrypted key escrow or device-to-device verify flow (high effort; careful threat modeling).
+1. **Group / room E2EE** — Requires group key agreement (e.g. sender keys or MLS-style design); significantly more complex than DM pairwise ECDH.
+2. **Password-protected backup** — Encrypt the JSON backup with a user passphrase before download (reduces risk if the file leaks).
+3. **Multi-device sync without manual backup** — Optional encrypted key escrow or device-to-device verify flow (high effort; careful threat modeling).
 
 ## 13) Recommended Change Workflow
 

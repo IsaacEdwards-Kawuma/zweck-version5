@@ -35,7 +35,7 @@ import searchRoutes from "./routes/search.js";
 import adminExportRoutes from "./routes/adminExport.js";
 import integrationsRoutes from "./routes/integrations.js";
 import jobsRoutes from "./routes/jobs.js";
-import chatRoutes from "./routes/chat.js";
+import chatRoutes, { serveChatAttachmentDownload } from "./routes/chat.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const openapiDocument = JSON.parse(readFileSync(join(__dirname, "openapi.json"), "utf8")) as Record<string, unknown>;
@@ -105,7 +105,20 @@ export function createApp(): express.Express {
   app.get("/api/openapi.json", (_req, res) => res.json(openapiDocument));
   app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(openapiDocument));
 
-  app.use("/api/uploads", express.static(uploadRoot));
+  /** Chat attachment bytes: room members only (must be before static `/api/uploads`). */
+  app.get("/api/uploads/chat/:filename", requireAuth, serveChatAttachmentDownload);
+
+  app.use(
+    "/api/uploads",
+    (req, res, next) => {
+      const pathOnly = req.path || "";
+      if (pathOnly === "/chat" || pathOnly.startsWith("/chat/")) {
+        return res.status(404).json(apiError("Not found"));
+      }
+      next();
+    },
+    express.static(uploadRoot)
+  );
 
   app.use("/api/auth", authRoutes);
 

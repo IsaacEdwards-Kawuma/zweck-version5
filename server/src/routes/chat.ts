@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { Router } from "express";
+import type { Request, Response } from "express";
 import multer from "multer";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
@@ -1565,5 +1566,57 @@ router.post("/rooms/:roomId/messages/:messageId/forward", async (req, res) => {
   io?.to(String(parsed.data.targetRoomId)).emit("chat:messageCreated", out);
   res.json(out);
 });
+
+/** Authenticated download for chat uploads (registered before `/api/uploads` static). */
+export async function serveChatAttachmentDownload(req: Request, res: Response) {
+  const user = req.user!;
+  const raw = String(req.params.filename ?? "");
+  const filename = path.basename(raw);
+  if (!filename || filename !== raw || raw.includes("..")) {
+    return res.status(400).json(apiError("Invalid filename"));
+  }
+  const expectedUrl = `/api/uploads/chat/${filename}`;
+  const msg = await prisma.chatMessage.findFirst({
+    where: { attachmentUrl: expectedUrl, deletedAt: null },
+    select: { roomId: true, attachmentKind: true, attachmentName: true }
+  });
+  if (!msg) {
+    return res.status(404).json(apiError("Not found"));
+  }
+  const room = await prisma.chatRoom.findUnique({
+    where: { id: msg.roomId },
+    select: roomSelectAuth
+  });
+  if (!room) return res.status(404).json(apiError("Not found"));
+  try {
+    await assertUserCanAccessChatRoom(user, room);
+  } catch (e) {
+    return res.status(403).json(e);
+  }
+  const fullPath = path.join(uploadRoot, filename);
+  const rootResolved = path.resolve(uploadRoot);
+  const resolved = path.resolve(fullPath);
+  if (!resolved.startsWith(rootResolved + path.sep) && resolved !== rootResolved) {
+    return res.status(400).json(apiError("Invalid path"));
+  }
+  try {
+    await fs.promises.access(resolved, fs.constants.R_OK);
+  } catch {
+    return res.status(404).json(apiError("Not found"));
+  }
+  const safeName = (msg.attachmentName && sanitizeFilename(msg.attachmentName)) || filename;
+  const isFileKind = msg.attachmentKind === "FILE" || msg.attachmentKind === "FILE_E2EE";
+  res.setHeader(
+    "Content-Disposition",
+    `${isFileKind ? "attachment" : "inline"}; filename="${safeName}"`
+  );
+  res.setHeader("Cache-Control", "private, no-store");
+  return new Promise<void>((resolve, reject) => {
+    res.sendFile(resolved, (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+}
 
 export default router;

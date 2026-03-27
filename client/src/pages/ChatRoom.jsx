@@ -281,26 +281,37 @@ export default function ChatRoom() {
   }, [dmAesKey, messages]);
 
   useEffect(() => {
-    if (!dmAesKey || room?.kind !== "DM") {
-      setAttachmentBlobUrls({});
-      return;
-    }
     const runId = ++attachmentDecryptRunId.current;
-    const e2eeAtt = messages.filter((m) => isE2eeAttachmentKind(m.attachmentKind) && m.attachmentUrl);
-    if (!e2eeAtt.length) {
+    const withChatFile = messages.filter(
+      (m) => m.attachmentUrl && String(m.attachmentUrl).includes("/api/uploads/chat/")
+    );
+    if (!withChatFile.length) {
       setAttachmentBlobUrls({});
       return;
     }
     void (async () => {
+      const token = typeof localStorage !== "undefined" ? localStorage.getItem("zweck_token") : null;
+      const headers = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
       const next = {};
-      for (const m of e2eeAtt) {
+      for (const m of withChatFile) {
+        const e2ee = isE2eeAttachmentKind(m.attachmentKind);
+        if (e2ee && (!dmAesKey || room?.kind !== "DM")) continue;
         try {
-          const res = await fetch(publicAssetUrl(m.attachmentUrl), { credentials: "include" });
+          const res = await fetch(publicAssetUrl(m.attachmentUrl), { credentials: "include", headers });
           if (!res.ok) continue;
           const buf = new Uint8Array(await res.arrayBuffer());
-          const plain = await decryptDmAttachmentBytes(buf, dmAesKey);
-          const mime = mimeFromFilename(m.attachmentName || "");
-          next[m.id] = URL.createObjectURL(new Blob([plain], { type: mime }));
+          let bytes = buf;
+          let mime = "";
+          if (e2ee) {
+            bytes = await decryptDmAttachmentBytes(buf, dmAesKey);
+            mime = mimeFromFilename(m.attachmentName || "");
+          } else {
+            mime =
+              res.headers.get("content-type") ||
+              (m.attachmentKind === "IMAGE" ? "image/jpeg" : "application/octet-stream");
+          }
+          next[m.id] = URL.createObjectURL(new Blob([bytes], { type: mime }));
         } catch {
           /* ignore */
         }
@@ -1662,58 +1673,38 @@ export default function ChatRoom() {
                         ) : null}
                         {m.attachmentUrl && (m.attachmentKind === "IMAGE" || m.attachmentKind === "IMAGE_E2EE") ? (
                           <a
-                            href={
-                              m.attachmentKind === "IMAGE_E2EE"
-                                ? attachmentBlobUrls[m.id] || "#"
-                                : publicAssetUrl(m.attachmentUrl)
-                            }
+                            href={attachmentBlobUrls[m.id] || "#"}
                             target="_blank"
                             rel="noreferrer"
                             className="mt-2 block"
-                            onClick={
-                              m.attachmentKind === "IMAGE_E2EE" && !attachmentBlobUrls[m.id]
-                                ? (e) => e.preventDefault()
-                                : undefined
-                            }
+                            onClick={!attachmentBlobUrls[m.id] ? (e) => e.preventDefault() : undefined}
                           >
-                            {m.attachmentKind === "IMAGE_E2EE" ? (
-                              attachmentBlobUrls[m.id] ? (
-                                <img
-                                  src={attachmentBlobUrls[m.id]}
-                                  alt=""
-                                  className="max-h-48 max-w-full rounded-lg border border-slate-200 bg-white object-contain dark:border-slate-600"
-                                />
-                              ) : (
-                                <span className="text-xs text-slate-500 dark:text-slate-400">Decrypting image…</span>
-                              )
-                            ) : (
+                            {attachmentBlobUrls[m.id] ? (
                               <img
-                                src={publicAssetUrl(m.attachmentUrl)}
+                                src={attachmentBlobUrls[m.id]}
                                 alt=""
                                 className="max-h-48 max-w-full rounded-lg border border-slate-200 bg-white object-contain dark:border-slate-600"
                               />
+                            ) : (
+                              <span className="text-xs text-slate-500 dark:text-slate-400">
+                                {m.attachmentKind === "IMAGE_E2EE" ? "Decrypting image…" : "Loading image…"}
+                              </span>
                             )}
                           </a>
                         ) : null}
                         {m.attachmentUrl && (m.attachmentKind === "FILE" || m.attachmentKind === "FILE_E2EE") ? (
                           <a
-                            href={
-                              m.attachmentKind === "FILE_E2EE"
-                                ? attachmentBlobUrls[m.id] || "#"
-                                : publicAssetUrl(m.attachmentUrl)
-                            }
+                            href={attachmentBlobUrls[m.id] || "#"}
                             target="_blank"
                             rel="noreferrer"
-                            download={m.attachmentKind === "FILE_E2EE" ? m.attachmentName || "download" : undefined}
+                            download={m.attachmentName || "download"}
                             className="mt-2 block text-sm text-brand-700 underline dark:text-brand-300"
-                            onClick={
-                              m.attachmentKind === "FILE_E2EE" && !attachmentBlobUrls[m.id]
-                                ? (e) => e.preventDefault()
-                                : undefined
-                            }
+                            onClick={!attachmentBlobUrls[m.id] ? (e) => e.preventDefault() : undefined}
                           >
-                            {m.attachmentKind === "FILE_E2EE" && !attachmentBlobUrls[m.id]
-                              ? "Decrypting file…"
+                            {!attachmentBlobUrls[m.id]
+                              ? m.attachmentKind === "FILE_E2EE"
+                                ? "Decrypting file…"
+                                : "Loading file…"
                               : m.attachmentName || "Download file"}
                           </a>
                         ) : null}
