@@ -379,6 +379,12 @@
             "name": "limit",
             "in": "query",
             "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 30 }
+          },
+          {
+            "name": "unreadOnly",
+            "in": "query",
+            "description": "If true, only unread notifications are returned (still includes global unreadCount).",
+            "schema": { "type": "boolean", "default": false }
           }
         ],
         "responses": {
@@ -436,6 +442,27 @@
         }
       }
     },
+    "/notifications/all": {
+      "delete": {
+        "tags": ["notifications"],
+        "summary": "Delete all notifications for the current user",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Count deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "deleted": { "type": "integer" } }
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
     "/notifications/{id}/read": {
       "patch": {
         "tags": ["notifications"],
@@ -444,6 +471,20 @@
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
         "responses": {
           "200": { "description": "OK" },
+          "400": { "description": "Invalid id" },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "Not found" }
+        }
+      }
+    },
+    "/notifications/{id}": {
+      "delete": {
+        "tags": ["notifications"],
+        "summary": "Delete one notification",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": {
+          "200": { "description": "Deleted" },
           "400": { "description": "Invalid id" },
           "401": { "description": "Unauthorized" },
           "404": { "description": "Not found" }

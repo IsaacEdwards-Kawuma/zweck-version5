@@ -77,6 +77,24 @@ export function formatTxRef(id) {
   return `ZWC-${String(id).padStart(7, "0")}`;
 }
 
+/** Short relative time for notification timestamps (e.g. "Just now", "3h ago", "12 Jan"). */
+export function formatRelativeTime(isoLike) {
+  const d = new Date(isoLike);
+  const t = d.getTime();
+  if (Number.isNaN(t)) return "";
+  const diffMs = Date.now() - t;
+  const sec = Math.floor(diffMs / 1000);
+  if (sec < 45) return "Just now";
+  if (sec < 3600) return `${Math.floor(sec / 60)}m ago`;
+  if (sec < 86400) return `${Math.floor(sec / 3600)}h ago`;
+  if (sec < 172800) return "Yesterday";
+  if (sec < 604800) return `${Math.floor(sec / 86400)}d ago`;
+  const now = new Date();
+  const opts = { month: "short", day: "numeric" };
+  if (d.getFullYear() !== now.getFullYear()) opts.year = "numeric";
+  return d.toLocaleDateString(undefined, opts);
+}
+
 /**
  * Parse a user-typed money string (e.g. "2.23", "10,50" with comma as decimal).
  * UGX: whole numbers only. EUR/USD: max 2 decimal places.

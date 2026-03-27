@@ -7,13 +7,14 @@ const router = Router();
 router.get("/", async (req, res) => {
   const user = req.user!;
   const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 30));
+  const unreadOnly = req.query.unreadOnly === "1" || req.query.unreadOnly === "true";
 
   const unreadCount = await prisma.notification.count({
     where: { userId: user.id, readAt: null }
   });
 
   const items = await prisma.notification.findMany({
-    where: { userId: user.id },
+    where: { userId: user.id, ...(unreadOnly ? { readAt: null } : {}) },
     orderBy: { createdAt: "desc" },
     take: limit,
     select: {
@@ -40,6 +41,14 @@ router.post("/read-all", async (req, res) => {
   res.json({ updated: result.count });
 });
 
+router.delete("/all", async (req, res) => {
+  const user = req.user!;
+  const result = await prisma.notification.deleteMany({
+    where: { userId: user.id }
+  });
+  res.json({ deleted: result.count });
+});
+
 router.patch("/:id/read", async (req, res) => {
   const user = req.user!;
   const id = Number(req.params.id);
@@ -57,6 +66,24 @@ router.patch("/:id/read", async (req, res) => {
       where: { id, userId: user.id }
     });
     if (!exists) return res.status(404).json(apiError("Not found"));
+  }
+
+  res.json({ ok: true });
+});
+
+router.delete("/:id", async (req, res) => {
+  const user = req.user!;
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id) || id <= 0) {
+    return res.status(400).json(apiError("Invalid notification id"));
+  }
+
+  const result = await prisma.notification.deleteMany({
+    where: { id, userId: user.id }
+  });
+
+  if (result.count === 0) {
+    return res.status(404).json(apiError("Not found"));
   }
 
   res.json({ ok: true });

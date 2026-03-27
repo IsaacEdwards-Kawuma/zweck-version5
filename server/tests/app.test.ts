@@ -36,6 +36,18 @@ describe("createApp", () => {
     expect(res.status).toBe(401);
   });
 
+  it("DELETE /api/notifications/all without auth returns 401", async () => {
+    const app = createApp();
+    const res = await request(app).delete("/api/notifications/all");
+    expect(res.status).toBe(401);
+  });
+
+  it("DELETE /api/notifications/1 without auth returns 401", async () => {
+    const app = createApp();
+    const res = await request(app).delete("/api/notifications/1");
+    expect(res.status).toBe(401);
+  });
+
   it("GET /api/meetings without auth returns 401", async () => {
     const app = createApp();
     const res = await request(app).get("/api/meetings");
