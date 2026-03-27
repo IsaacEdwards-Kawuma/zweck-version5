@@ -15,6 +15,7 @@ import {
   TX_ACCOUNT_MAP
 } from "../lib/constants.js";
 import { allocateNextReferenceNumber, peekNextReferenceNumber } from "../lib/referenceNumber.js";
+import { EMAIL_EVENTS, enqueueEmail } from "../services/emailBus.js";
 
 const router = Router();
 
@@ -564,6 +565,11 @@ router.post("/", validateBody(postSchema), async (req, res) => {
       })
     ]);
 
+    enqueueEmail({
+      type: EMAIL_EVENTS.TX_POSTED,
+      recipient: req.user!.email,
+      payload: { referenceNumber: refMain, amount: mainAmount, currency: body.currency }
+    });
     return res.status(201).json({ id: mainTx.id, referenceNumber: refMain });
   }
 
@@ -611,6 +617,15 @@ router.post("/", validateBody(postSchema), async (req, res) => {
         }
       });
     });
+    enqueueEmail({
+      type: EMAIL_EVENTS.TX_POSTED,
+      recipient: req.user!.email,
+      payload: {
+        referenceNumber: refs[0] || "Split posting",
+        amount: total,
+        currency: body.currency
+      }
+    });
     return res.status(201).json({ ids: createdIds, count: createdIds.length });
   }
 
@@ -635,6 +650,12 @@ router.post("/", validateBody(postSchema), async (req, res) => {
       before: Prisma.JsonNull,
       after: tx as unknown as Prisma.InputJsonValue
     }
+  });
+
+  enqueueEmail({
+    type: EMAIL_EVENTS.TX_POSTED,
+    recipient: req.user!.email,
+    payload: { referenceNumber: ref, amount: body.amount, currency: body.currency }
   });
 
   return res.status(201).json({ id: tx.id, referenceNumber: ref });
@@ -696,6 +717,11 @@ router.post("/:id/reverse", async (req, res) => {
     return rev;
   });
 
+  enqueueEmail({
+    type: EMAIL_EVENTS.TX_REVERSED,
+    recipient: req.user!.email,
+    payload: { referenceNumber: original.referenceNumber }
+  });
   return res.status(201).json({ id: reversal.id, referenceNumber: ref });
 });
 

@@ -12,6 +12,7 @@ import { getPublicAppUrl } from "../lib/publicAppUrl.js";
 import { logger } from "../lib/logger.js";
 import { isAuthDisabled, requireAuth, type AuthUser } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
+import { EMAIL_EVENTS, enqueueEmail } from "../services/emailBus.js";
 
 const router = Router();
 
@@ -288,6 +289,12 @@ async function handleRegister(
       role,
       directorId
     }
+  });
+
+  enqueueEmail({
+    type: EMAIL_EVENTS.USER_CREATED,
+    recipient: user.email,
+    payload: { name: body.director?.name || user.email.split("@")[0] }
   });
 
   const token = signToken({ id: user.id, email: user.email, role: user.role, directorId: user.directorId ?? null });
