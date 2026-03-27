@@ -29,6 +29,11 @@ router.get("/balances", async (_req, res) => {
     }
   });
   const balances = deriveBalances(txs as any);
+  // Backward-compatible aggregate used by dashboard cards.
+  balances.bank =
+    Number((balances as any).bank_eur || 0) +
+    Number((balances as any).bank_usd || 0) +
+    Number((balances as any).bank_ugx || 0);
   return res.json(balances);
 });
 

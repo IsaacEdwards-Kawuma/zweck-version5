@@ -71,7 +71,9 @@ export default function Dashboard() {
   const directors = qDirs.data || [];
   const portfolio = qPortfolio.data;
 
-  const bank = balances?.bank || 0;
+  const bank =
+    balances?.bank ??
+    Number(balances?.bank_eur || 0) + Number(balances?.bank_usd || 0) + Number(balances?.bank_ugx || 0);
   const totalDirectorCapital = (directors || []).reduce((s, d) => s + (d.total || 0), 0);
   const totalAssets = portfolio?.totalAssets || 0;
 
