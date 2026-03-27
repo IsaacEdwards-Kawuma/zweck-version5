@@ -170,3 +170,17 @@ export function startEmailQueueWorker() {
   logger.info({ tickMs: TICK_MS, maxPerTick: MAX_PER_TICK, dailyLimit: DAILY_LIMIT }, "[email] queue worker started");
 }
 
+export function getEmailQueueStats() {
+  const today = currentUtcDayKey();
+  const currentSentToday = today === dayKey ? sentToday : 0;
+  return {
+    queueDepth: queue.length,
+    processing,
+    sentToday: currentSentToday,
+    dailyLimit: DAILY_LIMIT,
+    maxPerTick: MAX_PER_TICK,
+    tickMs: TICK_MS,
+    dedupeWindowMs: DEDUPE_WINDOW_MS
+  };
+}
+

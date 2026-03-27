@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
 import { requireRole } from "../middleware/auth.js";
+import { getEmailQueueStats } from "../services/emailBus.js";
 
 const router = Router();
 const MAX_TX = 100_000;
@@ -47,6 +48,14 @@ router.get("/export", requireRole("ADMIN"), async (_req, res) => {
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.setHeader("Content-Disposition", `attachment; filename="zweckos-export-${new Date().toISOString().slice(0, 10)}.json"`);
   return res.json(body);
+});
+
+/** Debug endpoint for email queue health/usage (admin only). */
+router.get("/email-queue", requireRole("ADMIN"), async (_req, res) => {
+  return res.json({
+    now: new Date().toISOString(),
+    ...getEmailQueueStats()
+  });
 });
 
 export default router;
