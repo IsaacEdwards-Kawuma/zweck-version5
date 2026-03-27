@@ -6,22 +6,22 @@ export const TX_TYPE_GROUPS = [
   {
     label: "Capital & Equity",
     options: [
-      { value: "CONTRIBUTION", label: "1. Director Capital Contribution" },
-      { value: "CAPITAL_WITHDRAWAL", label: "2. Capital Withdrawal / Distribution" },
-      { value: "SIDE_FUND", label: "3. Side fund contributions" },
+      { value: "CONTRIBUTION", label: "Director Capital Contribution" },
+      { value: "CAPITAL_WITHDRAWAL", label: "Capital Withdrawal / Distribution" },
+      { value: "SIDE_FUND", label: "Side fund contributions" },
       { value: "RETAINED_EARNINGS_TRANSFER", label: "Retained earnings → director capital (split)" }
     ]
   },
   {
     label: "Revenue & Income",
     options: [
-      { value: "MMF_RETURN", label: "4. Investment Returns (MMF / project return)" },
-      { value: "INVESTMENT_RETURN", label: "4b. Investment Returns (general)" },
-      { value: "PROJECT_REVENUE", label: "5. Project Revenue" },
-      { value: "INTEREST_INCOME", label: "6. Interest Income" },
-      { value: "DIVIDEND_INCOME", label: "7. Dividend Income" },
-      { value: "RENTAL_INCOME", label: "8. Rental Income" },
-      { value: "OTHER_INCOME", label: "9. Other Income" },
+      { value: "MMF_RETURN", label: "Investment Returns (MMF / project return)" },
+      { value: "INVESTMENT_RETURN", label: "Investment Returns (general)" },
+      { value: "PROJECT_REVENUE", label: "Project Revenue" },
+      { value: "INTEREST_INCOME", label: "Interest Income" },
+      { value: "DIVIDEND_INCOME", label: "Dividend Income" },
+      { value: "RENTAL_INCOME", label: "Rental Income" },
+      { value: "OTHER_INCOME", label: "Other Income" },
       { value: "PENALTY", label: "Penalty & surcharges (income)" }
     ]
   },
@@ -30,53 +30,53 @@ export const TX_TYPE_GROUPS = [
     options: [
       { value: "MMF_DEPLOY", label: "MMF deploy (to investment)" },
       { value: "YPA_INVEST", label: "YPA / project invest" },
-      { value: "PROJECT_DISBURSEMENT", label: "10. Project Disbursement" },
-      { value: "ASSET_PURCHASE", label: "11. Asset Purchase" },
-      { value: "LOAN_ADVANCED", label: "12. Loan Advanced (company lends principal)" },
-      { value: "LOAN_REPAYMENT_RECEIVED", label: "14. Loan Repayment Received" }
+      { value: "PROJECT_DISBURSEMENT", label: "Project Disbursement" },
+      { value: "ASSET_PURCHASE", label: "Asset Purchase" },
+      { value: "LOAN_ADVANCED", label: "Loan Advanced (company lends principal)" },
+      { value: "LOAN_REPAYMENT_RECEIVED", label: "Loan Repayment Received" }
     ]
   },
   {
     label: "Operating Expenses",
     options: [
-      { value: "TX_CHARGE", label: "15. Bank Charges & Fees" },
-      { value: "REGISTRATION", label: "16. Registrations" },
-      { value: "LEGAL", label: "16. Legal & Professional Fees" },
-      { value: "TRANSPORT_TRAVEL", label: "17. Transport & Travel" },
-      { value: "COMMUNICATION_INTERNET", label: "18. Communication & Internet" },
-      { value: "OFFICE_ADMINISTRATION", label: "19. Office & Administration" },
-      { value: "PRINTING_STATIONERY", label: "20. Printing & Stationery" },
-      { value: "SALARIES_WAGES", label: "21. Salaries & Wages" },
-      { value: "DIRECTOR_FEE_ALLOWANCE", label: "21b. Director Fee / Allowance" },
-      { value: "UTILITIES", label: "22. Utilities" },
-      { value: "INSURANCE", label: "23. Insurance" },
-      { value: "MEALS_ENTERTAINMENT", label: "24. Meals & Entertainment" },
-      { value: "OTHER_OUT", label: "25. Miscellaneous Expense" }
+      { value: "TX_CHARGE", label: "Bank Charges & Fees" },
+      { value: "REGISTRATION", label: "Registrations" },
+      { value: "LEGAL", label: "Legal & Professional Fees" },
+      { value: "TRANSPORT_TRAVEL", label: "Transport & Travel" },
+      { value: "COMMUNICATION_INTERNET", label: "Communication & Internet" },
+      { value: "OFFICE_ADMINISTRATION", label: "Office & Administration" },
+      { value: "PRINTING_STATIONERY", label: "Printing & Stationery" },
+      { value: "SALARIES_WAGES", label: "Salaries & Wages" },
+      { value: "DIRECTOR_FEE_ALLOWANCE", label: "Director Fee / Allowance" },
+      { value: "UTILITIES", label: "Utilities" },
+      { value: "INSURANCE", label: "Insurance" },
+      { value: "MEALS_ENTERTAINMENT", label: "Meals & Entertainment" },
+      { value: "OTHER_OUT", label: "Miscellaneous Expense" }
     ]
   },
   {
     label: "Director & Intercompany",
     options: [
-      { value: "DIRECTOR_LOAN_TO_COMPANY", label: "26. Director Loan to Company" },
-      { value: "DIRECTOR_LOAN_REPAYMENT", label: "27. Director Loan Repayment" },
-      { value: "LOAN_IN", label: "29. Loan Received (External)" },
-      { value: "LOAN_REPAYMENT_EXTERNAL", label: "30. Loan Repayment (External)" }
+      { value: "DIRECTOR_LOAN_TO_COMPANY", label: "Director Loan to Company" },
+      { value: "DIRECTOR_LOAN_REPAYMENT", label: "Director Loan Repayment" },
+      { value: "LOAN_IN", label: "Loan Received (External)" },
+      { value: "LOAN_REPAYMENT_EXTERNAL", label: "Loan Repayment (External)" }
     ]
   },
   {
     label: "Tax & Compliance",
     options: [
-      { value: "WITHHOLDING_TAX", label: "31. Withholding Tax (WHT)" },
-      { value: "VAT_PAYABLE", label: "32. VAT Payable" },
-      { value: "CORPORATE_TAX_PROVISION", label: "33. Corporate Tax Provision" }
+      { value: "WITHHOLDING_TAX", label: "Withholding Tax (WHT)" },
+      { value: "VAT_PAYABLE", label: "VAT Payable" },
+      { value: "CORPORATE_TAX_PROVISION", label: "Corporate Tax Provision" }
     ]
   },
   {
     label: "Transfers",
     options: [
       { value: "INTER_ACCOUNT_TRANSFER", label: "Inter-account transfer" },
-      { value: "FOREIGN_EXCHANGE_GAIN", label: "35. Foreign Exchange — Gain" },
-      { value: "FOREIGN_EXCHANGE_LOSS", label: "35. Foreign Exchange — Loss" }
+      { value: "FOREIGN_EXCHANGE_GAIN", label: "Foreign Exchange — Gain" },
+      { value: "FOREIGN_EXCHANGE_LOSS", label: "Foreign Exchange — Loss" }
     ]
   }
 ];

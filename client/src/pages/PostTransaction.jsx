@@ -49,6 +49,10 @@ function mapPreviewAccount(key, currency) {
   return key;
 }
 
+function stripTypeNumbering(label) {
+  return String(label || "").replace(/^\s*\d+[a-z]?\.\s*/i, "");
+}
+
 export default function PostTransaction() {
   const qc = useQueryClient();
   const { me } = useOutletContext() || {};
@@ -387,7 +391,7 @@ export default function PostTransaction() {
                 <optgroup key={g.label} label={g.label}>
                   {g.options.map((o) => (
                     <option key={o.value} value={o.value}>
-                      {o.label}
+                      {stripTypeNumbering(o.label)}
                     </option>
                   ))}
                 </optgroup>
@@ -556,6 +560,15 @@ export default function PostTransaction() {
               <span className="text-xs text-amber-700">If omitted, transaction posts with DOCUMENT MISSING.</span>
             )}
           </div>
+          <input
+            className="mt-2 w-full rounded-lg border-slate-300 text-sm"
+            value={documentUrl}
+            onChange={(e) => setDocumentUrl(e.target.value)}
+            placeholder="Paste document link/path (e.g. https://... or /uploads/...)"
+          />
+          <p className="mt-1 text-[11px] text-slate-500">
+            You can upload a file above or paste a copied document link here.
+          </p>
         </div>
 
         <div>
