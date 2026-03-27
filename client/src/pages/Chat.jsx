@@ -12,7 +12,7 @@ import {
   markAllChatRoomsRead,
   unblockChatUser
 } from "../api/chat";
-import { isE2eeEncryptedBody } from "../lib/chatE2ee";
+import { isE2eeAttachmentKind, isE2eeEncryptedBody } from "../lib/chatE2ee";
 
 function kindLabel(kind) {
   switch (kind) {
@@ -324,7 +324,11 @@ export default function Chat() {
                     {new Date(r.lastMessage.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                   </span>{" "}
                   {r.lastMessage.senderEmail ? <span className="font-medium">{r.lastMessage.senderEmail}:</span> : null}{" "}
-                  {isE2eeEncryptedBody(r.lastMessage.body) ? "🔒 Encrypted message" : r.lastMessage.body}
+                  {isE2eeAttachmentKind(r.lastMessage.attachmentKind)
+                    ? "🔒 Encrypted attachment"
+                    : isE2eeEncryptedBody(r.lastMessage.body)
+                      ? "🔒 Encrypted message"
+                      : r.lastMessage.body}
                 </div>
               ) : (
                 <div className="mt-3 text-sm text-slate-500 dark:text-slate-400">No messages yet.</div>

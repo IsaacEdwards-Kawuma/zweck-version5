@@ -19,7 +19,7 @@ import {
 } from "../lib/chatPermissions.js";
 import { getMentionableUserIds, parseMentionEmails, resolveMentionUserIds } from "../lib/chatMentions.js";
 import { getChatIo } from "../socket/chatSocket.js";
-import { isE2eeEncryptedBody } from "../lib/chatE2ee.js";
+import { isE2eeAttachmentKind, isE2eeEncryptedBody } from "../lib/chatE2ee.js";
 
 const router = Router();
 
@@ -393,6 +393,7 @@ router.get("/rooms", async (req, res) => {
         id: true,
         senderId: true,
         body: true,
+        attachmentKind: true,
         createdAt: true,
         sender: { select: { email: true } }
       }
@@ -413,6 +414,7 @@ router.get("/rooms", async (req, res) => {
             senderId: lastMessage.senderId,
             senderEmail: lastMessage.sender?.email ?? null,
             body: lastMessage.body,
+            attachmentKind: lastMessage.attachmentKind ?? null,
             createdAt: lastMessage.createdAt
           }
         : null
@@ -1526,6 +1528,9 @@ router.post("/rooms/:roomId/messages/:messageId/forward", async (req, res) => {
   if (!src) return res.status(404).json(apiError("Message not found"));
   if (isE2eeEncryptedBody(src.body)) {
     return res.status(400).json(apiError("Cannot forward end-to-end encrypted messages", "forward"));
+  }
+  if (isE2eeAttachmentKind(src.attachmentKind)) {
+    return res.status(400).json(apiError("Cannot forward end-to-end encrypted attachments", "forward"));
   }
 
   const bodyText =

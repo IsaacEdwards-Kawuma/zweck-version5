@@ -33,10 +33,17 @@ import {
 import MessageBody from "../components/chat/MessageBody";
 import {
   decryptDmCiphertext,
+  decryptDmAttachmentBytes,
   deriveDmAesKey,
+  encryptDmAttachmentBytes,
   encryptDmPlaintext,
   ensureRegisteredChatPublicKey,
-  isE2eeEncryptedBody
+  isE2eeEncryptedBody,
+  isE2eeAttachmentKind,
+  mimeFromFilename,
+  buildEcdhKeyBackupObject,
+  downloadEcdhKeyBackupJson,
+  importEcdhKeyBackupFromJson
 } from "../lib/chatE2ee";
 
 function resolveSocketURL() {
@@ -203,7 +210,9 @@ export default function ChatRoom() {
   const [dmE2eeReady, setDmE2eeReady] = useState(false);
   const [dmDecryptMap, setDmDecryptMap] = useState({});
   const [pinnedPlain, setPinnedPlain] = useState(null);
+  const [attachmentBlobUrls, setAttachmentBlobUrls] = useState({});
   const dmDecryptMapRef = useRef({});
+  const attachmentDecryptRunId = useRef(0);
 
   useEffect(() => {
     dmDecryptMapRef.current = dmDecryptMap;
@@ -270,6 +279,42 @@ export default function ChatRoom() {
       cancelled = true;
     };
   }, [dmAesKey, messages]);
+
+  useEffect(() => {
+    if (!dmAesKey || room?.kind !== "DM") {
+      setAttachmentBlobUrls({});
+      return;
+    }
+    const runId = ++attachmentDecryptRunId.current;
+    const e2eeAtt = messages.filter((m) => isE2eeAttachmentKind(m.attachmentKind) && m.attachmentUrl);
+    if (!e2eeAtt.length) {
+      setAttachmentBlobUrls({});
+      return;
+    }
+    void (async () => {
+      const next = {};
+      for (const m of e2eeAtt) {
+        try {
+          const res = await fetch(publicAssetUrl(m.attachmentUrl), { credentials: "include" });
+          if (!res.ok) continue;
+          const buf = new Uint8Array(await res.arrayBuffer());
+          const plain = await decryptDmAttachmentBytes(buf, dmAesKey);
+          const mime = mimeFromFilename(m.attachmentName || "");
+          next[m.id] = URL.createObjectURL(new Blob([plain], { type: mime }));
+        } catch {
+          /* ignore */
+        }
+      }
+      if (runId !== attachmentDecryptRunId.current) {
+        Object.values(next).forEach((u) => URL.revokeObjectURL(u));
+        return;
+      }
+      setAttachmentBlobUrls((prev) => {
+        Object.values(prev).forEach((u) => URL.revokeObjectURL(u));
+        return next;
+      });
+    })();
+  }, [messages, dmAesKey, room?.kind]);
 
   useEffect(() => {
     if (!room?.pinnedMessage?.body) {
@@ -979,7 +1024,7 @@ export default function ChatRoom() {
           {isDmRoom ? (
             <p className="mt-1 text-[11px] text-emerald-800 dark:text-emerald-200/90">
               {dmE2eeReady
-                ? "🔒 Direct messages are end-to-end encrypted on this device (the server only stores ciphertext)."
+                ? "🔒 Direct messages (text and attachments) are end-to-end encrypted on this device; the server only stores ciphertext."
                 : "Setting up encryption… If the other person has not opened this chat yet, messages may be plaintext until both keys exist."}
             </p>
           ) : null}
@@ -1471,10 +1516,14 @@ export default function ChatRoom() {
                               type="button"
                               data-no-longpress
                               className="text-brand-700 hover:underline dark:text-brand-300"
-                              disabled={isE2eeEncryptedBody(m.body)}
-                              title={isE2eeEncryptedBody(m.body) ? "Cannot forward encrypted messages" : undefined}
+                              disabled={isE2eeEncryptedBody(m.body) || isE2eeAttachmentKind(m.attachmentKind)}
+                              title={
+                                isE2eeEncryptedBody(m.body) || isE2eeAttachmentKind(m.attachmentKind)
+                                  ? "Cannot forward encrypted messages or attachments"
+                                  : undefined
+                              }
                               onClick={() => {
-                                if (isE2eeEncryptedBody(m.body)) return;
+                                if (isE2eeEncryptedBody(m.body) || isE2eeAttachmentKind(m.attachmentKind)) return;
                                 const tid = window.prompt("Forward to room id (number):");
                                 const n = Number(tid);
                                 if (!Number.isFinite(n) || n <= 0) return;
@@ -1611,34 +1660,67 @@ export default function ChatRoom() {
                             <div className="line-clamp-3">{displayReplyBody(m.replyTo)}</div>
                           </div>
                         ) : null}
-                        {m.attachmentUrl && m.attachmentKind === "IMAGE" ? (
+                        {m.attachmentUrl && (m.attachmentKind === "IMAGE" || m.attachmentKind === "IMAGE_E2EE") ? (
                           <a
-                            href={publicAssetUrl(m.attachmentUrl)}
+                            href={
+                              m.attachmentKind === "IMAGE_E2EE"
+                                ? attachmentBlobUrls[m.id] || "#"
+                                : publicAssetUrl(m.attachmentUrl)
+                            }
                             target="_blank"
                             rel="noreferrer"
                             className="mt-2 block"
+                            onClick={
+                              m.attachmentKind === "IMAGE_E2EE" && !attachmentBlobUrls[m.id]
+                                ? (e) => e.preventDefault()
+                                : undefined
+                            }
                           >
-                            <img
-                              src={publicAssetUrl(m.attachmentUrl)}
-                              alt=""
-                              className="max-h-48 max-w-full rounded-lg border border-slate-200 bg-white object-contain dark:border-slate-600"
-                            />
+                            {m.attachmentKind === "IMAGE_E2EE" ? (
+                              attachmentBlobUrls[m.id] ? (
+                                <img
+                                  src={attachmentBlobUrls[m.id]}
+                                  alt=""
+                                  className="max-h-48 max-w-full rounded-lg border border-slate-200 bg-white object-contain dark:border-slate-600"
+                                />
+                              ) : (
+                                <span className="text-xs text-slate-500 dark:text-slate-400">Decrypting image…</span>
+                              )
+                            ) : (
+                              <img
+                                src={publicAssetUrl(m.attachmentUrl)}
+                                alt=""
+                                className="max-h-48 max-w-full rounded-lg border border-slate-200 bg-white object-contain dark:border-slate-600"
+                              />
+                            )}
                           </a>
                         ) : null}
-                        {m.attachmentUrl && m.attachmentKind === "FILE" ? (
+                        {m.attachmentUrl && (m.attachmentKind === "FILE" || m.attachmentKind === "FILE_E2EE") ? (
                           <a
-                            href={publicAssetUrl(m.attachmentUrl)}
+                            href={
+                              m.attachmentKind === "FILE_E2EE"
+                                ? attachmentBlobUrls[m.id] || "#"
+                                : publicAssetUrl(m.attachmentUrl)
+                            }
                             target="_blank"
                             rel="noreferrer"
+                            download={m.attachmentKind === "FILE_E2EE" ? m.attachmentName || "download" : undefined}
                             className="mt-2 block text-sm text-brand-700 underline dark:text-brand-300"
+                            onClick={
+                              m.attachmentKind === "FILE_E2EE" && !attachmentBlobUrls[m.id]
+                                ? (e) => e.preventDefault()
+                                : undefined
+                            }
                           >
-                            {m.attachmentName || "Download file"}
+                            {m.attachmentKind === "FILE_E2EE" && !attachmentBlobUrls[m.id]
+                              ? "Decrypting file…"
+                              : m.attachmentName || "Download file"}
                           </a>
                         ) : null}
                         {m.body ? (
                           <div className="mt-1 text-sm text-slate-900 dark:text-slate-100">
                             <MessageBody
-                              text={m.body}
+                              text={displayBody(m)}
                               formatRich
                               linkPreview={m.linkPreview}
                               mentionHighlight={
@@ -1780,14 +1862,36 @@ export default function ChatRoom() {
             ev.target.value = "";
             if (!f || !socketRef.current) return;
             try {
-              const up = await uploadChatAttachment(numericRoomId, f);
               const rid = replyTo?.id;
               const tr = threadViewRef.current;
+              let body = draft.trim() || " ";
+              let up;
+
+              if (room?.kind === "DM" && dmE2eeReady && dmAesKey) {
+                const ab = await f.arrayBuffer();
+                const enc = await encryptDmAttachmentBytes(new Uint8Array(ab), dmAesKey);
+                const encBlob = new Blob([enc], { type: "application/octet-stream" });
+                const encFile = new File([encBlob], f.name, { type: "application/octet-stream" });
+                const clientKind =
+                  (f.type && f.type.startsWith("image/")) || /\.(png|jpe?g|gif|webp)$/i.test(f.name)
+                    ? "IMAGE"
+                    : "FILE";
+                up = await uploadChatAttachment(numericRoomId, encFile, {
+                  e2ee: true,
+                  originalSize: f.size,
+                  clientKind
+                });
+                const cap = draft.trim();
+                body = cap ? await encryptDmPlaintext(cap, dmAesKey) : await encryptDmPlaintext("", dmAesKey);
+              } else {
+                up = await uploadChatAttachment(numericRoomId, f);
+              }
+
               socketRef.current.emit(
                 "chat:sendMessage",
                 {
                   roomId: numericRoomId,
-                  body: draft.trim() || " ",
+                  body,
                   ...(rid ? { replyToId: rid } : {}),
                   ...(tr != null ? { threadRootId: tr } : {}),
                   attachmentUrl: up.attachmentUrl,

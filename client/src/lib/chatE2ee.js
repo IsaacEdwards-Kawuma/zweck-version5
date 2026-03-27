@@ -150,6 +150,49 @@ export function downloadEcdhKeyBackupJson(userId, obj) {
 /**
  * Replaces localStorage key for this user. Caller should PUT public key to the server and refresh UI.
  */
+/** Infer MIME type from filename for decrypted attachment display. */
+export function mimeFromFilename(name) {
+  const n = String(name || "").toLowerCase();
+  if (n.endsWith(".png")) return "image/png";
+  if (n.endsWith(".jpg") || n.endsWith(".jpeg")) return "image/jpeg";
+  if (n.endsWith(".gif")) return "image/gif";
+  if (n.endsWith(".webp")) return "image/webp";
+  if (n.endsWith(".pdf")) return "application/pdf";
+  if (n.endsWith(".txt")) return "text/plain";
+  if (n.endsWith(".doc")) return "application/msword";
+  if (n.endsWith(".docx")) return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  return "application/octet-stream";
+}
+
+export function isE2eeAttachmentKind(kind) {
+  return kind === "IMAGE_E2EE" || kind === "FILE_E2EE";
+}
+
+/**
+ * Encrypt arbitrary file bytes with the DM AES key (same key as message text).
+ * Format: 12-byte IV + AES-GCM ciphertext (includes auth tag).
+ */
+export async function encryptDmAttachmentBytes(plainBytes, aesKey) {
+  const data = plainBytes instanceof Uint8Array ? plainBytes : new Uint8Array(plainBytes);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(
+    await crypto.subtle.encrypt({ name: "AES-GCM", iv, tagLength: 128 }, aesKey, data)
+  );
+  const out = new Uint8Array(iv.length + ct.length);
+  out.set(iv, 0);
+  out.set(ct, iv.length);
+  return out;
+}
+
+export async function decryptDmAttachmentBytes(packed, aesKey) {
+  const data = packed instanceof Uint8Array ? packed : new Uint8Array(packed);
+  if (data.length < 13) throw new Error("Truncated");
+  const iv = data.slice(0, 12);
+  const ct = data.slice(12);
+  const dec = await crypto.subtle.decrypt({ name: "AES-GCM", iv, tagLength: 128 }, aesKey, ct);
+  return new Uint8Array(dec);
+}
+
 export function importEcdhKeyBackupFromJson(expectedUserId, parsed) {
   if (!parsed || typeof parsed !== "object") throw new Error("Invalid file");
   if (parsed.kind !== BACKUP_KIND || parsed.version !== BACKUP_VERSION) throw new Error("Not a Zweck chat E2EE backup");

@@ -62,9 +62,18 @@ export async function getChatReadReceipts(roomId, messageId) {
   return data;
 }
 
-export async function uploadChatAttachment(roomId, file) {
+/**
+ * @param {File|Blob} file
+ * @param {{ e2ee?: boolean, originalSize?: number, clientKind?: "IMAGE"|"FILE" }} [options] DM E2EE: encrypt client-side first, then pass e2ee + originalSize + clientKind
+ */
+export async function uploadChatAttachment(roomId, file, options = {}) {
   const form = new FormData();
   form.append("file", file);
+  if (options.e2ee) {
+    form.append("e2ee", "1");
+    form.append("originalSize", String(options.originalSize ?? file.size));
+    form.append("clientKind", options.clientKind || "FILE");
+  }
   const { data } = await api.post(`/chat/rooms/${roomId}/attachments`, form, {
     headers: { "Content-Type": "multipart/form-data" }
   });

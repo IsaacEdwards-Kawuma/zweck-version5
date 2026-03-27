@@ -6,7 +6,7 @@ import { isAuthDisabled } from "../middleware/auth.js";
 import type { AuthUser } from "../middleware/auth.js";
 import { assertUserCanAccessChatRoom, normalizeChatBodyWithAttachment } from "../lib/chatPermissions.js";
 import { getMentionableUserIds, parseMentionEmails, resolveMentionUserIds } from "../lib/chatMentions.js";
-import { isE2eeEncryptedBody } from "../lib/chatE2ee.js";
+import { isE2eeAttachmentKind, isE2eeEncryptedBody } from "../lib/chatE2ee.js";
 import { extractFirstHttpUrl, fetchLinkPreview } from "../lib/linkPreview.js";
 import { EMAIL_EVENTS, enqueueEmail } from "../services/emailBus.js";
 
@@ -256,6 +256,10 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
 
         await assertUserCanAccessChatRoom(user, room);
 
+        if (attachmentKind && isE2eeAttachmentKind(attachmentKind) && room.kind !== "DM") {
+          throw new Error("Encrypted attachments are only for direct messages");
+        }
+
         if (room.kind === "GROUP" && room.adminOnlyPost) {
           if (user.role !== "ADMIN" && user.id !== room.createdById) {
             throw new Error("Only admins can post in this room");
@@ -396,7 +400,9 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
           const preview =
             room.kind === "DM" && isE2eeEncryptedBody(body ?? "")
               ? "[encrypted message]"
-              : body?.slice(0, 200) || (hasAttachment ? "[attachment]" : "");
+              : room.kind === "DM" && attachmentKind && isE2eeAttachmentKind(attachmentKind)
+                ? "[encrypted attachment]"
+                : body?.slice(0, 200) || (hasAttachment ? "[attachment]" : "");
           const title =
             room.kind === "DM"
               ? `DM ${senderLabel}`

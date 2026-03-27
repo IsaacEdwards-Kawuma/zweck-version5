@@ -177,7 +177,7 @@ For ledger-grade auditability:
 - `client/src/pages/ChatRoom.jsx`
 - `server/src/routes/chat.ts`
 - `server/src/socket/chatSocket.ts`
-- `client/src/lib/chatE2ee.js` (DM text E2EE: Web Crypto ECDH + HKDF + AES-GCM)
+- `client/src/lib/chatE2ee.js` (DM text + DM attachment E2EE: Web Crypto ECDH + HKDF + AES-GCM)
 - `server/src/lib/chatE2ee.ts` (ciphertext prefix detection; server never decrypts)
 
 ### Schema / Migration
@@ -185,9 +185,9 @@ For ledger-grade auditability:
 - `server/prisma/schema.prisma`
 - `server/prisma/migrations/*`
 
-## 12) Chat: DM text end-to-end encryption (E2EE)
+## 12) Chat: DM end-to-end encryption (E2EE)
 
-**Scope today:** **Direct message (DM) text only.** Group, meeting, and project rooms use the same transport (TLS) but message bodies are processed as plaintext on the server. **Attachments in DMs are not E2EE** in the current version (filenames and file bytes on disk remain visible to the server).
+**Scope today:** **Direct message (DM) text and DM attachments.** Group, meeting, and project rooms use the same transport (TLS) but message bodies and attachment bytes are processed as plaintext on the server. In DMs, message bodies use the same AES key as text; image/file bytes are encrypted in the browser before upload and stored as ciphertext (attachment kinds `IMAGE_E2EE` / `FILE_E2EE`); the server sees names and sizes but not plaintext file content. Upload URLs remain under the public static path; confidentiality relies on encryption at rest in the stored file.
 
 **Cryptography (client):**
 
@@ -195,6 +195,7 @@ For ledger-grade auditability:
 - Private keys stay in the browser (`localStorage` under `zweck_chat_ecdh_jwk_${userId}`).
 - Per-DM-room symmetric key: **ECDH shared secret → HKDF → AES-256-GCM**.
 - Message bodies are stored in Postgres as ciphertext strings prefixed with `E2EE:v1:`.
+- DM attachments: **AES-GCM** over file bytes (IV + ciphertext); same DM key as message text.
 
 **API (under `/api/chat`):**
 
@@ -203,14 +204,14 @@ For ledger-grade auditability:
 
 **Server behavior for ciphertext:**
 
-- No mention parsing, no link-preview fetch, and in-app notification preview uses a generic “encrypted” label for DM E2EE messages.
-- Forwarding E2EE messages is blocked.
+- No mention parsing, no link-preview fetch, and in-app notification preview uses a generic “encrypted” label for DM E2EE messages (and “encrypted attachment” when applicable).
+- Forwarding E2EE messages (including those with E2EE attachments) is blocked.
 
 **Key backup:** The chat UI can **export** or **import** a JSON backup of the local ECDH key material for the logged-in user (for moving browsers or recovery). Treat backup files like passwords.
 
 ### Recommended next steps (priority order)
 
-1. **DM encrypted attachments** — Encrypt file bytes before upload; serve via authenticated download; decrypt in the client. Larger change (upload pipeline + image/file preview).
+1. **Authenticated attachment download** — Serve chat uploads only to room members (URLs alone would not suffice); complements E2EE ciphertext on disk.
 2. **Group / room E2EE** — Requires group key agreement (e.g. sender keys or MLS-style design); significantly more complex than DM pairwise ECDH.
 3. **Password-protected backup** — Encrypt the JSON backup with a user passphrase before download (reduces risk if the file leaks).
 4. **Multi-device sync without manual backup** — Optional encrypted key escrow or device-to-device verify flow (high effort; careful threat modeling).
