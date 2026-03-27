@@ -1,39 +1,36 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useOutletContext, useSearchParams } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Loading from "../components/Loading";
 import ErrorBanner from "../components/ErrorBanner";
-import TransactionTable from "../components/TransactionTable";
+import DirectorAvatar from "../components/DirectorAvatar";
 import { useTransactions } from "../hooks/useTransactions";
 import { listDirectors } from "../api/directors";
 import { useQuery } from "@tanstack/react-query";
-import { deleteTransaction, listTransactions, txItems } from "../api/transactions";
-import { eur } from "../lib/format";
-import { TX_TYPE_GROUPS } from "../lib/transactionTypes";
+import { listTransactions, reverseTransaction, txItems } from "../api/transactions";
+import { eur, fmtDate, formatMoney, formatTxRef } from "../lib/format";
+import { INTER_ACCOUNT_TRANSFER_OPTIONS, TX_TYPE_GROUPS, TX_TYPE_LABELS } from "../lib/transactionTypes";
 import { downloadTransactionsCsv } from "../lib/reportsAnalytics";
 
 export default function Ledger() {
   const { me } = useOutletContext() || {};
   const qc = useQueryClient();
   const [searchParams] = useSearchParams();
-  const [type, setType] = useState("");
-  const [directorId, setDirectorId] = useState("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  const initialFrom = searchParams.get("from") || "";
+  const initialTo = searchParams.get("to") || "";
+  const initialType = searchParams.get("type") || "";
+  const initialDirectorId = searchParams.get("directorId") || "";
+  const initialAccountKey = searchParams.get("accountKey") || "";
+  const initialStatus = searchParams.get("status") || "";
+  const initialCurrency = searchParams.get("currency") || "";
+  const [type, setType] = useState(initialType);
+  const [directorId, setDirectorId] = useState(initialDirectorId);
+  const [accountKey, setAccountKey] = useState(initialAccountKey);
+  const [status, setStatus] = useState(initialStatus);
+  const [currency, setCurrency] = useState(initialCurrency);
+  const [from, setFrom] = useState(initialFrom);
+  const [to, setTo] = useState(initialTo);
   const [page, setPage] = useState(1);
-
-  useEffect(() => {
-    const f = searchParams.get("from") || "";
-    const t = searchParams.get("to") || "";
-    const ty = searchParams.get("type") || "";
-    const d = searchParams.get("directorId") || "";
-    if (!f && !t && !ty && !d) return;
-    setFrom(f);
-    setTo(t);
-    setType(ty);
-    setDirectorId(d);
-    setPage(1);
-  }, [searchParams]);
   const pageSize = 20;
 
   const filters = useMemo(() => {
@@ -43,16 +40,23 @@ export default function Ledger() {
     };
     if (type) f.type = type;
     if (directorId) f.directorId = Number(directorId);
+    if (accountKey) f.accountKey = accountKey;
+    if (status) f.status = status;
+    if (currency) f.currency = currency;
     if (from) f.from = from;
     if (to) f.to = to;
+    if (accountKey) {
+      f.limit = 100000;
+      f.offset = 0;
+    }
     return f;
-  }, [type, directorId, from, to, page, pageSize]);
+  }, [type, directorId, accountKey, status, currency, from, to, page, pageSize]);
 
   const qTx = useTransactions(filters);
   const qDirs = useQuery({ queryKey: ["directors"], queryFn: listDirectors });
 
-  const mDel = useMutation({
-    mutationFn: (id) => deleteTransaction(id),
+  const mReverse = useMutation({
+    mutationFn: (id) => reverseTransaction(id),
     onSuccess: async () => {
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["transactions"] }),
@@ -64,7 +68,7 @@ export default function Ledger() {
     }
   });
 
-  const items = qTx.data?.items ?? [];
+  const items = useMemo(() => qTx.data?.items ?? [], [qTx.data?.items]);
   const total = qTx.data?.total ?? 0;
   const agg = qTx.data?.aggregates;
 
@@ -82,7 +86,68 @@ export default function Ledger() {
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const clampedPage = Math.min(totalPages, Math.max(1, page));
-  const rows = items;
+  const rows = useMemo(() => {
+    const all = [...items];
+    all.sort((a, b) => {
+      const da = new Date(a.date).getTime();
+      const db = new Date(b.date).getTime();
+      if (da !== db) return da - db;
+      const ra = a.referenceNumber || a.reference || "";
+      const rb = b.referenceNumber || b.reference || "";
+      return ra.localeCompare(rb);
+    });
+    if (!accountKey) all.reverse();
+    return all;
+  }, [items, accountKey]);
+
+  const qOpening = useQuery({
+    queryKey: ["ledger_opening_balance", { accountKey, type, directorId, status, currency, from }],
+    enabled: Boolean(accountKey && from),
+    queryFn: async () => {
+      const prev = new Date(from);
+      prev.setDate(prev.getDate() - 1);
+      const p = {
+        limit: 100000,
+        offset: 0,
+        accountKey,
+        ...(type ? { type } : {}),
+        ...(directorId ? { directorId: Number(directorId) } : {}),
+        ...(status ? { status } : {}),
+        ...(currency ? { currency } : {}),
+        to: prev.toISOString().slice(0, 10)
+      };
+      const res = await listTransactions(p);
+      return txItems(res);
+    }
+  });
+
+  const openingBalance = useMemo(() => {
+    if (!accountKey) return 0;
+    const source = from ? qOpening.data || [] : rows;
+    let bal = 0;
+    for (const r of source) {
+      const code = Number(r.debitAccountCode ?? r.creditAccountCode ?? 0);
+      const isAssetOrExpense = String(code).startsWith("1") || String(code).startsWith("5") || String(code).startsWith("6");
+      const isDebit = r.debitAccountKey === accountKey;
+      const delta = isAssetOrExpense ? (isDebit ? Number(r.amount) : -Number(r.amount)) : (isDebit ? -Number(r.amount) : Number(r.amount));
+      bal += delta;
+    }
+    return bal;
+  }, [accountKey, from, qOpening.data, rows]);
+
+  const rowsWithBalance = useMemo(() => {
+    if (!accountKey) return rows.map((r) => ({ ...r, runningBalance: null }));
+    let bal = openingBalance;
+    return rows.map((r) => {
+      const code = Number(r.debitAccountCode ?? r.creditAccountCode ?? 0);
+      const isAssetOrExpense = String(code).startsWith("1") || String(code).startsWith("5") || String(code).startsWith("6");
+      const isDebit = r.debitAccountKey === accountKey;
+      const delta = isAssetOrExpense ? (isDebit ? Number(r.amount) : -Number(r.amount)) : (isDebit ? -Number(r.amount) : Number(r.amount));
+      bal += delta;
+      return { ...r, runningBalance: bal };
+    });
+  }, [rows, accountKey, openingBalance]);
+  const closingBalance = rowsWithBalance.length && accountKey ? rowsWithBalance[rowsWithBalance.length - 1].runningBalance : openingBalance;
 
   async function exportCsv() {
     const p = {
@@ -141,6 +206,15 @@ export default function Ledger() {
             />
           </div>
           <div>
+            <div className="text-xs font-medium text-slate-700 dark:text-slate-300">Account</div>
+            <select className="ui-input mt-1 max-w-[min(100%,20rem)]" value={accountKey} onChange={(e) => { setAccountKey(e.target.value); resetPage(); }}>
+              <option value="">All</option>
+              {INTER_ACCOUNT_TRANSFER_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
             <div className="text-xs font-medium text-slate-700 dark:text-slate-300">Type</div>
             <select className="ui-input mt-1 max-w-[min(100%,20rem)]" value={type} onChange={(e) => { setType(e.target.value); resetPage(); }}>
               <option value="">All</option>
@@ -153,6 +227,24 @@ export default function Ledger() {
                   ))}
                 </optgroup>
               ))}
+            </select>
+          </div>
+          <div>
+            <div className="text-xs font-medium text-slate-700 dark:text-slate-300">Status</div>
+            <select className="ui-input mt-1" value={status} onChange={(e) => { setStatus(e.target.value); resetPage(); }}>
+              <option value="">All</option>
+              <option value="POSTED">Posted</option>
+              <option value="REVERSED">Reversed</option>
+              <option value="DOCUMENT_MISSING">Document Missing</option>
+            </select>
+          </div>
+          <div>
+            <div className="text-xs font-medium text-slate-700 dark:text-slate-300">Currency</div>
+            <select className="ui-input mt-1" value={currency} onChange={(e) => { setCurrency(e.target.value); resetPage(); }}>
+              <option value="">All</option>
+              <option value="UGX">UGX</option>
+              <option value="USD">USD</option>
+              <option value="EUR">EUR</option>
             </select>
           </div>
           <div>
@@ -199,7 +291,78 @@ export default function Ledger() {
         </div>
       </div>
 
-      <TransactionTable rows={rows} showDelete onDelete={(id) => mDel.mutate(id)} isDeleting={mDel.isPending} role={me?.role} />
+      {accountKey ? (
+        <div className="ui-surface rounded-xl p-3 text-sm">
+          <span className="font-semibold">Opening Balance:</span> {formatMoney(openingBalance, currency || (rowsWithBalance[0]?.currency || "EUR"))}
+        </div>
+      ) : null}
+
+      <div className="ui-table-wrap">
+        <table className="min-w-full text-left text-sm">
+          <thead className="ui-table-head">
+            <tr>
+              {["Reference", "Date", "Account Code", "Account Name", "Type", "Director", "Posted By", "Project", "Description", "Debit", "Credit", "Currency", "Running Balance", "Document", "Status", "Action"].map((h) => (
+                <th key={h} className="px-4 py-3">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="ui-table-divide">
+            {rowsWithBalance.map((r) => {
+              const isDebitSide = accountKey ? r.debitAccountKey === accountKey : true;
+              const accountCode = accountKey ? (isDebitSide ? r.debitAccountCode : r.creditAccountCode) : r.debitAccountCode;
+              const accountName = accountKey ? (isDebitSide ? r.debitAccountName : r.creditAccountName) : r.debitAccountName;
+              const statusLabel = r.postingStatus === "REVERSED" ? "Reversed" : r.postingStatus === "PENDING" ? "Pending" : "Posted";
+              return (
+                <tr key={r.id} className="ui-table-row-hover">
+                  <td className="px-4 py-3 whitespace-nowrap font-mono text-xs">{r.referenceNumber || r.reference || formatTxRef(r.id)}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{fmtDate(r.date)}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{accountCode ?? "—"}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{accountName ?? "—"}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{TX_TYPE_LABELS[r.type] || String(r.type).replaceAll("_", " ")}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    {r.director ? <span className="inline-flex items-center gap-2"><DirectorAvatar director={r.director} size="sm" /><span>{r.director.name}</span></span> : "—"}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">{r.postedBy || "—"}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{r.project ? `${r.project.code} · ${r.project.name}` : "—"}</td>
+                  <td className="px-4 py-3 max-w-[20rem] truncate">{r.description || "—"}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{r.debitAccount}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{r.creditAccount}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{r.currency || "EUR"}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{accountKey ? formatMoney(r.runningBalance || 0, r.currency || "EUR") : "—"}</td>
+                  <td className="px-4 py-3 whitespace-nowrap" title={r.documentStatus === "MISSING" ? "Document missing" : "Document attached"}>
+                    {r.documentStatus === "MISSING" ? "⚠️" : r.documentStatus === "ATTACHED" ? "✅" : "—"}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">{statusLabel}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    {me?.role === "ADMIN" && r.postingStatus === "POSTED" && !r.reversalOfId ? (
+                      <button
+                        disabled={mReverse.isPending}
+                        className="ui-btn-outline-xs font-semibold disabled:opacity-50"
+                        onClick={() => mReverse.mutate(r.id)}
+                      >
+                        Reverse
+                      </button>
+                    ) : (
+                      <span className="text-xs text-slate-400">—</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+            {rowsWithBalance.length === 0 ? (
+              <tr>
+                <td className="px-4 py-6 text-center text-slate-500" colSpan={16}>No transactions yet.</td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+
+      {accountKey ? (
+        <div className="ui-surface rounded-xl p-3 text-sm">
+          <span className="font-semibold">Closing Balance:</span> {formatMoney(closingBalance || 0, currency || (rowsWithBalance[0]?.currency || "EUR"))}
+        </div>
+      ) : null}
 
       <div className="flex items-center justify-between text-sm">
         <div className="ui-body-text">
@@ -209,14 +372,14 @@ export default function Ledger() {
         <div className="flex gap-2">
           <button
             className="ui-btn-outline disabled:opacity-50"
-            disabled={clampedPage <= 1}
+            disabled={accountKey || clampedPage <= 1}
             onClick={() => setPage((p) => Math.max(1, p - 1))}
           >
             Prev
           </button>
           <button
             className="ui-btn-outline disabled:opacity-50"
-            disabled={clampedPage >= totalPages}
+            disabled={accountKey || clampedPage >= totalPages}
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
           >
             Next

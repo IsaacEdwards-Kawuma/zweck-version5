@@ -83,7 +83,8 @@ function shapeTransactionRow(
     createdBy: number | null;
     createdAt: Date;
   },
-  directorCapitalCodeById: Map<number, { code: number; name: string }>
+  directorCapitalCodeById: Map<number, { code: number; name: string }>,
+  postedByNameByUserId: Map<number, string>
 ) {
   const projectOut = t.project
     ? { id: t.project.id, code: t.project.code, name: t.project.name }
@@ -91,30 +92,33 @@ function shapeTransactionRow(
   const map = TX_ACCOUNT_MAP[t.type];
   const currency = t.currency && t.currency.length ? t.currency : "EUR";
 
-  function resolveBankDisplay(ccy: string) {
-    if (ccy === "UGX") return "1200 Cash at Bank (UGX)";
-    if (ccy === "USD") return "1210 Cash at Bank (USD)";
-    return "1220 Cash at Bank (EUR)";
-  }
-
-  function resolveAccountDisplay(accountKey: string) {
-    if (accountKey === "bank") return resolveBankDisplay(currency);
+  function resolveAccountParts(accountKey: string): { key: string; code: number | null; name: string } {
+    if (accountKey === "bank") {
+      if (currency === "UGX") return { key: "bank_ugx", code: 1200, name: "Cash at Bank (UGX)" };
+      if (currency === "USD") return { key: "bank_usd", code: 1210, name: "Cash at Bank (USD)" };
+      return { key: "bank_eur", code: 1220, name: "Cash at Bank (EUR)" };
+    }
     if (accountKey === "capital") {
       const dirId = t.director?.id;
       const row = dirId != null ? directorCapitalCodeById.get(dirId) : undefined;
-      if (!row) return "3110 Director Capital";
-      return `${row.code} Director Capital — ${row.name}`;
+      if (!row) return { key: "capital", code: 3110, name: "Director Capital" };
+      return { key: "capital", code: row.code, name: `Director Capital — ${row.name}` };
     }
     if (accountKey === "side_fund") {
       const code = ACCOUNTS.side_fund.code;
       const name = ACCOUNTS.side_fund.name;
-      if (t.director?.name) return `${code} ${name} (tagged: ${t.director.name})`;
-      return `${code} ${name}`;
+      if (t.director?.name) return { key: "side_fund", code, name: `${name} (tagged: ${t.director.name})` };
+      return { key: "side_fund", code, name };
     }
     const meta = (ACCOUNTS as any)[accountKey] as { code: number; name: string } | undefined;
-    if (!meta) return accountKey;
-    return `${meta.code} ${meta.name}`;
+    if (!meta) return { key: accountKey, code: null, name: accountKey };
+    return { key: accountKey, code: meta.code, name: meta.name };
   }
+
+  function displayAccount(parts: { code: number | null; name: string }) {
+    return parts.code != null ? `${parts.code} ${parts.name}` : parts.name;
+  }
+  const postedBy = t.createdBy != null ? postedByNameByUserId.get(t.createdBy) ?? "—" : "System";
 
   if (!map) {
     return {
@@ -146,6 +150,13 @@ function shapeTransactionRow(
       project: projectOut,
       debitAccount: "—",
       creditAccount: "—",
+      debitAccountKey: null,
+      creditAccountKey: null,
+      debitAccountCode: null,
+      creditAccountCode: null,
+      debitAccountName: null,
+      creditAccountName: null,
+      postedBy,
       createdBy: t.createdBy,
       createdAt: t.createdAt
     };
@@ -154,6 +165,8 @@ function shapeTransactionRow(
   let debit = map.debit;
   let credit = map.credit;
   if (t.type === "INTER_ACCOUNT_TRANSFER") {
+    const debitParts = t.transferToAccountKey ? resolveAccountParts(t.transferToAccountKey) : null;
+    const creditParts = t.transferFromAccountKey ? resolveAccountParts(t.transferFromAccountKey) : null;
     return {
       id: t.id,
       reference: t.referenceNumber,
@@ -181,8 +194,15 @@ function shapeTransactionRow(
           }
         : null,
       project: projectOut,
-      debitAccount: t.transferToAccountKey ? resolveAccountDisplay(t.transferToAccountKey) : "—",
-      creditAccount: t.transferFromAccountKey ? resolveAccountDisplay(t.transferFromAccountKey) : "—",
+      debitAccount: debitParts ? displayAccount(debitParts) : "—",
+      creditAccount: creditParts ? displayAccount(creditParts) : "—",
+      debitAccountKey: debitParts?.key ?? null,
+      creditAccountKey: creditParts?.key ?? null,
+      debitAccountCode: debitParts?.code ?? null,
+      creditAccountCode: creditParts?.code ?? null,
+      debitAccountName: debitParts?.name ?? null,
+      creditAccountName: creditParts?.name ?? null,
+      postedBy,
       createdBy: t.createdBy,
       createdAt: t.createdAt
     };
@@ -195,6 +215,8 @@ function shapeTransactionRow(
   }
   debit = map.debit === "bank" ? "bank" : map.debit;
 
+  const debitParts = resolveAccountParts(debit);
+  const creditParts = resolveAccountParts(credit);
   return {
     id: t.id,
     reference: t.referenceNumber,
@@ -221,8 +243,15 @@ function shapeTransactionRow(
           avatarUrl: t.director.avatarUrl
         }
       : null,
-    debitAccount: resolveAccountDisplay(debit),
-    creditAccount: resolveAccountDisplay(credit),
+    debitAccount: displayAccount(debitParts),
+    creditAccount: displayAccount(creditParts),
+    debitAccountKey: debitParts.key,
+    creditAccountKey: creditParts.key,
+    debitAccountCode: debitParts.code,
+    creditAccountCode: creditParts.code,
+    debitAccountName: debitParts.name,
+    creditAccountName: creditParts.name,
+    postedBy,
     project: projectOut,
     createdBy: t.createdBy,
     createdAt: t.createdAt
@@ -292,7 +321,7 @@ router.post(
 );
 
 router.get("/", async (req, res) => {
-  const { from, to, type, directorId, limit: limitRaw, offset: offsetRaw } = req.query as Record<
+  const { from, to, type, directorId, status, currency, accountKey, limit: limitRaw, offset: offsetRaw } = req.query as Record<
     string,
     string | undefined
   >;
@@ -305,6 +334,15 @@ router.get("/", async (req, res) => {
     where.date = dateFilter;
   }
   if (type) where.type = type as TxType;
+  if (status === "POSTED" || status === "REVERSED" || status === "PENDING") {
+    where.postingStatus = status as TransactionPostingStatus;
+  }
+  if (status === "DOCUMENT_MISSING") {
+    where.documentStatus = DocumentStatus.MISSING;
+  }
+  if (currency === "EUR" || currency === "USD" || currency === "UGX") {
+    where.currency = currency;
+  }
   if (directorId) {
     const n = Number(directorId);
     if (Number.isFinite(n)) where.directorId = n;
@@ -331,38 +369,40 @@ router.get("/", async (req, res) => {
     directorCapitalCodeById.set(d.id, { code: 3110 + idx * 10, name: d.name });
   });
 
-  const [rows, total, sumAgg, groupByType] = await Promise.all([
-    prisma.transaction.findMany({
+  const fetchAllForAccountFilter = Boolean(accountKey);
+  const rows = await prisma.transaction.findMany({
       where,
       orderBy: { date: "desc" },
-      skip: offset,
-      take: limit,
+      ...(fetchAllForAccountFilter ? {} : { skip: offset, take: limit }),
       include: {
         director: true,
         project: { select: { id: true, code: true, name: true } }
       }
-    }),
-    prisma.transaction.count({ where }),
-    prisma.transaction.aggregate({
-      where,
-      _sum: { amount: true },
-      _count: true
-    }),
-    prisma.transaction.groupBy({
-      by: ["type"],
-      where,
-      _sum: { amount: true }
-    })
-  ]);
-
-  const sumAmount = sumAgg._sum.amount ? Number(sumAgg._sum.amount) : 0;
-  const count = sumAgg._count;
-  const byType: Record<string, number> = {};
-  for (const g of groupByType) {
-    byType[g.type] = g._sum.amount ? Number(g._sum.amount) : 0;
+    });
+  const createdByIds = [...new Set(rows.map((t) => t.createdBy).filter((n): n is number => n != null))];
+  const users = createdByIds.length
+    ? await prisma.user.findMany({
+        where: { id: { in: createdByIds } },
+        select: { id: true, email: true, director: { select: { name: true } } }
+      })
+    : [];
+  const postedByNameByUserId = new Map<number, string>();
+  for (const u of users) {
+    postedByNameByUserId.set(u.id, u.director?.name || u.email);
   }
 
-  const items = rows.map((t) => shapeTransactionRow(t, directorCapitalCodeById));
+  const shaped = rows.map((t) => shapeTransactionRow(t, directorCapitalCodeById, postedByNameByUserId));
+  const filteredByAccount = accountKey
+    ? shaped.filter((t) => t.debitAccountKey === accountKey || t.creditAccountKey === accountKey)
+    : shaped;
+  const total = filteredByAccount.length;
+  const items = fetchAllForAccountFilter ? filteredByAccount.slice(offset, offset + limit) : filteredByAccount;
+  const sumAmount = filteredByAccount.reduce((s, t) => s + Number(t.amount || 0), 0);
+  const count = filteredByAccount.length;
+  const byType: Record<string, number> = {};
+  for (const t of filteredByAccount) {
+    byType[t.type] = (byType[t.type] || 0) + Number(t.amount || 0);
+  }
 
   return res.json({
     items,
@@ -775,7 +815,17 @@ router.put("/:id", requireRole("ADMIN"), validateBody(updateSchema), async (req,
     }
   });
 
-  return res.json(shapeTransactionRow(updated, directorCapitalCodeById));
+  const postingUser =
+    updated.createdBy != null
+      ? await prisma.user.findUnique({
+          where: { id: updated.createdBy },
+          select: { id: true, email: true, director: { select: { name: true } } }
+        })
+      : null;
+  const postedByNameByUserId = new Map<number, string>();
+  if (postingUser) postedByNameByUserId.set(postingUser.id, postingUser.director?.name ?? postingUser.email);
+
+  return res.json(shapeTransactionRow(updated, directorCapitalCodeById, postedByNameByUserId));
 });
 
 export default router;
