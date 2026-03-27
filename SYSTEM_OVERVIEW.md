@@ -177,13 +177,45 @@ For ledger-grade auditability:
 - `client/src/pages/ChatRoom.jsx`
 - `server/src/routes/chat.ts`
 - `server/src/socket/chatSocket.ts`
+- `client/src/lib/chatE2ee.js` (DM text E2EE: Web Crypto ECDH + HKDF + AES-GCM)
+- `server/src/lib/chatE2ee.ts` (ciphertext prefix detection; server never decrypts)
 
 ### Schema / Migration
 
 - `server/prisma/schema.prisma`
 - `server/prisma/migrations/*`
 
-## 12) Recommended Change Workflow
+## 12) Chat: DM text end-to-end encryption (E2EE)
+
+**Scope today:** **Direct message (DM) text only.** Group, meeting, and project rooms use the same transport (TLS) but message bodies are processed as plaintext on the server. **Attachments in DMs are not E2EE** in the current version (filenames and file bytes on disk remain visible to the server).
+
+**Cryptography (client):**
+
+- Per-user **ECDH P-256** key pair; **only the public JWK** is stored on the user row (`User.chatPublicKeyJwk`).
+- Private keys stay in the browser (`localStorage` under `zweck_chat_ecdh_jwk_${userId}`).
+- Per-DM-room symmetric key: **ECDH shared secret → HKDF → AES-256-GCM**.
+- Message bodies are stored in Postgres as ciphertext strings prefixed with `E2EE:v1:`.
+
+**API (under `/api/chat`):**
+
+- `GET /me/crypto`, `PUT /me/crypto` — register the caller’s public key.
+- `GET /users/:userId/public-key` — fetch a user’s public key only if a DM room exists between the caller and that user.
+
+**Server behavior for ciphertext:**
+
+- No mention parsing, no link-preview fetch, and in-app notification preview uses a generic “encrypted” label for DM E2EE messages.
+- Forwarding E2EE messages is blocked.
+
+**Key backup:** The chat UI can **export** or **import** a JSON backup of the local ECDH key material for the logged-in user (for moving browsers or recovery). Treat backup files like passwords.
+
+### Recommended next steps (priority order)
+
+1. **DM encrypted attachments** — Encrypt file bytes before upload; serve via authenticated download; decrypt in the client. Larger change (upload pipeline + image/file preview).
+2. **Group / room E2EE** — Requires group key agreement (e.g. sender keys or MLS-style design); significantly more complex than DM pairwise ECDH.
+3. **Password-protected backup** — Encrypt the JSON backup with a user passphrase before download (reduces risk if the file leaks).
+4. **Multi-device sync without manual backup** — Optional encrypted key escrow or device-to-device verify flow (high effort; careful threat modeling).
+
+## 13) Recommended Change Workflow
 
 1. Update UI/API caller in client.
 2. Update backend route/service logic.
@@ -192,7 +224,7 @@ For ledger-grade auditability:
 5. Verify critical business flow manually.
 6. Commit with a clear message explaining why the change exists.
 
-## 13) Deployment Shape
+## 14) Deployment Shape
 
 Current repo is set up for a split deployment style:
 

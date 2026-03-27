@@ -117,3 +117,45 @@ export async function decryptDmCiphertext(ciphertext, aesKey) {
   const dec = await crypto.subtle.decrypt({ name: "AES-GCM", iv, tagLength: 128 }, aesKey, ct);
   return new TextDecoder().decode(dec);
 }
+
+const BACKUP_KIND = "zweck-chat-ecdh";
+const BACKUP_VERSION = 1;
+
+/**
+ * JSON object for offline backup (contains private key material — treat like a password).
+ */
+export async function buildEcdhKeyBackupObject(userId) {
+  const pair = await ensureLocalEcdhKeyPair(userId);
+  return {
+    version: BACKUP_VERSION,
+    kind: BACKUP_KIND,
+    userId,
+    exportedAt: new Date().toISOString(),
+    publicJwk: pair.publicJwk,
+    privateJwk: pair.privateJwk
+  };
+}
+
+export function downloadEcdhKeyBackupJson(userId, obj) {
+  const name = `zweck-chat-e2ee-backup-user-${userId}-${new Date().toISOString().slice(0, 10)}.json`;
+  const blob = new Blob([JSON.stringify(obj, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Replaces localStorage key for this user. Caller should PUT public key to the server and refresh UI.
+ */
+export function importEcdhKeyBackupFromJson(expectedUserId, parsed) {
+  if (!parsed || typeof parsed !== "object") throw new Error("Invalid file");
+  if (parsed.kind !== BACKUP_KIND || parsed.version !== BACKUP_VERSION) throw new Error("Not a Zweck chat E2EE backup");
+  if (Number(parsed.userId) !== Number(expectedUserId)) throw new Error("Backup is for a different account");
+  if (!parsed.privateJwk?.d || !parsed.publicJwk?.x) throw new Error("Backup is incomplete");
+  const key = storageKeyForUser(expectedUserId);
+  localStorage.setItem(key, JSON.stringify({ publicJwk: parsed.publicJwk, privateJwk: parsed.privateJwk }));
+  return { publicJwk: parsed.publicJwk };
+}

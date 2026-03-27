@@ -27,7 +27,8 @@ import {
   forwardChatMessage,
   patchChatMemberMe,
   patchChatRoomSettings,
-  getUserChatPublicKey
+  getUserChatPublicKey,
+  putMyChatPublicKey
 } from "../api/chat";
 import MessageBody from "../components/chat/MessageBody";
 import {
@@ -185,6 +186,7 @@ export default function ChatRoom() {
   const [messageMenuMessageId, setMessageMenuMessageId] = useState(null);
   const [addMemberEmail, setAddMemberEmail] = useState("");
   const fileInputRef = useRef(null);
+  const e2eeImportInputRef = useRef(null);
   const messagesRef = useRef([]);
   const nextCursorRef = useRef(null);
   const [replyTo, setReplyTo] = useState(null);
@@ -1190,6 +1192,70 @@ export default function ChatRoom() {
                 >
                   Block user
                 </button>
+              ) : null}
+              {isDmRoom && me?.id ? (
+                <div className="border-t border-slate-100 px-3 py-2 dark:border-slate-700">
+                  <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    DM encryption backup
+                  </div>
+                  <input
+                    ref={e2eeImportInputRef}
+                    type="file"
+                    accept="application/json,.json"
+                    className="hidden"
+                    onChange={async (ev) => {
+                      const f = ev.target.files?.[0];
+                      ev.target.value = "";
+                      if (!f || !me?.id) return;
+                      try {
+                        const text = await f.text();
+                        const parsed = JSON.parse(text);
+                        if (
+                          !window.confirm(
+                            "Replace this browser’s chat encryption key with the backup? You cannot undo this."
+                          )
+                        ) {
+                          return;
+                        }
+                        const { publicJwk } = importEcdhKeyBackupFromJson(me.id, parsed);
+                        await putMyChatPublicKey(publicJwk);
+                        await qc.invalidateQueries({ queryKey: ["chat_room_summary", roomId] });
+                        await qc.invalidateQueries({ queryKey: ["chat_peer_public_key", room?.otherUserId] });
+                        await qc.invalidateQueries({ queryKey: ["chat_room_messages", roomId] });
+                        window.alert("Backup imported. If anything looks wrong, reload the page.");
+                      } catch (err) {
+                        window.alert(err instanceof Error ? err.message : "Import failed.");
+                      }
+                    }}
+                  />
+                  <div className="flex flex-col gap-1">
+                    <button
+                      type="button"
+                      className="rounded px-2 py-1.5 text-left text-xs text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-800"
+                      onClick={async () => {
+                        if (!me?.id) return;
+                        try {
+                          const obj = await buildEcdhKeyBackupObject(me.id);
+                          downloadEcdhKeyBackupJson(me.id, obj);
+                        } catch {
+                          window.alert("Export failed.");
+                        }
+                      }}
+                    >
+                      Export key backup…
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded px-2 py-1.5 text-left text-xs text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-800"
+                      onClick={() => e2eeImportInputRef.current?.click()}
+                    >
+                      Import key backup…
+                    </button>
+                  </div>
+                  <p className="mt-1 text-[10px] leading-snug text-slate-500 dark:text-slate-400">
+                    The file contains your private key. Keep it offline; anyone with it can read your encrypted DMs.
+                  </p>
+                </div>
               ) : null}
             </div>
           </details>
