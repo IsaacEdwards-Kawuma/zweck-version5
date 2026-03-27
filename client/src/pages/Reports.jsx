@@ -324,16 +324,26 @@ export default function Reports() {
     return { opening, closing: opening + cashFlow.netChange };
   }, [from, rawTxs, cashFlow.netChange]);
   const directorCapital = useMemo(() => {
-    const rows = (qDirectors.data || []).map((d) => ({
+    const baseRows = (qDirectors.data || []).map((d) => ({
+      id: d.id,
       name: d.name,
       email: d.email,
       capital: Number(d.capital || 0),
       sideFund: Number(d.sideFund || 0),
       total: Number(d.total || 0)
     }));
-    const totalCapital = rows.reduce((s, r) => s + r.capital, 0);
-    const totalSideFund = rows.reduce((s, r) => s + r.sideFund, 0);
-    const totalStake = rows.reduce((s, r) => s + r.total, 0);
+    const totalCapital = baseRows.reduce((s, r) => s + r.capital, 0);
+    const totalSideFund = baseRows.reduce((s, r) => s + r.sideFund, 0);
+    const totalStake = baseRows.reduce((s, r) => s + r.total, 0);
+    const rows = baseRows
+      .map((r) => ({
+        ...r,
+        equitySharePct: totalStake > 0 ? (r.total / totalStake) * 100 : 0
+      }))
+      .sort((a, b) => {
+        if (b.equitySharePct !== a.equitySharePct) return b.equitySharePct - a.equitySharePct;
+        return String(a.name || "").localeCompare(String(b.name || ""), undefined, { sensitivity: "base" });
+      });
     return { rows, totalCapital, totalSideFund, totalStake };
   }, [qDirectors.data]);
   const directorsFullMap = useMemo(() => {
@@ -362,6 +372,8 @@ export default function Reports() {
     if (selectedDirectorId === "ALL") return null;
     const row = (qDirectors.data || []).find((d) => String(d.id) === selectedDirectorId);
     if (!row) return null;
+    const rowStake = Number(row.total || 0);
+    const equitySharePct = directorCapital.totalStake > 0 ? (rowStake / directorCapital.totalStake) * 100 : 0;
     const profile = directorsFullMap.get(String(row.id)) || {};
     const prev = previousDirectorCapitalById.get(String(row.id)) || { capital: 0, sideFund: 0, total: 0 };
     const openingCapital = prev.capital;
@@ -389,7 +401,7 @@ export default function Reports() {
       phone: profile.phone || "",
       address: profile.address || "",
       joinedRound: profile.joinedRound ?? row.joinedRound ?? null,
-      equitySharePct: Number(row.equitySharePct || 0),
+      equitySharePct,
       openingCapital,
       openingSideFund,
       openingTotal,
@@ -402,7 +414,7 @@ export default function Reports() {
       previousTotal: prev.total,
       movementRows
     };
-  }, [selectedDirectorId, qDirectors.data, directorsFullMap, previousDirectorCapitalById, txs]);
+  }, [selectedDirectorId, qDirectors.data, directorsFullMap, previousDirectorCapitalById, txs, directorCapital.totalStake]);
   const top10 = useMemo(() => {
     return [...txs]
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
