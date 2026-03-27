@@ -32,11 +32,6 @@ export async function uploadTransactionDocument(file) {
   return data;
 }
 
-export async function reverseTransaction(id, payload) {
-  const { data } = await api.post(`/transactions/${id}/reverse`, payload);
-  return data;
-}
-
 export async function getTransaction(id) {
   const { data } = await api.get(`/transactions/${id}`);
   return data;

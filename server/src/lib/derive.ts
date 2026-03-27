@@ -1,5 +1,5 @@
 import type { TransactionPostingStatus, TxType } from "@prisma/client";
-import { ACCOUNTS, emptyBalances, isExpenseTxType, TX_ACCOUNT_MAP, type AccountKey } from "./constants.js";
+import { ACCOUNTS, emptyBalances, TX_ACCOUNT_MAP, type AccountKey } from "./constants.js";
 
 export type Balances = Record<AccountKey, number> & Record<string, number>;
 
@@ -9,10 +9,6 @@ export type TxForDerive = {
   amount: number;
   currency?: string | null;
   directorId?: number | null;
-  expensePaymentMode?: string | null;
-  transferFromAccountKey?: string | null;
-  transferToAccountKey?: string | null;
-  reversalOfId?: number | null;
   postingStatus?: TransactionPostingStatus | null;
 };
 
@@ -45,12 +41,7 @@ function applyPair(balances: Record<string, number>, debitKey: string, creditKey
 
 /**
  * Applies one transaction to running balances (double-entry).
- * - Currency maps `bank` to 1200/1210/1220.
- * - Director capital uses dynamic keys `director_capital_{id}` (not the 3100 header).
- * - Expenses with ACCOUNTS_PAYABLE credit 2100 instead of bank.
- * - Inter-account transfer: debit destination, credit source.
- * - Reversal rows (`reversalOfId` set): swap resolved debit/credit before posting (negates the original posting).
- * - `REVERSED` originals still contribute their original debit/credit; the reversing entry offsets them.
+ * Only `CONTRIBUTION` is supported: debit bank (by currency), credit director capital.
  */
 export function applyTransactionToBalances(balances: Record<string, number>, tx: TxForDerive) {
   if (tx.postingStatus === "PENDING") return;
@@ -61,23 +52,7 @@ export function applyTransactionToBalances(balances: Record<string, number>, tx:
   const map = TX_ACCOUNT_MAP[tx.type];
   if (!map) return;
 
-  const isReversalEntry = Boolean(tx.reversalOfId);
-
   if ((map.debit === "capital" || map.credit === "capital") && !tx.directorId) {
-    return;
-  }
-
-  if (tx.type === "INTER_ACCOUNT_TRANSFER") {
-    const from = tx.transferFromAccountKey as AccountKey | undefined;
-    const to = tx.transferToAccountKey as AccountKey | undefined;
-    if (!from || !to) return;
-    /** Debit destination, credit source (money leaves source, enters destination). */
-    let debitDest = resolveBankKey(to, tx.currency);
-    let creditSrc = resolveBankKey(from, tx.currency);
-    if (isReversalEntry) {
-      [debitDest, creditSrc] = [creditSrc, debitDest];
-    }
-    applyPair(balances, debitDest, creditSrc, amt);
     return;
   }
 
@@ -93,14 +68,6 @@ export function applyTransactionToBalances(balances: Record<string, number>, tx:
     if (map.credit === "capital") credit = capKey;
   }
 
-  const bankResolved = resolveBankKey("bank", tx.currency);
-  if (credit === bankResolved && isExpenseTxType(tx.type) && tx.expensePaymentMode === "ACCOUNTS_PAYABLE") {
-    credit = "accounts_payable";
-  }
-
-  if (isReversalEntry) {
-    [debit, credit] = [credit, debit];
-  }
   applyPair(balances, debit, credit, amt);
 }
 

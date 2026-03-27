@@ -5,7 +5,6 @@ import {
   passwordResetEmail,
   reportReadyEmail,
   transactionPostedEmail,
-  transactionReversalEmail,
   welcomeEmail
 } from "../templates/emailTemplates.js";
 import { sendEmail } from "./emailService.js";
@@ -14,7 +13,6 @@ export const EMAIL_EVENTS = {
   USER_CREATED: "USER_CREATED",
   PASSWORD_RESET: "PASSWORD_RESET",
   TX_POSTED: "TX_POSTED",
-  TX_REVERSED: "TX_REVERSED",
   REPORT_READY: "REPORT_READY",
   NOTIFICATION: "NOTIFICATION",
   MEETING_REMINDER: "MEETING_REMINDER"
@@ -98,11 +96,6 @@ function renderEmail(event: EmailEvent): { subject: string; html: string } | nul
           Number(event.payload.amount || 0),
           String(event.payload.currency || "EUR")
         )
-      };
-    case EMAIL_EVENTS.TX_REVERSED:
-      return {
-        subject: "Transaction Reversed",
-        html: transactionReversalEmail(String(event.payload.referenceNumber || ""))
       };
     case EMAIL_EVENTS.REPORT_READY:
       return {

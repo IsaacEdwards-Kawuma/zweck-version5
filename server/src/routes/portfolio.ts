@@ -35,10 +35,6 @@ router.get("/", async (_req, res) => {
       amount: true,
       directorId: true,
       currency: true,
-      expensePaymentMode: true,
-      transferFromAccountKey: true,
-      transferToAccountKey: true,
-      reversalOfId: true,
       postingStatus: true
     }
   });
@@ -82,10 +78,9 @@ router.get("/", async (_req, res) => {
   const totals = new Map<number, { capital: number; sideFund: number }>();
   for (const d of directors) totals.set(d.id, { capital: 0, sideFund: 0 });
   for (const t of txs) {
-    if (!t.directorId || (t.type !== "CONTRIBUTION" && t.type !== "SIDE_FUND")) continue;
+    if (!t.directorId || t.type !== "CONTRIBUTION") continue;
     const cur = totals.get(t.directorId) ?? { capital: 0, sideFund: 0 };
     if (t.type === "CONTRIBUTION") cur.capital += t.amount;
-    if (t.type === "SIDE_FUND") cur.sideFund += t.amount;
     totals.set(t.directorId, cur);
   }
 

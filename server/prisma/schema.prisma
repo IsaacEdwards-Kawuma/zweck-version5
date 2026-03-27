@@ -333,7 +333,6 @@ enum DocumentStatus {
 
 enum TransactionPostingStatus {
   POSTED
-  REVERSED
   PENDING
 }
 
@@ -358,13 +357,6 @@ model Transaction {
   documentUrl         String?  @db.VarChar(500)
   documentStatus      DocumentStatus @default(MISSING)
   postingStatus       TransactionPostingStatus @default(POSTED)
-  reversalOfId        Int?
-  reversalOf          Transaction? @relation("TransactionReversal", fields: [reversalOfId], references: [id], onDelete: SetNull)
-  reversalChildren    Transaction[] @relation("TransactionReversal")
-  correctionOfId      Int?
-  correctionOf        Transaction? @relation("TransactionCorrection", fields: [correctionOfId], references: [id], onDelete: SetNull)
-  correctionChildren  Transaction[] @relation("TransactionCorrection")
-  reversalReason      String? @db.VarChar(500)
 
   expensePaymentMode  String?  @db.VarChar(24)
   projectId           Int?
@@ -378,46 +370,6 @@ model Transaction {
 
 enum TxType {
   CONTRIBUTION
-  SIDE_FUND
-  MMF_DEPLOY
-  MMF_RETURN
-  YPA_INVEST
-  REGISTRATION
-  TX_CHARGE
-  LEGAL
-  PENALTY
-  LOAN_IN
-  OTHER_OUT
-  CAPITAL_WITHDRAWAL
-  INVESTMENT_RETURN
-  PROJECT_REVENUE
-  INTEREST_INCOME
-  DIVIDEND_INCOME
-  OTHER_INCOME
-  PROJECT_DISBURSEMENT
-  ASSET_PURCHASE
-  LOAN_REPAYMENT_RECEIVED
-  TRANSPORT_TRAVEL
-  COMMUNICATION_INTERNET
-  OFFICE_ADMINISTRATION
-  PRINTING_STATIONERY
-  SALARIES_WAGES
-  UTILITIES
-  INSURANCE
-  MEALS_ENTERTAINMENT
-  DIRECTOR_LOAN_TO_COMPANY
-  DIRECTOR_LOAN_REPAYMENT
-  LOAN_REPAYMENT_EXTERNAL
-  WITHHOLDING_TAX
-  VAT_PAYABLE
-  CORPORATE_TAX_PROVISION
-  FOREIGN_EXCHANGE_GAIN
-  FOREIGN_EXCHANGE_LOSS
-  LOAN_ADVANCED
-  RENTAL_INCOME
-  DIRECTOR_FEE_ALLOWANCE
-  INTER_ACCOUNT_TRANSFER
-  RETAINED_EARNINGS_TRANSFER
 }
 
 model MMFEntry {

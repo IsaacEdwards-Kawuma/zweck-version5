@@ -215,7 +215,7 @@ router.get("/:id", async (req, res) => {
   if (!director) return res.status(404).json(apiError("Director not found"));
 
   const transactions = await prisma.transaction.findMany({
-    where: { directorId: id, type: { in: ["CONTRIBUTION", "SIDE_FUND", "PENALTY"] } },
+    where: { directorId: id, type: "CONTRIBUTION" },
     orderBy: { date: "desc" }
   });
 

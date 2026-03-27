@@ -104,102 +104,11 @@ export const ACCOUNTS: Record<
   exp_fx: { name: "Miscellaneous Expense", group: "Expenses", code: 5990 }
 };
 
-/** Account keys allowed for inter-account transfers (no aggregate `bank`). */
-export const INTER_ACCOUNT_TRANSFER_KEYS: AccountKey[] = [
-  "bank_ugx",
-  "bank_usd",
-  "bank_eur",
-  "cash_hand",
-  "mmf",
-  "ypa",
-  "investments_general",
-  "accounts_receivable",
-  "loan_receivable",
-  "capex",
-  "other_assets",
-  "accounts_payable",
-  "loan_liability",
-  "director_loan_to_company",
-  "tax_vat",
-  "tax_wht",
-  "tax_corporate",
-  "capital",
-  "side_fund",
-  "retained_earnings"
-];
-
-const EXPENSE_TYPES: TxType[] = [
-  "REGISTRATION",
-  "TX_CHARGE",
-  "LEGAL",
-  "OTHER_OUT",
-  "PROJECT_DISBURSEMENT",
-  "ASSET_PURCHASE",
-  "TRANSPORT_TRAVEL",
-  "COMMUNICATION_INTERNET",
-  "OFFICE_ADMINISTRATION",
-  "PRINTING_STATIONERY",
-  "SALARIES_WAGES",
-  "UTILITIES",
-  "INSURANCE",
-  "MEALS_ENTERTAINMENT",
-  "WITHHOLDING_TAX",
-  "VAT_PAYABLE",
-  "CORPORATE_TAX_PROVISION",
-  "FOREIGN_EXCHANGE_LOSS",
-  "DIRECTOR_FEE_ALLOWANCE"
-];
-
-export function isExpenseTxType(t: TxType): boolean {
-  return EXPENSE_TYPES.includes(t);
-}
-
 export const TX_ACCOUNT_MAP: Record<
   TxType,
   { debit: AccountKey; credit: AccountKey; needsDirector: boolean }
 > = {
-  CONTRIBUTION: { debit: "bank", credit: "capital", needsDirector: true },
-  CAPITAL_WITHDRAWAL: { debit: "capital", credit: "bank", needsDirector: true },
-  SIDE_FUND: { debit: "bank", credit: "side_fund", needsDirector: true },
-  MMF_DEPLOY: { debit: "mmf", credit: "bank", needsDirector: false },
-  MMF_RETURN: { debit: "bank", credit: "mmf_income", needsDirector: false },
-  YPA_INVEST: { debit: "ypa", credit: "bank", needsDirector: false },
-  REGISTRATION: { debit: "reg_costs", credit: "bank", needsDirector: false },
-  TX_CHARGE: { debit: "tx_charge", credit: "bank", needsDirector: false },
-  LEGAL: { debit: "legal", credit: "bank", needsDirector: false },
-  PENALTY: { debit: "bank", credit: "penalties", needsDirector: true },
-  LOAN_IN: { debit: "bank", credit: "loan_liability", needsDirector: false },
-  OTHER_OUT: { debit: "other_exp", credit: "bank", needsDirector: false },
-  INVESTMENT_RETURN: { debit: "bank", credit: "income_investment", needsDirector: false },
-  PROJECT_REVENUE: { debit: "bank", credit: "income_project", needsDirector: false },
-  INTEREST_INCOME: { debit: "bank", credit: "income_interest", needsDirector: false },
-  DIVIDEND_INCOME: { debit: "bank", credit: "income_dividend", needsDirector: false },
-  RENTAL_INCOME: { debit: "bank", credit: "rental_income", needsDirector: false },
-  OTHER_INCOME: { debit: "bank", credit: "income_other", needsDirector: false },
-  PROJECT_DISBURSEMENT: { debit: "project_exp", credit: "bank", needsDirector: false },
-  ASSET_PURCHASE: { debit: "capex", credit: "bank", needsDirector: false },
-  LOAN_REPAYMENT_RECEIVED: { debit: "bank", credit: "loan_receivable", needsDirector: false },
-  LOAN_ADVANCED: { debit: "loan_receivable", credit: "bank", needsDirector: false },
-  TRANSPORT_TRAVEL: { debit: "exp_transport", credit: "bank", needsDirector: false },
-  COMMUNICATION_INTERNET: { debit: "exp_communication", credit: "bank", needsDirector: false },
-  OFFICE_ADMINISTRATION: { debit: "exp_office", credit: "bank", needsDirector: false },
-  PRINTING_STATIONERY: { debit: "exp_printing", credit: "bank", needsDirector: false },
-  SALARIES_WAGES: { debit: "exp_salaries", credit: "bank", needsDirector: false },
-  UTILITIES: { debit: "exp_utilities", credit: "bank", needsDirector: false },
-  INSURANCE: { debit: "exp_insurance", credit: "bank", needsDirector: false },
-  MEALS_ENTERTAINMENT: { debit: "exp_meals", credit: "bank", needsDirector: false },
-  DIRECTOR_LOAN_TO_COMPANY: { debit: "bank", credit: "director_loan_to_company", needsDirector: true },
-  DIRECTOR_LOAN_REPAYMENT: { debit: "director_loan_to_company", credit: "bank", needsDirector: true },
-  LOAN_REPAYMENT_EXTERNAL: { debit: "loan_liability", credit: "bank", needsDirector: false },
-  WITHHOLDING_TAX: { debit: "tax_wht", credit: "bank", needsDirector: false },
-  VAT_PAYABLE: { debit: "tax_vat", credit: "bank", needsDirector: false },
-  CORPORATE_TAX_PROVISION: { debit: "tax_corporate", credit: "bank", needsDirector: false },
-  FOREIGN_EXCHANGE_GAIN: { debit: "bank", credit: "income_fx", needsDirector: false },
-  FOREIGN_EXCHANGE_LOSS: { debit: "exp_fx", credit: "bank", needsDirector: false },
-  DIRECTOR_FEE_ALLOWANCE: { debit: "exp_salaries", credit: "bank", needsDirector: true },
-  INTER_ACCOUNT_TRANSFER: { debit: "bank", credit: "bank", needsDirector: false },
-  /** Server splits amount across up to five directors; directorId on each line is set automatically. */
-  RETAINED_EARNINGS_TRANSFER: { debit: "retained_earnings", credit: "capital", needsDirector: false }
+  CONTRIBUTION: { debit: "bank", credit: "capital", needsDirector: true }
 };
 
 export function emptyBalances(): Record<AccountKey, number> {

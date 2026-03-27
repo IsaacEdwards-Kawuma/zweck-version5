@@ -72,13 +72,13 @@ export function volumeByType(transactions) {
 }
 
 /**
- * Sum CONTRIBUTION + SIDE_FUND per director (capital inflow view).
+ * Sum CONTRIBUTION per director (capital inflow view).
  * @param {TxRow[]} transactions
  */
 export function directorInflowTotals(transactions) {
   const map = new Map();
   for (const t of transactions) {
-    if (t.type !== "CONTRIBUTION" && t.type !== "SIDE_FUND") continue;
+    if (t.type !== "CONTRIBUTION") continue;
     const dir = t.director;
     if (!dir?.id) continue;
     const key = dir.id;

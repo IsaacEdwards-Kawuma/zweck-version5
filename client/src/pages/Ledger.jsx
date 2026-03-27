@@ -1,21 +1,17 @@
 import { useMemo, useState } from "react";
-import { useNavigate, useOutletContext, useSearchParams } from "react-router-dom";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import Loading from "../components/Loading";
 import ErrorBanner from "../components/ErrorBanner";
 import DirectorAvatar from "../components/DirectorAvatar";
 import { useTransactions } from "../hooks/useTransactions";
 import { listDirectors } from "../api/directors";
 import { useQuery } from "@tanstack/react-query";
-import { listTransactions, reverseTransaction, txItems } from "../api/transactions";
+import { listTransactions, txItems } from "../api/transactions";
 import { eur, fmtDate, formatMoney, formatTxRef } from "../lib/format";
-import { INTER_ACCOUNT_TRANSFER_OPTIONS, TX_TYPE_GROUPS, TX_TYPE_LABELS } from "../lib/transactionTypes";
+import { LEDGER_ACCOUNT_FILTER_OPTIONS, TX_TYPE_LABELS } from "../lib/transactionTypes";
 import { downloadTransactionsCsv } from "../lib/reportsAnalytics";
 
 export default function Ledger() {
-  const { me } = useOutletContext() || {};
-  const navigate = useNavigate();
-  const qc = useQueryClient();
   const [searchParams] = useSearchParams();
   const initialFrom = searchParams.get("from") || "";
   const initialTo = searchParams.get("to") || "";
@@ -55,19 +51,6 @@ export default function Ledger() {
 
   const qTx = useTransactions(filters);
   const qDirs = useQuery({ queryKey: ["directors"], queryFn: listDirectors });
-
-  const mReverse = useMutation({
-    mutationFn: ({ id, payload }) => reverseTransaction(id, payload),
-    onSuccess: async () => {
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ["transactions"] }),
-        qc.invalidateQueries({ queryKey: ["balances"] }),
-        qc.invalidateQueries({ queryKey: ["summary"] }),
-        qc.invalidateQueries({ queryKey: ["directors_all"] }),
-        qc.invalidateQueries({ queryKey: ["portfolio"] })
-      ]);
-    }
-  });
 
   const items = useMemo(() => qTx.data?.items ?? [], [qTx.data?.items]);
   const total = qTx.data?.total ?? 0;
@@ -172,7 +155,7 @@ export default function Ledger() {
             <div className="text-xs font-medium text-slate-700 dark:text-slate-300">Account</div>
             <select className="ui-input mt-1 max-w-[min(100%,20rem)]" value={accountKey} onChange={(e) => { setAccountKey(e.target.value); resetPage(); }}>
               <option value="">All</option>
-              {INTER_ACCOUNT_TRANSFER_OPTIONS.map((o) => (
+              {LEDGER_ACCOUNT_FILTER_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
@@ -181,15 +164,7 @@ export default function Ledger() {
             <div className="text-xs font-medium text-slate-700 dark:text-slate-300">Type</div>
             <select className="ui-input mt-1 max-w-[min(100%,20rem)]" value={type} onChange={(e) => { setType(e.target.value); resetPage(); }}>
               <option value="">All</option>
-              {TX_TYPE_GROUPS.map((g) => (
-                <optgroup key={g.label} label={g.label}>
-                  {g.options.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
+              <option value="CONTRIBUTION">Director Capital Contribution</option>
             </select>
           </div>
           <div>
@@ -197,7 +172,6 @@ export default function Ledger() {
             <select className="ui-input mt-1" value={status} onChange={(e) => { setStatus(e.target.value); resetPage(); }}>
               <option value="">All</option>
               <option value="POSTED">Posted</option>
-              <option value="REVERSED">Reversed</option>
               <option value="DOCUMENT_MISSING">Document Missing</option>
             </select>
           </div>
@@ -264,7 +238,7 @@ export default function Ledger() {
         <table className="min-w-full text-left text-sm">
           <thead className="ui-table-head">
             <tr>
-              {["Reference", "Date", "Account Code", "Account Name", "Type", "Director", "Posted By", "Project", "Description", "Debit", "Credit", "Currency", "Running Balance", "Document", "Status", "Action"].map((h) => (
+              {["Reference", "Date", "Account Code", "Account Name", "Type", "Director", "Posted By", "Project", "Description", "Debit", "Credit", "Currency", "Running Balance", "Document", "Status"].map((h) => (
                 <th key={h} className="px-4 py-3">{h}</th>
               ))}
             </tr>
@@ -274,7 +248,7 @@ export default function Ledger() {
               const isDebitSide = accountKey ? ledgerKeyMatchesFilter(r.debitAccountKey, accountKey) : true;
               const accountCode = accountKey ? (isDebitSide ? r.debitAccountCode : r.creditAccountCode) : r.debitAccountCode;
               const accountName = accountKey ? (isDebitSide ? r.debitAccountName : r.creditAccountName) : r.debitAccountName;
-              const statusLabel = r.postingStatus === "REVERSED" ? "Reversed" : r.postingStatus === "PENDING" ? "Pending" : "Posted";
+              const statusLabel = r.postingStatus === "PENDING" ? "Pending" : "Posted";
               return (
                 <tr key={r.id} className="ui-table-row-hover">
                   <td className="px-4 py-3 whitespace-nowrap font-mono text-xs">{r.referenceNumber || r.reference || formatTxRef(r.id)}</td>
@@ -306,44 +280,12 @@ export default function Ledger() {
                     {r.documentStatus === "MISSING" ? "⚠️" : r.documentStatus === "ATTACHED" ? "✅" : "—"}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">{statusLabel}</td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    {me?.role === "ADMIN" && r.postingStatus === "POSTED" && !r.reversalOfId && !r.correctionOfId ? (
-                      <button
-                        disabled={mReverse.isPending}
-                        className="ui-btn-outline-xs font-semibold disabled:opacity-50"
-                        onClick={() => {
-                          const modeRaw = window.prompt('Type "1" for Full Reversal or "2" for Correcting Entry');
-                          const mode = modeRaw === "2" ? "CORRECTING" : modeRaw === "1" ? "FULL" : "";
-                          if (!mode) return;
-                          const reason = (window.prompt("Reversal reason (required):") || "").trim();
-                          if (!reason) {
-                            window.alert("Reversal reason is required.");
-                            return;
-                          }
-                          mReverse.mutate(
-                            { id: r.id, payload: { mode, reason } },
-                            {
-                              onSuccess: (data) => {
-                                if (mode === "CORRECTING") {
-                                  navigate(`/post-transaction?correctFrom=${r.id}&reason=${encodeURIComponent(reason)}`);
-                                }
-                              }
-                            }
-                          );
-                        }}
-                      >
-                        Reverse
-                      </button>
-                    ) : (
-                      <span className="text-xs text-slate-400">—</span>
-                    )}
-                  </td>
                 </tr>
               );
             })}
             {rowsWithBalance.length === 0 ? (
               <tr>
-                <td className="px-4 py-6 text-center text-slate-500" colSpan={16}>No transactions yet.</td>
+                <td className="px-4 py-6 text-center text-slate-500" colSpan={15}>No transactions yet.</td>
               </tr>
             ) : null}
           </tbody>

@@ -44,7 +44,7 @@ import {
 const PIE_COLORS = ["#22c55e", "#0ea5e9", "#a855f7", "#f97316", "#ec4899", "#64748b"];
 const OPERATING_EXPENSE_TYPES = new Set(["REGISTRATION", "TX_CHARGE", "LEGAL", "OTHER_OUT"]);
 const OPERATING_INCOME_TYPES = new Set(["PENALTY", "MMF_RETURN"]);
-const FINANCING_INFLOW_TYPES = new Set(["CONTRIBUTION", "SIDE_FUND", "LOAN_IN"]);
+const FINANCING_INFLOW_TYPES = new Set(["CONTRIBUTION"]);
 const INVESTING_OUTFLOW_TYPES = new Set(["MMF_DEPLOY", "YPA_INVEST"]);
 
 function downloadSimpleCsv(filename, headers, rows) {
@@ -362,7 +362,6 @@ export default function Reports() {
       const key = String(id);
       const cur = map.get(key) || { capital: 0, sideFund: 0, total: 0 };
       if (t.type === "CONTRIBUTION") cur.capital += Number(t.amount) || 0;
-      if (t.type === "SIDE_FUND") cur.sideFund += Number(t.amount) || 0;
       cur.total = cur.capital + cur.sideFund;
       map.set(key, cur);
     }

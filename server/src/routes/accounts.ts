@@ -21,10 +21,6 @@ router.get("/balances", async (_req, res) => {
       amount: true,
       currency: true,
       directorId: true,
-      expensePaymentMode: true,
-      transferFromAccountKey: true,
-      transferToAccountKey: true,
-      reversalOfId: true,
       postingStatus: true
     }
   });
@@ -48,15 +44,14 @@ router.get("/director/:id", async (req, res) => {
   if (!director) return res.status(404).json(apiError("Director not found"));
 
   const txs = await prisma.transaction.findMany({
-    where: { directorId: id, type: { in: ["CONTRIBUTION", "SIDE_FUND"] } },
+    where: { directorId: id, type: "CONTRIBUTION" },
     select: { type: true, amount: true }
   });
 
   let capital = 0;
-  let sideFund = 0;
+  const sideFund = 0;
   for (const t of txs) {
     if (t.type === "CONTRIBUTION") capital += t.amount;
-    if (t.type === "SIDE_FUND") sideFund += t.amount;
   }
   const totalContribution = await prisma.transaction.aggregate({
     where: { type: "CONTRIBUTION", directorId: { not: null } },
@@ -74,7 +69,7 @@ router.get("/directors/all", async (_req, res) => {
   });
 
   const txs = await prisma.transaction.findMany({
-    where: { directorId: { not: null }, type: { in: ["CONTRIBUTION", "SIDE_FUND"] } },
+    where: { directorId: { not: null }, type: "CONTRIBUTION" },
     select: { directorId: true, type: true, amount: true }
   });
 
@@ -84,7 +79,6 @@ router.get("/directors/all", async (_req, res) => {
     if (!t.directorId) continue;
     const cur = totals.get(t.directorId) ?? { capital: 0, sideFund: 0 };
     if (t.type === "CONTRIBUTION") cur.capital += t.amount;
-    if (t.type === "SIDE_FUND") cur.sideFund += t.amount;
     totals.set(t.directorId, cur);
   }
 
@@ -107,7 +101,7 @@ router.get("/directors", async (_req, res) => {
   });
 
   const txs = await prisma.transaction.findMany({
-    where: { directorId: { not: null }, type: { in: ["CONTRIBUTION", "SIDE_FUND"] } },
+    where: { directorId: { not: null }, type: "CONTRIBUTION" },
     select: { directorId: true, type: true, amount: true }
   });
 
@@ -117,7 +111,6 @@ router.get("/directors", async (_req, res) => {
     if (!t.directorId) continue;
     const cur = totals.get(t.directorId) ?? { capital: 0, sideFund: 0 };
     if (t.type === "CONTRIBUTION") cur.capital += t.amount;
-    if (t.type === "SIDE_FUND") cur.sideFund += t.amount;
     totals.set(t.directorId, cur);
   }
 
@@ -137,10 +130,6 @@ router.get("/summary", async (_req, res) => {
       amount: true,
       currency: true,
       directorId: true,
-      expensePaymentMode: true,
-      transferFromAccountKey: true,
-      transferToAccountKey: true,
-      reversalOfId: true,
       postingStatus: true
     }
   });
