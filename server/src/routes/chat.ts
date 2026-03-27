@@ -38,9 +38,10 @@ const roomSelectAuth = {
 const uploadRoot = path.join(process.cwd(), "uploads", "chat");
 fs.mkdirSync(uploadRoot, { recursive: true });
 
+/** Encrypted DM blobs are slightly larger than plaintext (IV + tag); keep cap near plaintext max. */
 const chatUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: 10 * 1024 * 1024 + 64 * 1024 },
   fileFilter: (_req, file, cb) => {
     cb(null, true);
   }
@@ -1022,7 +1023,7 @@ router.post(
     chatUpload.single("file")(req, res, (err) => {
       if (err instanceof multer.MulterError) {
         if (err.code === "LIMIT_FILE_SIZE") {
-          return res.status(400).json(apiError("File must be 10MB or smaller", "file"));
+          return res.status(400).json(apiError("File exceeds the maximum upload size (~10MB plaintext)", "file"));
         }
         return res.status(400).json(apiError(err.message, "file"));
       }
@@ -1045,6 +1046,42 @@ router.post(
     }
 
     if (!req.file?.buffer) return res.status(400).json(apiError("File required", "file"));
+
+    const body = req.body as Record<string, unknown> | undefined;
+    const e2eeFlag = body?.e2ee;
+    const e2ee =
+      e2eeFlag === "1" ||
+      e2eeFlag === 1 ||
+      String(e2eeFlag ?? "").toLowerCase() === "true";
+
+    if (e2ee) {
+      if (room.kind !== "DM") {
+        return res.status(400).json(apiError("E2EE attachments are only for direct messages", "e2ee"));
+      }
+      const origSize = Number(body?.originalSize);
+      const clientKind = String(body?.clientKind ?? "")
+        .trim()
+        .toUpperCase();
+      if (!Number.isFinite(origSize) || origSize < 0 || origSize > 10 * 1024 * 1024) {
+        return res.status(400).json(apiError("Invalid originalSize", "originalSize"));
+      }
+      if (clientKind !== "IMAGE" && clientKind !== "FILE") {
+        return res.status(400).json(apiError("clientKind must be IMAGE or FILE", "clientKind"));
+      }
+      const kind = clientKind === "IMAGE" ? "IMAGE_E2EE" : "FILE_E2EE";
+      const orig = sanitizeFilename(req.file.originalname || "file");
+      const fname = `${crypto.randomUUID()}-${orig}`;
+      const full = path.join(uploadRoot, fname);
+      await fs.promises.writeFile(full, req.file.buffer);
+
+      const publicUrl = `/api/uploads/chat/${fname}`;
+      return res.json({
+        attachmentUrl: publicUrl,
+        attachmentKind: kind,
+        attachmentName: req.file.originalname?.slice(0, 255) || orig,
+        attachmentSize: Math.floor(origSize)
+      });
+    }
 
     const mime = (req.file.mimetype || "").toLowerCase();
     const kind = isImageMime(mime) ? "IMAGE" : "FILE";

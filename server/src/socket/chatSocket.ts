@@ -234,8 +234,9 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
         }
         const attachmentUrl =
           typeof obj.attachmentUrl === "string" && obj.attachmentUrl.trim() ? obj.attachmentUrl.trim() : null;
+        const allowedKinds = new Set(["IMAGE", "FILE", "IMAGE_E2EE", "FILE_E2EE"]);
         const attachmentKind =
-          typeof obj.attachmentKind === "string" && (obj.attachmentKind === "IMAGE" || obj.attachmentKind === "FILE")
+          typeof obj.attachmentKind === "string" && allowedKinds.has(obj.attachmentKind)
             ? obj.attachmentKind
             : null;
         const attachmentName =
