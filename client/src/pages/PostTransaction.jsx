@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useOutletContext } from "react-router-dom";
+import { useOutletContext, useSearchParams } from "react-router-dom";
 import DirectorAvatar from "../components/DirectorAvatar";
 import ErrorBanner from "../components/ErrorBanner";
 import {
@@ -11,7 +11,8 @@ import {
   txItems,
   getPreviewReference,
   uploadTransactionDocument,
-  reverseTransaction
+  reverseTransaction,
+  getTransaction
 } from "../api/transactions";
 import { listDirectors } from "../api/directors";
 import { listProjects } from "../api/projects";
@@ -56,6 +57,7 @@ function stripTypeNumbering(label) {
 export default function PostTransaction() {
   const qc = useQueryClient();
   const { me } = useOutletContext() || {};
+  const [searchParams, setSearchParams] = useSearchParams();
   const qDirs = useQuery({ queryKey: ["directors"], queryFn: listDirectors });
   const qProjects = useQuery({ queryKey: ["projects"], queryFn: listProjects });
   const qPreviewRef = useQuery({ queryKey: ["tx-preview-ref"], queryFn: getPreviewReference });
@@ -86,6 +88,8 @@ export default function PostTransaction() {
   const [recentQuery, setRecentQuery] = useState("");
   const [recentType, setRecentType] = useState("ALL");
   const [showOnlyDirectorTx, setShowOnlyDirectorTx] = useState(false);
+  const [correctionOfId, setCorrectionOfId] = useState("");
+  const [correctionReason, setCorrectionReason] = useState("");
 
   const map = TX_ACCOUNT_MAP[type];
   const needsDirector = Boolean(map?.needsDirector);
@@ -103,6 +107,45 @@ export default function PostTransaction() {
       if (next) setType(next);
     }
   }, [postingBucket]);
+
+  useEffect(() => {
+    const fromId = Number(searchParams.get("correctFrom") || 0);
+    if (!Number.isFinite(fromId) || fromId <= 0) return;
+    let ignore = false;
+    void (async () => {
+      try {
+        const t = await getTransaction(fromId);
+        if (ignore || !t) return;
+        setType(t.type);
+        setCurrency(t.currency || "EUR");
+        setAmount(String(t.amount || ""));
+        setDate(new Date().toISOString().slice(0, 10));
+        setDescription(t.description || "");
+        setExternalReference(t.externalReference || "");
+        setDirectorId(t.director?.id != null ? String(t.director.id) : "");
+        setProjectId(t.projectId != null ? String(t.projectId) : "");
+        setTransferFrom(t.transferFromAccountKey || "");
+        setTransferTo(t.transferToAccountKey || "");
+        setDocumentUrl(t.documentUrl || "");
+        setPaymentAp(t.expensePaymentMode === "ACCOUNTS_PAYABLE");
+        setCorrectionOfId(String(fromId));
+        setCorrectionReason(searchParams.get("reason") || "");
+        setSuccess("Correction draft loaded. Update wrong fields and post.");
+      } catch {
+        /* ignore */
+      } finally {
+        setSearchParams((prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete("correctFrom");
+          next.delete("reason");
+          return next;
+        });
+      }
+    })();
+    return () => {
+      ignore = true;
+    };
+  }, [searchParams, setSearchParams]);
 
   const invalidateAll = async () => {
     await Promise.all([
@@ -151,7 +194,7 @@ export default function PostTransaction() {
   });
 
   const mReverse = useMutation({
-    mutationFn: (id) => reverseTransaction(id),
+    mutationFn: ({ id, payload }) => reverseTransaction(id, payload),
     onSuccess: async () => {
       setSuccess("Reversal posted.");
       await invalidateAll();
@@ -208,8 +251,9 @@ export default function PostTransaction() {
     if (needsProject && !projectId) return "Select a project.";
     if (showTransfer && (!transferFrom || !transferTo)) return "Select source and destination accounts.";
     if (showTransfer && transferFrom === transferTo) return "Source and destination must differ.";
+    if (correctionOfId && !correctionReason.trim()) return "Correction reason is required.";
     return "";
-  }, [amount, currency, needsDirector, directorId, needsProject, projectId, showTransfer, transferFrom, transferTo, date]);
+  }, [amount, currency, needsDirector, directorId, needsProject, projectId, showTransfer, transferFrom, transferTo, date, correctionOfId, correctionReason]);
 
   const selectedDirector = useMemo(() => {
     if (!needsDirector || !directorId) return null;
@@ -231,7 +275,9 @@ export default function PostTransaction() {
       directorId: needsDirector ? Number(directorId) : undefined,
       projectId: needsProject ? Number(projectId) : undefined,
       transferFromAccountKey: showTransfer ? transferFrom : undefined,
-      transferToAccountKey: showTransfer ? transferTo : undefined
+      transferToAccountKey: showTransfer ? transferTo : undefined,
+      correctionOfId: correctionOfId ? Number(correctionOfId) : undefined,
+      reversalReason: correctionReason || undefined
     };
     if (showExpensePayment) {
       base.expensePaymentMode = paymentAp ? "ACCOUNTS_PAYABLE" : "PAID";
@@ -575,6 +621,19 @@ export default function PostTransaction() {
           <label className="text-xs font-medium text-slate-700">Description (optional)</label>
           <input className="mt-1 w-full rounded-lg border-slate-300" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={300} />
         </div>
+        {correctionOfId ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+            <div className="text-xs font-semibold text-amber-900">Correcting Entry</div>
+            <div className="mt-1 text-xs text-amber-800">Original Transaction ID: {correctionOfId}</div>
+            <input
+              className="mt-2 w-full rounded-lg border-amber-300 bg-white text-sm"
+              value={correctionReason}
+              onChange={(e) => setCorrectionReason(e.target.value)}
+              placeholder="Reason for correction (required)"
+              maxLength={500}
+            />
+          </div>
+        ) : null}
 
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
           <div className="font-semibold text-slate-900">{editingId ? "Edit transaction preview" : "Preview"}</div>
@@ -681,7 +740,7 @@ export default function PostTransaction() {
                 {recentFiltered.map((t) => {
                   const canEdit = t.postingStatus === "PENDING";
                   const isPosted = t.postingStatus === "POSTED" || t.postingStatus == null;
-                  const showReverse = isPosted && !t.reversalOfId;
+                  const showReverse = isPosted && !t.reversalOfId && !t.correctionOfId;
                   return (
                     <tr key={t.id}>
                       <td className="px-3 py-2 whitespace-nowrap font-mono text-xs text-slate-600">
@@ -729,8 +788,13 @@ export default function PostTransaction() {
                               className="ui-btn-outline-xs font-medium text-brand-800"
                               disabled={mReverse.isPending}
                               onClick={() => {
-                                if (window.confirm("Create an equal and opposite reversal entry?")) {
-                                  mReverse.mutate(t.id);
+                                if (window.confirm("Create a full reversal entry?")) {
+                                  const reason = (window.prompt("Reversal reason (required):") || "").trim();
+                                  if (!reason) {
+                                    window.alert("Reversal reason is required.");
+                                    return;
+                                  }
+                                  mReverse.mutate({ id: t.id, payload: { mode: "FULL", reason } });
                                 }
                               }}
                             >

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useOutletContext, useSearchParams } from "react-router-dom";
+import { useNavigate, useOutletContext, useSearchParams } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Loading from "../components/Loading";
 import ErrorBanner from "../components/ErrorBanner";
@@ -14,6 +14,7 @@ import { downloadTransactionsCsv } from "../lib/reportsAnalytics";
 
 export default function Ledger() {
   const { me } = useOutletContext() || {};
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const [searchParams] = useSearchParams();
   const initialFrom = searchParams.get("from") || "";
@@ -56,7 +57,7 @@ export default function Ledger() {
   const qDirs = useQuery({ queryKey: ["directors"], queryFn: listDirectors });
 
   const mReverse = useMutation({
-    mutationFn: (id) => reverseTransaction(id),
+    mutationFn: ({ id, payload }) => reverseTransaction(id, payload),
     onSuccess: async () => {
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["transactions"] }),
@@ -100,54 +101,9 @@ export default function Ledger() {
     return all;
   }, [items, accountKey]);
 
-  const qOpening = useQuery({
-    queryKey: ["ledger_opening_balance", { accountKey, type, directorId, status, currency, from }],
-    enabled: Boolean(accountKey && from),
-    queryFn: async () => {
-      const prev = new Date(from);
-      prev.setDate(prev.getDate() - 1);
-      const p = {
-        limit: 100000,
-        offset: 0,
-        accountKey,
-        ...(type ? { type } : {}),
-        ...(directorId ? { directorId: Number(directorId) } : {}),
-        ...(status ? { status } : {}),
-        ...(currency ? { currency } : {}),
-        to: prev.toISOString().slice(0, 10)
-      };
-      const res = await listTransactions(p);
-      return txItems(res);
-    }
-  });
-
-  const openingBalance = useMemo(() => {
-    if (!accountKey) return 0;
-    const source = from ? qOpening.data || [] : rows;
-    let bal = 0;
-    for (const r of source) {
-      const code = Number(r.debitAccountCode ?? r.creditAccountCode ?? 0);
-      const isAssetOrExpense = String(code).startsWith("1") || String(code).startsWith("5") || String(code).startsWith("6");
-      const isDebit = r.debitAccountKey === accountKey;
-      const delta = isAssetOrExpense ? (isDebit ? Number(r.amount) : -Number(r.amount)) : (isDebit ? -Number(r.amount) : Number(r.amount));
-      bal += delta;
-    }
-    return bal;
-  }, [accountKey, from, qOpening.data, rows]);
-
-  const rowsWithBalance = useMemo(() => {
-    if (!accountKey) return rows.map((r) => ({ ...r, runningBalance: null }));
-    let bal = openingBalance;
-    return rows.map((r) => {
-      const code = Number(r.debitAccountCode ?? r.creditAccountCode ?? 0);
-      const isAssetOrExpense = String(code).startsWith("1") || String(code).startsWith("5") || String(code).startsWith("6");
-      const isDebit = r.debitAccountKey === accountKey;
-      const delta = isAssetOrExpense ? (isDebit ? Number(r.amount) : -Number(r.amount)) : (isDebit ? -Number(r.amount) : Number(r.amount));
-      bal += delta;
-      return { ...r, runningBalance: bal };
-    });
-  }, [rows, accountKey, openingBalance]);
-  const closingBalance = rowsWithBalance.length && accountKey ? rowsWithBalance[rowsWithBalance.length - 1].runningBalance : openingBalance;
+  const rowsWithBalance = rows;
+  const openingBalance = Number(qTx.data?.openingBalance || 0);
+  const closingBalance = Number(qTx.data?.closingBalance || 0);
 
   async function exportCsv() {
     const p = {
@@ -316,8 +272,8 @@ export default function Ledger() {
                 <tr key={r.id} className="ui-table-row-hover">
                   <td className="px-4 py-3 whitespace-nowrap font-mono text-xs">{r.referenceNumber || r.reference || formatTxRef(r.id)}</td>
                   <td className="px-4 py-3 whitespace-nowrap">{fmtDate(r.date)}</td>
-                  <td className="px-4 py-3 whitespace-nowrap">{accountCode ?? "—"}</td>
-                  <td className="px-4 py-3 whitespace-nowrap">{accountName ?? "—"}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{r.ledgerAccountCode ?? accountCode ?? "—"}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{r.ledgerAccountName ?? accountName ?? "—"}</td>
                   <td className="px-4 py-3 whitespace-nowrap">{TX_TYPE_LABELS[r.type] || String(r.type).replaceAll("_", " ")}</td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     {r.director ? <span className="inline-flex items-center gap-2"><DirectorAvatar director={r.director} size="sm" /><span>{r.director.name}</span></span> : "—"}
@@ -328,17 +284,36 @@ export default function Ledger() {
                   <td className="px-4 py-3 whitespace-nowrap">{r.debitAccount}</td>
                   <td className="px-4 py-3 whitespace-nowrap">{r.creditAccount}</td>
                   <td className="px-4 py-3 whitespace-nowrap">{r.currency || "EUR"}</td>
-                  <td className="px-4 py-3 whitespace-nowrap">{accountKey ? formatMoney(r.runningBalance || 0, r.currency || "EUR") : "—"}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{r.runningBalance != null ? formatMoney(r.runningBalance || 0, r.currency || "EUR") : "—"}</td>
                   <td className="px-4 py-3 whitespace-nowrap" title={r.documentStatus === "MISSING" ? "Document missing" : "Document attached"}>
                     {r.documentStatus === "MISSING" ? "⚠️" : r.documentStatus === "ATTACHED" ? "✅" : "—"}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">{statusLabel}</td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                    {me?.role === "ADMIN" && r.postingStatus === "POSTED" && !r.reversalOfId ? (
+                    {me?.role === "ADMIN" && r.postingStatus === "POSTED" && !r.reversalOfId && !r.correctionOfId ? (
                       <button
                         disabled={mReverse.isPending}
                         className="ui-btn-outline-xs font-semibold disabled:opacity-50"
-                        onClick={() => mReverse.mutate(r.id)}
+                        onClick={() => {
+                          const modeRaw = window.prompt('Type "1" for Full Reversal or "2" for Correcting Entry');
+                          const mode = modeRaw === "2" ? "CORRECTING" : modeRaw === "1" ? "FULL" : "";
+                          if (!mode) return;
+                          const reason = (window.prompt("Reversal reason (required):") || "").trim();
+                          if (!reason) {
+                            window.alert("Reversal reason is required.");
+                            return;
+                          }
+                          mReverse.mutate(
+                            { id: r.id, payload: { mode, reason } },
+                            {
+                              onSuccess: (data) => {
+                                if (mode === "CORRECTING") {
+                                  navigate(`/post-transaction?correctFrom=${r.id}&reason=${encodeURIComponent(reason)}`);
+                                }
+                              }
+                            }
+                          );
+                        }}
                       >
                         Reverse
                       </button>

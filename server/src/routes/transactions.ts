@@ -65,6 +65,8 @@ function shapeTransactionRow(
     documentStatus: DocumentStatus;
     postingStatus: TransactionPostingStatus;
     reversalOfId: number | null;
+    correctionOfId: number | null;
+    reversalReason: string | null;
     type: TxType;
     date: Date;
     amount: Prisma.Decimal | number;
@@ -131,6 +133,8 @@ function shapeTransactionRow(
       documentStatus: t.documentStatus,
       postingStatus: t.postingStatus,
       reversalOfId: t.reversalOfId,
+      correctionOfId: t.correctionOfId,
+      reversalReason: t.reversalReason,
       type: t.type,
       date: t.date,
       amount: t.amount,
@@ -177,6 +181,8 @@ function shapeTransactionRow(
       documentStatus: t.documentStatus,
       postingStatus: t.postingStatus,
       reversalOfId: t.reversalOfId,
+      correctionOfId: t.correctionOfId,
+      reversalReason: t.reversalReason,
       type: t.type,
       date: t.date,
       amount: t.amount,
@@ -227,6 +233,8 @@ function shapeTransactionRow(
     documentStatus: t.documentStatus,
     postingStatus: t.postingStatus,
     reversalOfId: t.reversalOfId,
+    correctionOfId: t.correctionOfId,
+    reversalReason: t.reversalReason,
     type: t.type,
     date: t.date,
     amount: t.amount,
@@ -259,6 +267,23 @@ function shapeTransactionRow(
   };
 }
 
+function accountNormalIsDebit(accountCode: number | null | undefined): boolean {
+  if (accountCode == null) return true;
+  const prefix = Math.floor(Math.abs(accountCode) / 1000);
+  return prefix === 1 || prefix === 5;
+}
+
+function runningDeltaForRow(row: any, accountKey: string): number {
+  const amount = Number(row.amount || 0);
+  const touchesDebit = row.debitAccountKey === accountKey;
+  const touchesCredit = row.creditAccountKey === accountKey;
+  if (!touchesDebit && !touchesCredit) return 0;
+  const code = touchesDebit ? row.debitAccountCode : row.creditAccountCode;
+  const debitNormal = accountNormalIsDebit(code);
+  if (touchesDebit) return debitNormal ? amount : -amount;
+  return debitNormal ? -amount : amount;
+}
+
 const postSchema = z
   .object({
     type: z.nativeEnum(TxType),
@@ -273,7 +298,9 @@ const postSchema = z
     expensePaymentMode: z.enum(["PAID", "ACCOUNTS_PAYABLE"]).optional(),
     projectId: z.number().int().positive().optional(),
     transferFromAccountKey: z.string().max(40).optional(),
-    transferToAccountKey: z.string().max(40).optional()
+    transferToAccountKey: z.string().max(40).optional(),
+    correctionOfId: z.number().int().positive().optional(),
+    reversalReason: z.string().trim().min(1).max(500).optional()
   })
   .refine((data) => validateAmountForCurrency(data.amount, data.currency), {
     message: "Amount must match currency rules (EUR/USD: max 2 decimals; UGX: whole numbers only)",
@@ -294,11 +321,18 @@ const updateSchema = z
     expensePaymentMode: z.enum(["PAID", "ACCOUNTS_PAYABLE"]).optional().nullable(),
     projectId: z.number().int().positive().optional().nullable(),
     transferFromAccountKey: z.string().max(40).optional().nullable(),
-    transferToAccountKey: z.string().max(40).optional().nullable()
+    transferToAccountKey: z.string().max(40).optional().nullable(),
+    correctionOfId: z.number().int().positive().optional().nullable(),
+    reversalReason: z.string().trim().min(1).max(500).optional().nullable()
   })
   .refine((val) => Object.keys(val).length > 0, {
     message: "No fields to update"
   });
+
+const reverseSchema = z.object({
+  mode: z.enum(["FULL", "CORRECTING"]),
+  reason: z.string().trim().min(1).max(500)
+});
 
 router.get("/preview-reference", async (_req, res) => {
   const ref = await peekNextReferenceNumber();
@@ -370,16 +404,14 @@ router.get("/", async (req, res) => {
     directorCapitalCodeById.set(d.id, { code: 3110 + idx * 10, name: d.name });
   });
 
-  const fetchAllForAccountFilter = Boolean(accountKey);
   const rows = await prisma.transaction.findMany({
-      where,
-      orderBy: { date: "desc" },
-      ...(fetchAllForAccountFilter ? {} : { skip: offset, take: limit }),
-      include: {
-        director: true,
-        project: { select: { id: true, code: true, name: true } }
-      }
-    });
+    where,
+    orderBy: [{ date: "asc" }, { referenceNumber: "asc" }],
+    include: {
+      director: true,
+      project: { select: { id: true, code: true, name: true } }
+    }
+  });
   const createdByIds = [...new Set(rows.map((t) => t.createdBy).filter((n): n is number => n != null))];
   const users = createdByIds.length
     ? await prisma.user.findMany({
@@ -392,16 +424,36 @@ router.get("/", async (req, res) => {
     postedByNameByUserId.set(u.id, u.director?.name || u.email);
   }
 
-  const shaped = rows.map((t) => shapeTransactionRow(t, directorCapitalCodeById, postedByNameByUserId));
-  const filteredByAccount = accountKey
+  const shaped: any[] = rows.map((t) => shapeTransactionRow(t, directorCapitalCodeById, postedByNameByUserId));
+
+  const allByAccount = accountKey
     ? shaped.filter((t) => t.debitAccountKey === accountKey || t.creditAccountKey === accountKey)
     : shaped;
-  const total = filteredByAccount.length;
-  const items = fetchAllForAccountFilter ? filteredByAccount.slice(offset, offset + limit) : filteredByAccount;
-  const sumAmount = filteredByAccount.reduce((s, t) => s + Number(t.amount || 0), 0);
-  const count = filteredByAccount.length;
+
+  // Running balances are calculated server-side in chronological order.
+  const balancesByAccount = new Map<string, number>();
+  let openingBalance = 0;
+  for (const row of allByAccount) {
+    const key = accountKey || row.debitAccountKey || "";
+    if (!key) continue;
+    const prev = balancesByAccount.get(key) || 0;
+    const next = prev + runningDeltaForRow(row, key);
+    balancesByAccount.set(key, next);
+    row.runningBalance = next;
+    row.runningBalanceAccountKey = key;
+    row.ledgerAccountCode = key === row.debitAccountKey ? row.debitAccountCode : row.creditAccountCode;
+    row.ledgerAccountName = key === row.debitAccountKey ? row.debitAccountName : row.creditAccountName;
+    if (accountKey && row === allByAccount[0]) openingBalance = 0;
+  }
+  const closingBalance = accountKey ? balancesByAccount.get(accountKey) || 0 : null;
+
+  const total = allByAccount.length;
+  const pagedChronological = allByAccount.slice(offset, offset + limit);
+  const items = pagedChronological.reverse();
+  const sumAmount = allByAccount.reduce((s, t) => s + Number(t.amount || 0), 0);
+  const count = allByAccount.length;
   const byType: Record<string, number> = {};
-  for (const t of filteredByAccount) {
+  for (const t of allByAccount) {
     byType[t.type] = (byType[t.type] || 0) + Number(t.amount || 0);
   }
 
@@ -415,8 +467,41 @@ router.get("/", async (req, res) => {
       count,
       avgAmount: count > 0 ? sumAmount / count : 0,
       byType
+    },
+    openingBalance: accountKey ? openingBalance : null,
+    closingBalance
+  });
+});
+
+router.get("/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) return res.status(400).json(apiError("Invalid id"));
+  const t = await prisma.transaction.findUnique({
+    where: { id },
+    include: {
+      director: true,
+      project: { select: { id: true, code: true, name: true } }
     }
   });
+  if (!t) return res.status(404).json(apiError("Transaction not found"));
+  const directors = await prisma.director.findMany({
+    orderBy: { createdAt: "asc" },
+    select: { id: true, name: true }
+  });
+  const directorCapitalCodeById = new Map<number, { code: number; name: string }>();
+  directors.slice(0, 5).forEach((d, idx) => {
+    directorCapitalCodeById.set(d.id, { code: 3110 + idx * 10, name: d.name });
+  });
+  const postingUser =
+    t.createdBy != null
+      ? await prisma.user.findUnique({
+          where: { id: t.createdBy },
+          select: { id: true, email: true, director: { select: { name: true } } }
+        })
+      : null;
+  const postedByNameByUserId = new Map<number, string>();
+  if (postingUser) postedByNameByUserId.set(postingUser.id, postingUser.director?.name ?? postingUser.email);
+  return res.json(shapeTransactionRow(t, directorCapitalCodeById, postedByNameByUserId));
 });
 
 async function validatePostBody(
@@ -479,6 +564,10 @@ router.post("/", validateBody(postSchema), async (req, res) => {
     const p = await prisma.project.findUnique({ where: { id: body.projectId } });
     if (!p) return res.status(400).json(apiError("Project not found", "projectId"));
   }
+  if (body.correctionOfId) {
+    const orig = await prisma.transaction.findUnique({ where: { id: body.correctionOfId } });
+    if (!orig) return res.status(400).json(apiError("Original transaction for correction not found", "correctionOfId"));
+  }
 
   const docStatus =
     body.documentUrl && body.documentUrl.length > 0
@@ -503,6 +592,8 @@ router.post("/", validateBody(postSchema), async (req, res) => {
     projectId: body.projectId ?? null,
     transferFromAccountKey: body.transferFromAccountKey ?? null,
     transferToAccountKey: body.transferToAccountKey ?? null,
+    correctionOfId: body.correctionOfId ?? null,
+    reversalReason: body.reversalReason ?? null,
     createdBy: req.user!.id
   };
 
@@ -629,7 +720,7 @@ router.post("/", validateBody(postSchema), async (req, res) => {
     return res.status(201).json({ ids: createdIds, count: createdIds.length });
   }
 
-  const ref = await allocateNextReferenceNumber();
+  const ref = await allocateNextReferenceNumber({ correction: Boolean(body.correctionOfId) });
   const tx = await prisma.transaction.create({
     data: {
       ...commonData,
@@ -661,17 +752,18 @@ router.post("/", validateBody(postSchema), async (req, res) => {
   return res.status(201).json({ id: tx.id, referenceNumber: ref });
 });
 
-router.post("/:id/reverse", async (req, res) => {
+router.post("/:id/reverse", validateBody(reverseSchema), async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) return res.status(400).json(apiError("Invalid id"));
+  const { mode, reason } = req.body as z.infer<typeof reverseSchema>;
 
   const original = await prisma.transaction.findUnique({ where: { id } });
   if (!original) return res.status(404).json(apiError("Transaction not found"));
   if (original.postingStatus !== TransactionPostingStatus.POSTED) {
     return res.status(400).json(apiError("Only posted transactions can be reversed", "postingStatus"));
   }
-  if (original.reversalOfId) {
-    return res.status(400).json(apiError("Cannot reverse a reversal entry", "reversalOfId"));
+  if (original.reversalOfId || original.correctionOfId) {
+    return res.status(400).json(apiError("Cannot reverse reversal/correction entries", "reversalOfId"));
   }
 
   const ref = await allocateNextReferenceNumber({ reversal: true });
@@ -693,6 +785,7 @@ router.post("/:id/reverse", async (req, res) => {
         documentStatus: original.documentStatus,
         postingStatus: TransactionPostingStatus.POSTED,
         reversalOfId: original.id,
+        reversalReason: reason,
         expensePaymentMode: original.expensePaymentMode,
         projectId: original.projectId,
         transferFromAccountKey: original.transferFromAccountKey,
@@ -711,7 +804,7 @@ router.post("/:id/reverse", async (req, res) => {
         entityType: "Transaction",
         entityId: rev.id,
         before: Prisma.JsonNull,
-        after: { originalId: original.id, reversalId: rev.id }
+        after: { originalId: original.id, reversalId: rev.id, mode, reason }
       }
     });
     return rev;
@@ -722,7 +815,13 @@ router.post("/:id/reverse", async (req, res) => {
     recipient: req.user!.email,
     payload: { referenceNumber: original.referenceNumber }
   });
-  return res.status(201).json({ id: reversal.id, referenceNumber: ref });
+  return res.status(201).json({
+    id: reversal.id,
+    referenceNumber: ref,
+    mode,
+    needsCorrection: mode === "CORRECTING",
+    originalId: original.id
+  });
 });
 
 router.delete("/:id", requireRole("ADMIN"), async (req, res) => {
@@ -799,6 +898,8 @@ router.put("/:id", requireRole("ADMIN"), validateBody(updateSchema), async (req,
   if (body.projectId !== undefined) data.projectId = body.projectId;
   if (body.transferFromAccountKey !== undefined) data.transferFromAccountKey = body.transferFromAccountKey;
   if (body.transferToAccountKey !== undefined) data.transferToAccountKey = body.transferToAccountKey;
+  if (body.correctionOfId !== undefined) data.correctionOfId = body.correctionOfId;
+  if (body.reversalReason !== undefined) data.reversalReason = body.reversalReason;
 
   if (body.directorId !== undefined) {
     const map = body.type ? TX_ACCOUNT_MAP[body.type] : TX_ACCOUNT_MAP[existing.type];

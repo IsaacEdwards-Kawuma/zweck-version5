@@ -356,6 +356,10 @@ model Transaction {
   reversalOfId        Int?
   reversalOf          Transaction? @relation("TransactionReversal", fields: [reversalOfId], references: [id], onDelete: SetNull)
   reversalChildren    Transaction[] @relation("TransactionReversal")
+  correctionOfId      Int?
+  correctionOf        Transaction? @relation("TransactionCorrection", fields: [correctionOfId], references: [id], onDelete: SetNull)
+  correctionChildren  Transaction[] @relation("TransactionCorrection")
+  reversalReason      String? @db.VarChar(500)
 
   expensePaymentMode  String?  @db.VarChar(24)
   projectId           Int?
