@@ -12,7 +12,13 @@ import {
   markAllChatRoomsRead,
   unblockChatUser
 } from "../api/chat";
-import { isE2eeAttachmentKind, isE2eeEncryptedBody } from "../lib/chatE2ee";
+const LEGACY_CHAT_CIPHER_PREFIX = "E2EE:v1:";
+function isLegacyChatCiphertext(body) {
+  return typeof body === "string" && body.startsWith(LEGACY_CHAT_CIPHER_PREFIX);
+}
+function isLegacyEncryptedAttachmentKind(kind) {
+  return kind === "IMAGE_E2EE" || kind === "FILE_E2EE";
+}
 
 function kindLabel(kind) {
   switch (kind) {
@@ -416,10 +422,10 @@ export default function Chat() {
                       <span className="text-slate-600 dark:text-slate-400">
                         {" "}
                         —{" "}
-                        {isE2eeAttachmentKind(r.lastMessage.attachmentKind)
-                          ? "Encrypted attachment"
-                          : isE2eeEncryptedBody(r.lastMessage.body)
-                            ? "Encrypted message"
+                        {isLegacyEncryptedAttachmentKind(r.lastMessage.attachmentKind)
+                          ? "Attachment unavailable"
+                          : isLegacyChatCiphertext(r.lastMessage.body)
+                            ? "Message unavailable"
                             : r.lastMessage.body}
                       </span>
                     </div>

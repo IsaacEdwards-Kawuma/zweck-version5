@@ -49,11 +49,6 @@ model User {
   inAppChatMentionsOnly Boolean @default(false)
   /** Set when the user finishes (or skips) the first-run onboarding; null means show onboarding. */
   onboardingCompletedAt DateTime?
-  /**
-   * Public half of an ECDH P-256 key pair (JWK JSON) for DM end-to-end encryption.
-   * Only the public key is stored; private keys remain on the client.
-   */
-  chatPublicKeyJwk String? @db.Text
   createdAt  DateTime  @default(now())
 
   notifications Notification[]

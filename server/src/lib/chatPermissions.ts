@@ -1,7 +1,6 @@
 import { prisma } from "./prisma.js";
 import { apiError } from "./http.js";
 import type { AuthUser } from "../middleware/auth.js";
-import { isE2eeEncryptedBody } from "./chatE2ee.js";
 
 export type ChatRoomForAuth = {
   id: number;
@@ -17,18 +16,12 @@ export function getChatRoomKey(kind: string, id: number): string {
 }
 
 const MAX_BODY = 5000;
-/** Ciphertext + base64 for DM E2EE (AES-GCM); larger than plaintext cap. */
-const MAX_E2EE_BODY = 20000;
-
-function maxBodyLen(trimmed: string): number {
-  return isE2eeEncryptedBody(trimmed) ? MAX_E2EE_BODY : MAX_BODY;
-}
 
 export function normalizeChatBody(body: unknown): string | null {
   if (typeof body !== "string") return null;
   const t = body.trim();
   if (!t) return null;
-  if (t.length > maxBodyLen(t)) return null;
+  if (t.length > MAX_BODY) return null;
   return t;
 }
 
@@ -36,7 +29,7 @@ export function normalizeChatBody(body: unknown): string | null {
 export function normalizeChatBodyWithAttachment(body: unknown, hasAttachment: boolean): string | null {
   if (typeof body !== "string") return null;
   const t = body.trim();
-  if (t.length > maxBodyLen(t)) return null;
+  if (t.length > MAX_BODY) return null;
   if (!t && !hasAttachment) return null;
   return t;
 }

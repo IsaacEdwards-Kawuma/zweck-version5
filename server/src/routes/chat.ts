@@ -20,7 +20,6 @@ import {
 } from "../lib/chatPermissions.js";
 import { getMentionableUserIds, parseMentionEmails, resolveMentionUserIds } from "../lib/chatMentions.js";
 import { getChatIo } from "../socket/chatSocket.js";
-import { isE2eeAttachmentKind, isE2eeEncryptedBody } from "../lib/chatE2ee.js";
 
 const router = Router();
 
@@ -38,10 +37,9 @@ const roomSelectAuth = {
 const uploadRoot = path.join(process.cwd(), "uploads", "chat");
 fs.mkdirSync(uploadRoot, { recursive: true });
 
-/** Encrypted DM blobs are slightly larger than plaintext (IV + tag); keep cap near plaintext max. */
 const chatUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 + 64 * 1024 },
+  limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     cb(null, true);
   }
@@ -182,80 +180,6 @@ async function getMemberClearedBeforeAt(userId: number, roomId: number): Promise
   });
   return m?.clearedBeforeAt ?? null;
 }
-
-const chatPublicKeyJwkSchema = z.object({
-  kty: z.literal("EC"),
-  crv: z.literal("P-256"),
-  x: z.string().min(1).max(200),
-  y: z.string().min(1).max(200),
-  ext: z.boolean().optional(),
-  key_ops: z.array(z.string()).optional()
-});
-
-router.get("/me/crypto", async (req, res) => {
-  const user = req.user!;
-  const row = await prisma.user.findUnique({
-    where: { id: user.id },
-    select: { chatPublicKeyJwk: true }
-  });
-  const raw = row?.chatPublicKeyJwk?.trim();
-  if (!raw) return res.json({ publicKeyJwk: null });
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    return res.json({ publicKeyJwk: parsed });
-  } catch {
-    return res.json({ publicKeyJwk: null });
-  }
-});
-
-router.put("/me/crypto", async (req, res) => {
-  const user = req.user!;
-  const parsed = z.object({ publicKeyJwk: chatPublicKeyJwkSchema }).safeParse(req.body);
-  if (!parsed.success) return res.status(400).json(apiError("Invalid public key", "body"));
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { chatPublicKeyJwk: JSON.stringify(parsed.data.publicKeyJwk) }
-  });
-  res.json({ ok: true });
-});
-
-router.get("/users/:userId/public-key", async (req, res) => {
-  const user = req.user!;
-  const targetId = Number(req.params.userId);
-  if (!Number.isFinite(targetId) || targetId <= 0) return res.status(400).json(apiError("Invalid user id"));
-
-  if (targetId === user.id) {
-    const row = await prisma.user.findUnique({
-      where: { id: user.id },
-      select: { chatPublicKeyJwk: true }
-    });
-    const raw = row?.chatPublicKeyJwk?.trim();
-    if (!raw) return res.json({ publicKeyJwk: null });
-    try {
-      return res.json({ publicKeyJwk: JSON.parse(raw) as unknown });
-    } catch {
-      return res.json({ publicKeyJwk: null });
-    }
-  }
-
-  const a = Math.min(user.id, targetId);
-  const b = Math.max(user.id, targetId);
-  const roomKey = `DM:${a}:${b}`;
-  const dmRoom = await prisma.chatRoom.findUnique({ where: { roomKey }, select: { id: true } });
-  if (!dmRoom) return res.status(403).json(apiError("Forbidden", "user"));
-
-  const row = await prisma.user.findUnique({
-    where: { id: targetId },
-    select: { chatPublicKeyJwk: true }
-  });
-  const raw = row?.chatPublicKeyJwk?.trim();
-  if (!raw) return res.json({ publicKeyJwk: null });
-  try {
-    return res.json({ publicKeyJwk: JSON.parse(raw) as unknown });
-  } catch {
-    return res.json({ publicKeyJwk: null });
-  }
-});
 
 router.get("/rooms", async (req, res) => {
   const user = req.user!;
@@ -707,21 +631,11 @@ router.get("/rooms/:roomId/summary", async (req, res) => {
 
   const otherUserId = room.kind === "DM" ? getOtherDmUserId(room.roomKey, user.id) : null;
 
-  let dmPeerHasPublicKey = false;
-  if (otherUserId != null) {
-    const peer = await prisma.user.findUnique({
-      where: { id: otherUserId },
-      select: { chatPublicKeyJwk: true }
-    });
-    dmPeerHasPublicKey = Boolean(peer?.chatPublicKeyJwk?.trim());
-  }
-
   return res.json({
     room: {
       ...room,
       membership: membership ?? { archivedAt: null, clearedBeforeAt: null },
-      otherUserId,
-      dmPeerHasPublicKey
+      otherUserId
     }
   });
 });
@@ -1047,42 +961,6 @@ router.post(
 
     if (!req.file?.buffer) return res.status(400).json(apiError("File required", "file"));
 
-    const body = req.body as Record<string, unknown> | undefined;
-    const e2eeFlag = body?.e2ee;
-    const e2ee =
-      e2eeFlag === "1" ||
-      e2eeFlag === 1 ||
-      String(e2eeFlag ?? "").toLowerCase() === "true";
-
-    if (e2ee) {
-      if (room.kind !== "DM") {
-        return res.status(400).json(apiError("E2EE attachments are only for direct messages", "e2ee"));
-      }
-      const origSize = Number(body?.originalSize);
-      const clientKind = String(body?.clientKind ?? "")
-        .trim()
-        .toUpperCase();
-      if (!Number.isFinite(origSize) || origSize < 0 || origSize > 10 * 1024 * 1024) {
-        return res.status(400).json(apiError("Invalid originalSize", "originalSize"));
-      }
-      if (clientKind !== "IMAGE" && clientKind !== "FILE") {
-        return res.status(400).json(apiError("clientKind must be IMAGE or FILE", "clientKind"));
-      }
-      const kind = clientKind === "IMAGE" ? "IMAGE_E2EE" : "FILE_E2EE";
-      const orig = sanitizeFilename(req.file.originalname || "file");
-      const fname = `${crypto.randomUUID()}-${orig}`;
-      const full = path.join(uploadRoot, fname);
-      await fs.promises.writeFile(full, req.file.buffer);
-
-      const publicUrl = `/api/uploads/chat/${fname}`;
-      return res.json({
-        attachmentUrl: publicUrl,
-        attachmentKind: kind,
-        attachmentName: req.file.originalname?.slice(0, 255) || orig,
-        attachmentSize: Math.floor(origSize)
-      });
-    }
-
     const mime = (req.file.mimetype || "").toLowerCase();
     const kind = isImageMime(mime) ? "IMAGE" : "FILE";
     const orig = sanitizeFilename(req.file.originalname || "file");
@@ -1136,7 +1014,7 @@ router.patch("/rooms/:roomId/messages/:messageId", async (req, res) => {
   const newBody = normalizeChatBody(parsed.data.body);
   if (!newBody) return res.status(400).json(apiError("Body required", "body"));
 
-  const mentionEmails = isE2eeEncryptedBody(newBody) ? [] : parseMentionEmails(newBody);
+  const mentionEmails = parseMentionEmails(newBody);
   const mentionable = await getMentionableUserIds(roomId, room.kind);
   const mentionedUserIds = await resolveMentionUserIds(mentionEmails, mentionable);
 
@@ -1564,12 +1442,6 @@ router.post("/rooms/:roomId/messages/:messageId/forward", async (req, res) => {
     include: { sender: { select: { email: true } } }
   });
   if (!src) return res.status(404).json(apiError("Message not found"));
-  if (isE2eeEncryptedBody(src.body)) {
-    return res.status(400).json(apiError("Cannot forward end-to-end encrypted messages", "forward"));
-  }
-  if (isE2eeAttachmentKind(src.attachmentKind)) {
-    return res.status(400).json(apiError("Cannot forward end-to-end encrypted attachments", "forward"));
-  }
 
   const bodyText =
     (src.body && src.body.trim()) ||
@@ -1642,7 +1514,7 @@ export async function serveChatAttachmentDownload(req: Request, res: Response) {
     return res.status(404).json(apiError("Not found"));
   }
   const safeName = (msg.attachmentName && sanitizeFilename(msg.attachmentName)) || filename;
-  const isFileKind = msg.attachmentKind === "FILE" || msg.attachmentKind === "FILE_E2EE";
+  const isFileKind = msg.attachmentKind === "FILE";
   res.setHeader(
     "Content-Disposition",
     `${isFileKind ? "attachment" : "inline"}; filename="${safeName}"`

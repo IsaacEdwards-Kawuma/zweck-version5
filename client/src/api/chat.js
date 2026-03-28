@@ -1,20 +1,5 @@
 import api from "./client";
 
-export async function getMyChatCrypto() {
-  const { data } = await api.get("/chat/me/crypto");
-  return data;
-}
-
-export async function putMyChatPublicKey(publicKeyJwk) {
-  const { data } = await api.put("/chat/me/crypto", { publicKeyJwk });
-  return data;
-}
-
-export async function getUserChatPublicKey(userId) {
-  const { data } = await api.get(`/chat/users/${userId}/public-key`);
-  return data;
-}
-
 export async function listChatRooms({ includeArchived = false } = {}) {
   const { data } = await api.get("/chat/rooms", {
     params: includeArchived ? { includeArchived: "1" } : {}
@@ -62,18 +47,9 @@ export async function getChatReadReceipts(roomId, messageId) {
   return data;
 }
 
-/**
- * @param {File|Blob} file
- * @param {{ e2ee?: boolean, originalSize?: number, clientKind?: "IMAGE"|"FILE" }} [options] DM E2EE: encrypt client-side first, then pass e2ee + originalSize + clientKind
- */
-export async function uploadChatAttachment(roomId, file, options = {}) {
+export async function uploadChatAttachment(roomId, file) {
   const form = new FormData();
   form.append("file", file);
-  if (options.e2ee) {
-    form.append("e2ee", "1");
-    form.append("originalSize", String(options.originalSize ?? file.size));
-    form.append("clientKind", options.clientKind || "FILE");
-  }
   const { data } = await api.post(`/chat/rooms/${roomId}/attachments`, form, {
     headers: { "Content-Type": "multipart/form-data" }
   });

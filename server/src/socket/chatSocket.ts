@@ -6,7 +6,6 @@ import { isAuthDisabled } from "../middleware/auth.js";
 import type { AuthUser } from "../middleware/auth.js";
 import { assertUserCanAccessChatRoom, normalizeChatBodyWithAttachment } from "../lib/chatPermissions.js";
 import { getMentionableUserIds, parseMentionEmails, resolveMentionUserIds } from "../lib/chatMentions.js";
-import { isE2eeAttachmentKind, isE2eeEncryptedBody } from "../lib/chatE2ee.js";
 import { extractFirstHttpUrl, fetchLinkPreview } from "../lib/linkPreview.js";
 import { EMAIL_EVENTS, enqueueEmail } from "../services/emailBus.js";
 
@@ -234,7 +233,7 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
         }
         const attachmentUrl =
           typeof obj.attachmentUrl === "string" && obj.attachmentUrl.trim() ? obj.attachmentUrl.trim() : null;
-        const allowedKinds = new Set(["IMAGE", "FILE", "IMAGE_E2EE", "FILE_E2EE"]);
+        const allowedKinds = new Set(["IMAGE", "FILE"]);
         const attachmentKind =
           typeof obj.attachmentKind === "string" && allowedKinds.has(obj.attachmentKind)
             ? obj.attachmentKind
@@ -256,10 +255,6 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
         if (!room) throw new Error("Room not found");
 
         await assertUserCanAccessChatRoom(user, room);
-
-        if (attachmentKind && isE2eeAttachmentKind(attachmentKind) && room.kind !== "DM") {
-          throw new Error("Encrypted attachments are only for direct messages");
-        }
 
         if (room.kind === "GROUP" && room.adminOnlyPost) {
           if (user.role !== "ADMIN" && user.id !== room.createdById) {
@@ -291,8 +286,7 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
           if (!parent) throw new Error("Reply target not found");
         }
 
-        const mentionEmails =
-          room.kind === "DM" && isE2eeEncryptedBody(body ?? "") ? [] : parseMentionEmails(body ?? "");
+        const mentionEmails = parseMentionEmails(body ?? "");
         const mentionable = await getMentionableUserIds(roomId, room.kind);
         const mentionedUserIds = await resolveMentionUserIds(mentionEmails, mentionable);
 
@@ -398,12 +392,7 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
           };
 
           const senderLabel = out.senderEmail ? `from ${out.senderEmail}` : "new message";
-          const preview =
-            room.kind === "DM" && isE2eeEncryptedBody(body ?? "")
-              ? "[encrypted message]"
-              : room.kind === "DM" && attachmentKind && isE2eeAttachmentKind(attachmentKind)
-                ? "[encrypted attachment]"
-                : body?.slice(0, 200) || (hasAttachment ? "[attachment]" : "");
+          const preview = body?.slice(0, 200) || (hasAttachment ? "[attachment]" : "");
           const title =
             room.kind === "DM"
               ? `DM ${senderLabel}`
@@ -444,8 +433,7 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
         io.to(String(roomId)).emit("chat:messageCreated", out);
         ack?.({ ok: true, messageId: message.id });
 
-        const url =
-          room.kind === "DM" && isE2eeEncryptedBody(body ?? "") ? null : extractFirstHttpUrl(body ?? "");
+        const url = extractFirstHttpUrl(body ?? "");
         if (url) {
           void (async () => {
             const preview = await fetchLinkPreview(url);
