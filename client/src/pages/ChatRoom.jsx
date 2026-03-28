@@ -376,7 +376,7 @@ export default function ChatRoom() {
       if (!isE2eeEncryptedBody(m.body)) return m.body;
       const v = dmDecryptMap[m.id];
       if (v === undefined) return "…";
-      if (v === null) return "🔒 Unable to decrypt";
+      if (v === null) return "🔒 …";
       return v;
     },
     [dmDecryptMap]
