@@ -29,6 +29,21 @@ function kindLabel(kind) {
   }
 }
 
+function kindEmoji(kind) {
+  switch (kind) {
+    case "DM":
+      return "💬";
+    case "GROUP":
+      return "👥";
+    case "MEETING":
+      return "📅";
+    case "PROJECT":
+      return "📁";
+    default:
+      return "◆";
+  }
+}
+
 function roomSubtitle(room) {
   if (room.kind === "MEETING" && room.meetingId) return `Meeting #${room.meetingId}`;
   if (room.kind === "PROJECT" && room.projectId) return `Project #${room.projectId}`;
@@ -183,38 +198,72 @@ export default function Chat() {
   if (qRooms.error) return <ErrorBanner error={qRooms.error} />;
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8 pb-12">
-      <header className="space-y-2">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">Chat</h1>
-          {totalUnread > 0 ? (
-            <span
-              className="rounded-full bg-rose-600 px-2.5 py-1 text-xs font-semibold text-white shadow-sm"
-              title="Unread across all rooms"
-            >
-              {totalUnread > 99 ? "99+" : totalUnread} unread
-            </span>
-          ) : null}
+    <div className="relative mx-auto max-w-4xl space-y-8 pb-12">
+      <div
+        className="pointer-events-none absolute -left-6 top-0 h-40 w-40 rounded-full bg-brand-400/10 blur-3xl dark:bg-brand-500/15 sm:-left-10"
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none absolute -right-4 top-24 h-32 w-32 rounded-full bg-accent-400/15 blur-3xl dark:bg-accent-500/10 sm:-right-8"
+        aria-hidden
+      />
+
+      <header className="ui-animate-in relative space-y-3">
+        <div className="flex flex-wrap items-end gap-4">
+          <div
+            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500/20 via-white/80 to-accent-400/25 text-2xl shadow-sm ring-1 ring-brand-500/15 dark:from-brand-400/15 dark:via-slate-900/80 dark:to-accent-500/20 dark:ring-brand-400/20"
+            aria-hidden
+          >
+            💬
+          </div>
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">Chat</h1>
+              {totalUnread > 0 ? (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full bg-rose-600 px-2.5 py-1 text-xs font-semibold text-white shadow-md ring-2 ring-rose-500/30 motion-safe:animate-pulse"
+                  title="Unread across all rooms"
+                >
+                  <span aria-hidden>🔔</span>
+                  {totalUnread > 99 ? "99+" : totalUnread} new
+                </span>
+              ) : (
+                <span className="rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-medium text-emerald-800 dark:text-emerald-200/90">
+                  <span className="mr-1" aria-hidden>
+                    ✓
+                  </span>
+                  All caught up
+                </span>
+              )}
+            </div>
+            <div
+              className="h-1 w-24 rounded-full bg-gradient-to-r from-brand-500 via-sky-400 to-accent-400 opacity-90 shadow-sm"
+              aria-hidden
+            />
+            <p className="max-w-2xl text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+              {showArchived
+                ? "You’re viewing archived rooms. Unarchive from inside a room to bring it back to your main list."
+                : "Direct messages, groups, and linked meeting or project rooms — all in one place."}
+            </p>
+          </div>
         </div>
-        <p className="max-w-2xl text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-          {showArchived
-            ? "You’re viewing archived rooms. Unarchive from inside a room to bring it back to your main list."
-            : "Direct messages, groups, and linked meeting or project rooms — all in one place."}
-        </p>
       </header>
 
-      <div className="flex flex-wrap gap-3">
+      <div className="motion-safe:ui-animate-in motion-safe:[animation-delay:70ms] flex flex-wrap gap-3">
         <button
           type="button"
-          className="rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 disabled:opacity-50 dark:bg-brand-600 dark:hover:bg-brand-500"
+          className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition hover:bg-brand-700 hover:shadow-lg active:scale-[0.99] disabled:opacity-50 dark:bg-brand-600 dark:hover:bg-brand-500"
           onClick={() => setShowDmModal(true)}
           disabled={mCreateDm.isPending}
         >
+          <span aria-hidden className="text-base leading-none">
+            ✉️
+          </span>
           New chat
         </button>
         <button
           type="button"
-          className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-brand-300/60 hover:bg-slate-50 hover:shadow-md active:scale-[0.99] disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-brand-600/50 dark:hover:bg-slate-800"
           onClick={() => {
             setShowGroupModal(true);
             setGroupTitle("");
@@ -223,14 +272,19 @@ export default function Chat() {
           }}
           disabled={mCreateGroup.isPending}
         >
+          <span aria-hidden className="text-base leading-none">
+            👥
+          </span>
           New group
         </button>
       </div>
 
-      <section className="rounded-2xl border border-slate-200/90 bg-white/60 p-4 shadow-sm dark:border-slate-700/80 dark:bg-slate-900/25 sm:p-5">
+      <section className="motion-safe:ui-animate-in motion-safe:[animation-delay:120ms] rounded-2xl border border-slate-200/90 bg-white/70 p-4 shadow-md backdrop-blur-sm dark:border-slate-700/80 dark:bg-slate-900/30 sm:p-5">
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="space-y-1.5">
-            <label className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Sort</label>
+            <label className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              <span aria-hidden>↕️</span> Sort
+            </label>
             <select
               className="ui-input w-full"
               value={sortMode}
@@ -253,7 +307,9 @@ export default function Chat() {
             </select>
           </div>
           <div className="space-y-1.5">
-            <label className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Search</label>
+            <label className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              <span aria-hidden>🔍</span> Search
+            </label>
             <input
               className="ui-input w-full"
               placeholder="Filter by title or room…"
@@ -294,34 +350,49 @@ export default function Chat() {
       </section>
 
       {sortedFiltered.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 px-6 py-12 text-center text-sm text-slate-600 dark:border-slate-600 dark:bg-slate-900/20 dark:text-slate-400">
-          {rooms.length === 0
-            ? "No conversations yet. Start with New chat or New group above."
-            : "Nothing matches these filters. Try clearing search or changing the type."}
+        <div className="ui-animate-in rounded-2xl border border-dashed border-slate-200/90 bg-gradient-to-b from-slate-50/80 to-white/50 px-6 py-14 text-center text-sm text-slate-600 shadow-inner dark:border-slate-600 dark:from-slate-900/40 dark:to-slate-950/30 dark:text-slate-400">
+          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-3xl shadow-sm ring-1 ring-slate-200/80 dark:bg-slate-800 dark:ring-slate-600" aria-hidden>
+            📭
+          </div>
+          <p className="font-medium text-slate-700 dark:text-slate-300">
+            {rooms.length === 0
+              ? "No conversations yet. Start with New chat or New group above."
+              : "Nothing matches these filters. Try clearing search or changing the type."}
+          </p>
         </div>
       ) : null}
 
       <ul className="space-y-4">
-        {sortedFiltered.map((r) => (
+        {sortedFiltered.map((r, i) => (
           <li
             key={r.id}
-            className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white text-left shadow-sm transition hover:border-brand-300/60 hover:shadow-md dark:border-slate-700 dark:bg-slate-900/40 dark:hover:border-brand-600/50"
+            className="group ui-chat-list-item motion-safe:ui-animate-in overflow-hidden rounded-2xl border border-slate-200/90 bg-white text-left shadow-sm hover:border-brand-300/60 hover:shadow-lg dark:border-slate-700 dark:bg-slate-900/40 dark:hover:border-brand-600/50"
+            style={{ animationDelay: `${Math.min(i, 14) * 42}ms` }}
           >
             <button
               type="button"
-              className="w-full p-5 text-left"
+              className="relative w-full p-5 text-left transition-colors"
               onClick={() => navigate(`/chat/rooms/${r.id}`)}
             >
-              <div className="flex items-start gap-4">
+              <span
+                className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 translate-x-2 text-lg opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-100 motion-reduce:translate-x-0 motion-reduce:opacity-100"
+                aria-hidden
+              >
+                →
+              </span>
+              <div className="flex items-start gap-4 pr-6">
                 <div
-                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-100 to-brand-50 text-sm font-bold text-brand-900 dark:from-brand-900/60 dark:to-brand-950/40 dark:text-brand-100"
+                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-100 to-brand-50 text-sm font-bold text-brand-900 shadow-inner ring-1 ring-brand-200/50 dark:from-brand-900/60 dark:to-brand-950/40 dark:text-brand-100 dark:ring-brand-700/40"
                   aria-hidden
                 >
                   {roomAvatarLetters(r)}
                 </div>
                 <div className="min-w-0 flex-1 space-y-3">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="rounded-lg bg-brand-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-brand-800 dark:bg-brand-950/50 dark:text-brand-200">
+                    <span className="inline-flex items-center gap-1 rounded-lg bg-brand-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-brand-800 dark:bg-brand-950/50 dark:text-brand-200">
+                      <span aria-hidden className="text-[13px] leading-none">
+                        {kindEmoji(r.kind)}
+                      </span>
                       {kindLabel(r.kind)}
                     </span>
                     {r.archived ? (
@@ -379,12 +450,13 @@ export default function Chat() {
             <div className="flex justify-end border-t border-slate-100 bg-slate-50/50 px-4 py-2 dark:border-slate-800 dark:bg-slate-950/30">
               <button
                 type="button"
-                className="text-xs font-medium text-slate-500 hover:text-brand-700 dark:text-slate-400 dark:hover:text-brand-300"
+                className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 transition hover:text-brand-700 dark:text-slate-400 dark:hover:text-brand-300"
                 onClick={() => {
                   const path = `${window.location.origin}/chat/rooms/${r.id}`;
                   void navigator.clipboard.writeText(path).catch(() => {});
                 }}
               >
+                <span aria-hidden>🔗</span>
                 Copy room link
               </button>
             </div>
@@ -393,11 +465,15 @@ export default function Chat() {
       </ul>
 
       {showDmModal ? (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 p-4">
-          <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-4 shadow-lg dark:border-slate-700 dark:bg-slate-950/60">
+        <div className="ui-modal-backdrop fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-[2px]">
+          <div className="ui-modal-panel w-full max-w-md overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-2xl ring-1 ring-slate-200/50 dark:border-slate-700 dark:bg-slate-950/90 dark:ring-slate-700/80">
+            <div className="h-1.5 bg-gradient-to-r from-brand-500 via-sky-400 to-accent-400" aria-hidden />
+            <div className="p-5">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">New chat</div>
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  <span aria-hidden>✉️</span> New chat
+                </div>
                 <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">Type the other user email.</div>
               </div>
               <button
@@ -461,16 +537,21 @@ export default function Chat() {
                 Create chat
               </button>
             </form>
+            </div>
           </div>
         </div>
       ) : null}
 
       {showGroupModal ? (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 p-4">
-          <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-4 shadow-lg dark:border-slate-700 dark:bg-slate-950/60">
+        <div className="ui-modal-backdrop fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-[2px]">
+          <div className="ui-modal-panel w-full max-w-md overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-2xl ring-1 ring-slate-200/50 dark:border-slate-700 dark:bg-slate-950/90 dark:ring-slate-700/80">
+            <div className="h-1.5 bg-gradient-to-r from-brand-500 via-sky-400 to-accent-400" aria-hidden />
+            <div className="p-5">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">New group</div>
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  <span aria-hidden>👥</span> New group
+                </div>
                 <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">Pick members from the list.</div>
               </div>
               <button
@@ -558,15 +639,20 @@ export default function Chat() {
                 Create group
               </button>
             </form>
+            </div>
           </div>
         </div>
       ) : null}
 
       {showBlocked ? (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 p-4">
-          <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-4 shadow-lg dark:border-slate-700 dark:bg-slate-950/60">
+        <div className="ui-modal-backdrop fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-[2px]">
+          <div className="ui-modal-panel w-full max-w-md overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-2xl ring-1 ring-slate-200/50 dark:border-slate-700 dark:bg-slate-950/90 dark:ring-slate-700/80">
+            <div className="h-1.5 bg-gradient-to-r from-rose-400 via-slate-400 to-brand-500" aria-hidden />
+            <div className="p-5">
             <div className="flex items-center justify-between gap-3">
-              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">Blocked users</div>
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                <span aria-hidden>🚫</span> Blocked users
+              </div>
               <button type="button" className="ui-btn-outline-xs" onClick={() => setShowBlocked(false)}>
                 Close
               </button>
@@ -602,6 +688,7 @@ export default function Chat() {
                 ))}
               </ul>
             )}
+            </div>
           </div>
         </div>
       ) : null}
