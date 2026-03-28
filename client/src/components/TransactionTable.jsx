@@ -9,6 +9,7 @@ function refDisplay(r) {
 }
 
 function postingLabel(s) {
+  if (s === "REVERSED") return "Reversed";
   if (s === "PENDING") return "Pending";
   if (s === "POSTED" || s == null) return "Posted";
   return String(s);

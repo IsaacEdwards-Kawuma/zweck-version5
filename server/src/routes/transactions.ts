@@ -63,6 +63,9 @@ function shapeTransactionRow(
     projectId: number | null;
     transferFromAccountKey: string | null;
     transferToAccountKey: string | null;
+    reversalOfId: number | null;
+    reversedByTransactionId: number | null;
+    reversalReason: string | null;
     director: {
       id: number;
       name: string;
@@ -104,10 +107,13 @@ function shapeTransactionRow(
   }
   const postedBy = t.createdBy != null ? postedByNameByUserId.get(t.createdBy) ?? "—" : "System";
 
-  const debit = map.debit === "bank" ? "bank" : map.debit;
-  const credit = map.credit === "bank" ? "bank" : map.credit;
-  const debitParts = resolveAccountParts(debit);
-  const creditParts = resolveAccountParts(credit);
+  let debit = map.debit === "bank" ? "bank" : map.debit;
+  let credit = map.credit === "bank" ? "bank" : map.credit;
+  let debitParts = resolveAccountParts(debit);
+  let creditParts = resolveAccountParts(credit);
+  if (t.reversalOfId) {
+    [debitParts, creditParts] = [creditParts, debitParts];
+  }
 
   return {
     id: t.id,
@@ -117,6 +123,9 @@ function shapeTransactionRow(
     documentUrl: t.documentUrl,
     documentStatus: t.documentStatus,
     postingStatus: t.postingStatus,
+    reversalOfId: t.reversalOfId,
+    reversedByTransactionId: t.reversedByTransactionId,
+    reversalReason: t.reversalReason,
     type: t.type,
     date: t.date,
     amount: t.amount,
@@ -212,6 +221,10 @@ const updateSchema = z
     message: "No fields to update"
   });
 
+const reverseSchema = z.object({
+  reason: z.string().trim().min(1).max(500)
+});
+
 router.get("/preview-reference", async (_req, res) => {
   const ref = await peekNextReferenceNumber();
   return res.json({ referenceNumber: ref });
@@ -247,7 +260,7 @@ router.get("/", async (req, res) => {
     where.date = dateFilter;
   }
   if (type) where.type = type as TxType;
-  if (status === "POSTED" || status === "PENDING") {
+  if (status === "POSTED" || status === "PENDING" || status === "REVERSED") {
     where.postingStatus = status as TransactionPostingStatus;
   }
   if (status === "DOCUMENT_MISSING") {
@@ -349,6 +362,87 @@ router.get("/", async (req, res) => {
   });
 });
 
+router.post("/:id/reverse", requireRole("ADMIN"), validateBody(reverseSchema), async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) return res.status(400).json(apiError("Invalid id"));
+  const { reason } = req.body as z.infer<typeof reverseSchema>;
+
+  const original = await prisma.transaction.findUnique({
+    where: { id },
+    include: { reversalEntries: true }
+  });
+  if (!original) return res.status(404).json(apiError("Transaction not found"));
+  if (original.postingStatus !== TransactionPostingStatus.POSTED) {
+    return res.status(400).json(apiError("Only posted transactions can be reversed", "postingStatus"));
+  }
+  if (original.reversalOfId != null) {
+    return res.status(400).json(apiError("Cannot reverse a reversal entry", "reversalOfId"));
+  }
+  if (original.reversedByTransactionId != null || original.reversalEntries.length > 0) {
+    return res.status(400).json(apiError("Transaction already reversed", "reversedByTransactionId"));
+  }
+
+  const ref = await allocateNextReferenceNumber({ reversal: true });
+  const now = new Date();
+
+  const reversal = await prisma.$transaction(async (tx) => {
+    const rev = await tx.transaction.create({
+      data: {
+        referenceNumber: ref,
+        type: original.type,
+        date: now,
+        amount: original.amount,
+        currency: original.currency,
+        description: original.description
+          ? `Reversal: ${original.description}`
+          : `Reversal of ${original.referenceNumber}`,
+        directorId: original.directorId,
+        externalReference: original.externalReference,
+        documentUrl: original.documentUrl,
+        documentStatus: original.documentStatus,
+        postingStatus: TransactionPostingStatus.POSTED,
+        expensePaymentMode: null,
+        projectId: original.projectId,
+        transferFromAccountKey: original.transferFromAccountKey,
+        transferToAccountKey: original.transferToAccountKey,
+        reversalOfId: original.id,
+        reversalReason: reason,
+        createdBy: req.user!.id
+      }
+    });
+    await tx.transaction.update({
+      where: { id: original.id },
+      data: {
+        postingStatus: TransactionPostingStatus.REVERSED,
+        reversedByTransactionId: rev.id
+      }
+    });
+    await tx.auditLog.create({
+      data: {
+        userId: req.user!.id,
+        action: "REVERSE_TRANSACTION",
+        entityType: "Transaction",
+        entityId: rev.id,
+        before: Prisma.JsonNull,
+        after: { originalId: original.id, reversalId: rev.id, reason } as unknown as Prisma.InputJsonValue
+      }
+    });
+    return rev;
+  });
+
+  enqueueEmail({
+    type: EMAIL_EVENTS.TX_REVERSED,
+    recipient: req.user!.email,
+    payload: { referenceNumber: original.referenceNumber }
+  });
+
+  return res.status(201).json({
+    id: reversal.id,
+    referenceNumber: ref,
+    originalId: original.id
+  });
+});
+
 router.get("/:id", async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) return res.status(400).json(apiError("Invalid id"));
@@ -444,8 +538,16 @@ router.delete("/:id", requireRole("ADMIN"), async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) return res.status(400).json(apiError("Invalid id"));
 
-  const existing = await prisma.transaction.findUnique({ where: { id } });
+  const existing = await prisma.transaction.findUnique({
+    where: { id },
+    include: { reversalEntries: true }
+  });
   if (!existing) return res.status(404).json(apiError("Transaction not found"));
+  if (existing.reversalOfId != null || existing.reversedByTransactionId != null || existing.reversalEntries.length > 0) {
+    return res
+      .status(400)
+      .json(apiError("Cannot delete a transaction that is part of a reversal pair. Reverse links must stay auditable.", "id"));
+  }
 
   await prisma.$transaction([
     prisma.transaction.delete({ where: { id } }),
@@ -474,6 +576,9 @@ router.put("/:id", requireRole("ADMIN"), validateBody(updateSchema), async (req,
     return res
       .status(400)
       .json(apiError("Posted transactions cannot be edited. Delete and re-post if you need to correct an amount.", "postingStatus"));
+  }
+  if (existing.postingStatus === TransactionPostingStatus.REVERSED || existing.reversalOfId != null) {
+    return res.status(400).json(apiError("Reversal entries cannot be edited.", "postingStatus"));
   }
 
   const body = req.body as z.infer<typeof updateSchema>;

@@ -334,6 +334,7 @@ enum DocumentStatus {
 enum TransactionPostingStatus {
   POSTED
   PENDING
+  REVERSED
 }
 
 model ReferenceSequence {
@@ -363,6 +364,18 @@ model Transaction {
   project               Project? @relation("ProjectAccountingTransactions", fields: [projectId], references: [id], onDelete: SetNull)
   transferFromAccountKey String? @db.VarChar(40)
   transferToAccountKey   String? @db.VarChar(40)
+
+  /** Set on a reversal row: points to the original transaction being reversed. */
+  reversalOfId          Int?
+  originalTransaction   Transaction? @relation("TxnReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  reversalEntries       Transaction[] @relation("TxnReversal")
+
+  /** Set on the original after reversal: FK to the reversing transaction row. */
+  reversedByTransactionId Int? @unique
+  reversalRow             Transaction? @relation("TxnOriginalToReversal", fields: [reversedByTransactionId], references: [id], onDelete: Restrict)
+  originalForThisReversal Transaction? @relation("TxnOriginalToReversal")
+
+  reversalReason String? @db.VarChar(500)
 
   createdBy   Int
   createdAt   DateTime  @default(now())

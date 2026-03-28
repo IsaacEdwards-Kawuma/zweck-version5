@@ -1,10 +1,17 @@
 import { Router } from "express";
+import { TransactionPostingStatus, TxType } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { deriveBalances } from "../lib/derive.js";
 import { apiError } from "../lib/http.js";
 import { ACCOUNTS } from "../lib/constants.js";
 
 const router = Router();
+
+/** Positive "capital" display = negated derived equity line (see `derive.ts` sign convention). */
+function directorCapitalDisplay(balances: Record<string, number>, directorId: number): number {
+  const raw = Number(balances[`director_capital_${directorId}`] || 0);
+  return -raw;
+}
 
 function withEquityShareFromContribution<T extends { capital: number }>(rows: T[]) {
   const totalContribution = rows.reduce((s, r) => s + (Number(r.capital) || 0), 0);
@@ -21,7 +28,8 @@ router.get("/balances", async (_req, res) => {
       amount: true,
       currency: true,
       directorId: true,
-      postingStatus: true
+      postingStatus: true,
+      reversalOfId: true
     }
   });
   const balances = deriveBalances(txs as any);
@@ -43,22 +51,26 @@ router.get("/director/:id", async (req, res) => {
   });
   if (!director) return res.status(404).json(apiError("Director not found"));
 
-  const txs = await prisma.transaction.findMany({
-    where: { directorId: id, type: "CONTRIBUTION" },
-    select: { type: true, amount: true }
+  const allForDerive = await prisma.transaction.findMany({
+    select: {
+      type: true,
+      amount: true,
+      currency: true,
+      directorId: true,
+      postingStatus: true,
+      reversalOfId: true
+    }
   });
+  const balances = deriveBalances(allForDerive as any);
+  const capital = directorCapitalDisplay(balances as Record<string, number>, id);
 
-  let capital = 0;
-  const sideFund = 0;
-  for (const t of txs) {
-    if (t.type === "CONTRIBUTION") capital += t.amount;
+  const directorsAll = await prisma.director.findMany({ select: { id: true } });
+  let contributionBase = 0;
+  for (const d of directorsAll) {
+    contributionBase += directorCapitalDisplay(balances as Record<string, number>, d.id);
   }
-  const totalContribution = await prisma.transaction.aggregate({
-    where: { type: "CONTRIBUTION", directorId: { not: null } },
-    _sum: { amount: true }
-  });
-  const contributionBase = Number(totalContribution._sum.amount || 0);
   const equitySharePct = contributionBase > 0 ? Math.round(((capital / contributionBase) * 100) * 100) / 100 : 0;
+  const sideFund = 0;
   return res.json({ director, capital, sideFund, total: capital + sideFund, equitySharePct });
 });
 
@@ -68,23 +80,23 @@ router.get("/directors/all", async (_req, res) => {
     select: { id: true, name: true, initials: true, email: true, active: true, avatarUrl: true, createdAt: true }
   });
 
-  const txs = await prisma.transaction.findMany({
-    where: { directorId: { not: null }, type: "CONTRIBUTION" },
-    select: { directorId: true, type: true, amount: true }
+  const allForDerive = await prisma.transaction.findMany({
+    select: {
+      type: true,
+      amount: true,
+      currency: true,
+      directorId: true,
+      postingStatus: true,
+      reversalOfId: true
+    }
   });
-
-  const totals = new Map<number, { capital: number; sideFund: number }>();
-  for (const d of directors) totals.set(d.id, { capital: 0, sideFund: 0 });
-  for (const t of txs) {
-    if (!t.directorId) continue;
-    const cur = totals.get(t.directorId) ?? { capital: 0, sideFund: 0 };
-    if (t.type === "CONTRIBUTION") cur.capital += t.amount;
-    totals.set(t.directorId, cur);
-  }
+  const balances = deriveBalances(allForDerive as any);
+  const b = balances as Record<string, number>;
 
   const outRaw = directors.map((d) => {
-    const t = totals.get(d.id) ?? { capital: 0, sideFund: 0 };
-    return { ...d, capital: t.capital, sideFund: t.sideFund, total: t.capital + t.sideFund };
+    const capital = directorCapitalDisplay(b, d.id);
+    const sideFund = 0;
+    return { ...d, capital, sideFund, total: capital + sideFund };
   });
   const out = withEquityShareFromContribution(outRaw);
 
@@ -100,23 +112,23 @@ router.get("/directors", async (_req, res) => {
     select: { id: true, name: true, initials: true, email: true, active: true, avatarUrl: true, createdAt: true }
   });
 
-  const txs = await prisma.transaction.findMany({
-    where: { directorId: { not: null }, type: "CONTRIBUTION" },
-    select: { directorId: true, type: true, amount: true }
+  const allForDerive = await prisma.transaction.findMany({
+    select: {
+      type: true,
+      amount: true,
+      currency: true,
+      directorId: true,
+      postingStatus: true,
+      reversalOfId: true
+    }
   });
-
-  const totals = new Map<number, { capital: number; sideFund: number }>();
-  for (const d of directors) totals.set(d.id, { capital: 0, sideFund: 0 });
-  for (const t of txs) {
-    if (!t.directorId) continue;
-    const cur = totals.get(t.directorId) ?? { capital: 0, sideFund: 0 };
-    if (t.type === "CONTRIBUTION") cur.capital += t.amount;
-    totals.set(t.directorId, cur);
-  }
+  const balances = deriveBalances(allForDerive as any);
+  const b = balances as Record<string, number>;
 
   const outRaw = directors.map((d) => {
-    const t = totals.get(d.id) ?? { capital: 0, sideFund: 0 };
-    return { ...d, capital: t.capital, sideFund: t.sideFund, total: t.capital + t.sideFund };
+    const capital = directorCapitalDisplay(b, d.id);
+    const sideFund = 0;
+    return { ...d, capital, sideFund, total: capital + sideFund };
   });
   const out = withEquityShareFromContribution(outRaw);
 
@@ -130,7 +142,8 @@ router.get("/summary", async (_req, res) => {
       amount: true,
       currency: true,
       directorId: true,
-      postingStatus: true
+      postingStatus: true,
+      reversalOfId: true
     }
   });
 

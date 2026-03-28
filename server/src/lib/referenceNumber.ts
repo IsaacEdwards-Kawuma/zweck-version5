@@ -1,7 +1,7 @@
 import { prisma } from "./prisma.js";
 
-/** Sequential ZWK-YYYY-MM-XXXX per calendar month (UTC). */
-export async function allocateNextReferenceNumber(): Promise<string> {
+/** Sequential ZWK-YYYY-MM-XXXX per calendar month (UTC). Reversal refs append `-REV`. */
+export async function allocateNextReferenceNumber(options?: { reversal?: boolean }): Promise<string> {
   const now = new Date();
   const ym = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
   const rows = await prisma.$queryRaw<{ lastSeq: number }[]>`
@@ -11,7 +11,9 @@ export async function allocateNextReferenceNumber(): Promise<string> {
     RETURNING "lastSeq"
   `;
   const seq = rows[0]?.lastSeq ?? 1;
-  return `ZWK-${ym}-${String(seq).padStart(4, "0")}`;
+  const base = `ZWK-${ym}-${String(seq).padStart(4, "0")}`;
+  if (options?.reversal) return `${base}-REV`;
+  return base;
 }
 
 /** Next number preview (does not reserve). */

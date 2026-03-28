@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { TransactionPostingStatus } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { deriveBalances } from "../lib/derive.js";
 
@@ -35,7 +36,8 @@ router.get("/", async (_req, res) => {
       amount: true,
       directorId: true,
       currency: true,
-      postingStatus: true
+      postingStatus: true,
+      reversalOfId: true
     }
   });
   const balances = deriveBalances(txs as any);
@@ -80,7 +82,9 @@ router.get("/", async (_req, res) => {
   for (const t of txs) {
     if (!t.directorId || t.type !== "CONTRIBUTION") continue;
     const cur = totals.get(t.directorId) ?? { capital: 0, sideFund: 0 };
-    if (t.type === "CONTRIBUTION") cur.capital += t.amount;
+    if (t.postingStatus !== TransactionPostingStatus.POSTED) continue;
+    if (t.reversalOfId != null) cur.capital -= t.amount;
+    else cur.capital += t.amount;
     totals.set(t.directorId, cur);
   }
 

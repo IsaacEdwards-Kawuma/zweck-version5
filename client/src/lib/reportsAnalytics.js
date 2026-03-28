@@ -6,6 +6,7 @@ function csvRefDisplay(t) {
 }
 
 function csvPostingLabel(s) {
+  if (s === "REVERSED") return "Reversed";
   if (s === "PENDING") return "Pending";
   if (s === "POSTED" || s == null) return "Posted";
   return String(s);

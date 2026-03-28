@@ -25,6 +25,12 @@ export async function postTransaction(payload) {
   return data;
 }
 
+/** Admin: post a reversing entry for a posted contribution. */
+export async function reverseTransaction(id, payload) {
+  const { data } = await api.post(`/transactions/${id}/reverse`, payload);
+  return data;
+}
+
 export async function uploadTransactionDocument(file) {
   const fd = new FormData();
   fd.append("file", file);

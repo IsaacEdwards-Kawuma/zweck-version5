@@ -90,9 +90,13 @@ Key accounting fields in `Transaction`:
 
 - `referenceNumber`
 - `postingStatus` (`POSTED`, `REVERSED`, `PENDING`)
-- `reversalOfId` (link to original/reversal relationship)
+- `reversalOfId` — set on the **reversing** row (points at the original transaction)
+- `reversedByTransactionId` — set on the **original** after reversal (points at the new row)
+- `reversalReason` — optional text from the admin reversing the entry
 - `documentStatus`
 - `createdBy` and `createdAt`
+
+Reversal behavior: admins call `POST /api/transactions/:id/reverse` with `{ "reason": "..." }`. The server creates a new posted transaction with swapped amounts, links both sides, marks the original as `REVERSED`, and emits `TX_REVERSED` for email. Balance derivation (`deriveBalances`) keeps the original historical effect and applies the offsetting reversal so nets stay correct; director capital uses the same derivation via `/api/accounts/balances` and both `/api/accounts/directors` and `/api/accounts/directors/all`.
 
 ## 6) Authentication and Authorization
 
@@ -146,7 +150,8 @@ For ledger-grade auditability:
 
 - `client/src/pages/Ledger.jsx`
 - `client/src/pages/PostTransaction.jsx`
-- `server/src/routes/transactions.ts`
+- `client/src/api/transactions.js` (includes `reverseTransaction`)
+- `server/src/routes/transactions.ts` (`POST /:id/reverse`, filters, ledger shaping)
 - `server/src/lib/derive.ts`
 - `server/src/lib/constants.ts`
 

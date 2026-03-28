@@ -6,6 +6,7 @@ import ErrorBanner from "../components/ErrorBanner";
 import {
   postTransaction,
   deleteTransaction,
+  reverseTransaction,
   listTransactions,
   txItems,
   getPreviewReference,
@@ -72,6 +73,14 @@ export default function PostTransaction() {
     mutationFn: (id) => deleteTransaction(id),
     onSuccess: async () => {
       setSuccess("Transaction deleted.");
+      await invalidateAll();
+    }
+  });
+
+  const mReverse = useMutation({
+    mutationFn: ({ id, payload }) => reverseTransaction(id, payload),
+    onSuccess: async () => {
+      setSuccess("Reversal posted. Original marked reversed; audit trail preserved.");
       await invalidateAll();
     }
   });
@@ -371,24 +380,46 @@ export default function PostTransaction() {
                     <td className="px-3 py-2 whitespace-nowrap text-right font-semibold">{formatMoney(t.amount, t.currency || "EUR")}</td>
                     <td className="px-3 py-2 text-xs text-slate-600">{t.documentStatus || "—"}</td>
                     <td className="px-3 py-2">
-                      {me?.role === "ADMIN" && (
-                        <button
-                          type="button"
-                          disabled={mDelete.isPending}
-                          className="rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-50"
-                          onClick={() => {
-                            if (
-                              window.confirm(
-                                "Delete this transaction? This will remove it from the ledger and recompute balances."
-                              )
-                            ) {
-                              mDelete.mutate(t.id);
-                            }
-                          }}
-                        >
-                          Delete
-                        </button>
-                      )}
+                      <div className="flex flex-wrap gap-2">
+                        {me?.role === "ADMIN" &&
+                          t.postingStatus === "POSTED" &&
+                          !t.reversalOfId &&
+                          !t.reversedByTransactionId && (
+                            <button
+                              type="button"
+                              className="ui-btn-outline-xs font-medium text-brand-800"
+                              disabled={mReverse.isPending}
+                              onClick={() => {
+                                const reason = (window.prompt("Reversal reason (required for audit):") || "").trim();
+                                if (!reason) {
+                                  window.alert("A reason is required.");
+                                  return;
+                                }
+                                mReverse.mutate({ id: t.id, payload: { reason } });
+                              }}
+                            >
+                              Reverse
+                            </button>
+                          )}
+                        {me?.role === "ADMIN" && (
+                          <button
+                            type="button"
+                            disabled={mDelete.isPending}
+                            className="rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-50"
+                            onClick={() => {
+                              if (
+                                window.confirm(
+                                  "Delete this transaction? This will remove it from the ledger and recompute balances."
+                                )
+                              ) {
+                                mDelete.mutate(t.id);
+                              }
+                            }}
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

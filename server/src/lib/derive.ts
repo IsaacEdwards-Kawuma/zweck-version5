@@ -10,6 +10,8 @@ export type TxForDerive = {
   currency?: string | null;
   directorId?: number | null;
   postingStatus?: TransactionPostingStatus | null;
+  /** Reversal row: mirrors original with swapped debit/credit in apply. */
+  reversalOfId?: number | null;
 };
 
 export function bankKeyForCurrency(currency: string | null | undefined): "bank_ugx" | "bank_usd" | "bank_eur" {
@@ -41,7 +43,9 @@ function applyPair(balances: Record<string, number>, debitKey: string, creditKey
 
 /**
  * Applies one transaction to running balances (double-entry).
- * Only `CONTRIBUTION` is supported: debit bank (by currency), credit director capital.
+ * `CONTRIBUTION`: debit bank, credit director capital.
+ * A reversal row (`reversalOfId` set) swaps debit/credit so it offsets the original posting.
+ * Original rows stay in the journal with `REVERSED` status; both rows are applied so nets stay correct.
  */
 export function applyTransactionToBalances(balances: Record<string, number>, tx: TxForDerive) {
   if (tx.postingStatus === "PENDING") return;
@@ -66,6 +70,10 @@ export function applyTransactionToBalances(balances: Record<string, number>, tx:
     const capKey = resolveCapitalKey(tx);
     if (map.debit === "capital") debit = capKey;
     if (map.credit === "capital") credit = capKey;
+  }
+
+  if (tx.reversalOfId) {
+    [debit, credit] = [credit, debit];
   }
 
   applyPair(balances, debit, credit, amt);
