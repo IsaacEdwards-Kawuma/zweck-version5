@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { TransactionPostingStatus, TxType } from "@prisma/client";
+import { TransactionPostingStatus } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { deriveBalances } from "../lib/derive.js";
 import { apiError } from "../lib/http.js";
@@ -10,6 +10,11 @@ const router = Router();
 /** Positive "capital" display = negated derived equity line (see `derive.ts` sign convention). */
 function directorCapitalDisplay(balances: Record<string, number>, directorId: number): number {
   const raw = Number(balances[`director_capital_${directorId}`] || 0);
+  return -raw;
+}
+
+function directorSideFundDisplay(balances: Record<string, number>, directorId: number): number {
+  const raw = Number(balances[`director_side_fund_${directorId}`] || 0);
   return -raw;
 }
 
@@ -58,19 +63,23 @@ router.get("/director/:id", async (req, res) => {
       currency: true,
       directorId: true,
       postingStatus: true,
-      reversalOfId: true
+      reversalOfId: true,
+      expensePaymentMode: true,
+      transferFromAccountKey: true,
+      transferToAccountKey: true
     }
   });
   const balances = deriveBalances(allForDerive as any);
-  const capital = directorCapitalDisplay(balances as Record<string, number>, id);
+  const b = balances as Record<string, number>;
+  const capital = directorCapitalDisplay(b, id);
+  const sideFund = directorSideFundDisplay(b, id);
 
   const directorsAll = await prisma.director.findMany({ select: { id: true } });
   let contributionBase = 0;
   for (const d of directorsAll) {
-    contributionBase += directorCapitalDisplay(balances as Record<string, number>, d.id);
+    contributionBase += directorCapitalDisplay(b, d.id);
   }
   const equitySharePct = contributionBase > 0 ? Math.round(((capital / contributionBase) * 100) * 100) / 100 : 0;
-  const sideFund = 0;
   return res.json({ director, capital, sideFund, total: capital + sideFund, equitySharePct });
 });
 
@@ -87,7 +96,10 @@ router.get("/directors/all", async (_req, res) => {
       currency: true,
       directorId: true,
       postingStatus: true,
-      reversalOfId: true
+      reversalOfId: true,
+      expensePaymentMode: true,
+      transferFromAccountKey: true,
+      transferToAccountKey: true
     }
   });
   const balances = deriveBalances(allForDerive as any);
@@ -95,7 +107,7 @@ router.get("/directors/all", async (_req, res) => {
 
   const outRaw = directors.map((d) => {
     const capital = directorCapitalDisplay(b, d.id);
-    const sideFund = 0;
+    const sideFund = directorSideFundDisplay(b, d.id);
     return { ...d, capital, sideFund, total: capital + sideFund };
   });
   const out = withEquityShareFromContribution(outRaw);
@@ -119,7 +131,10 @@ router.get("/directors", async (_req, res) => {
       currency: true,
       directorId: true,
       postingStatus: true,
-      reversalOfId: true
+      reversalOfId: true,
+      expensePaymentMode: true,
+      transferFromAccountKey: true,
+      transferToAccountKey: true
     }
   });
   const balances = deriveBalances(allForDerive as any);
@@ -127,7 +142,7 @@ router.get("/directors", async (_req, res) => {
 
   const outRaw = directors.map((d) => {
     const capital = directorCapitalDisplay(b, d.id);
-    const sideFund = 0;
+    const sideFund = directorSideFundDisplay(b, d.id);
     return { ...d, capital, sideFund, total: capital + sideFund };
   });
   const out = withEquityShareFromContribution(outRaw);
@@ -143,7 +158,10 @@ router.get("/summary", async (_req, res) => {
       currency: true,
       directorId: true,
       postingStatus: true,
-      reversalOfId: true
+      reversalOfId: true,
+      expensePaymentMode: true,
+      transferFromAccountKey: true,
+      transferToAccountKey: true
     }
   });
 
@@ -191,6 +209,14 @@ router.get("/summary", async (_req, res) => {
       code
     };
     balancesForCOA[key] = Number((balancesBase as any)[key]) || 0;
+
+    const sfKey = `director_side_fund_${d.id}`;
+    accountsForCOA[sfKey] = {
+      name: `Side Fund — ${d.name}`,
+      group: "Equity",
+      code: 3201 + idx
+    };
+    balancesForCOA[sfKey] = Number((balancesBase as any)[sfKey]) || 0;
   });
 
   function sumGroupCOA(group: "Assets" | "Liabilities" | "Equity" | "Income" | "Expenses") {

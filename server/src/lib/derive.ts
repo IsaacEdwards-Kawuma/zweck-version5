@@ -1,5 +1,5 @@
 import type { TransactionPostingStatus, TxType } from "@prisma/client";
-import { ACCOUNTS, emptyBalances, TX_ACCOUNT_MAP, type AccountKey } from "./constants.js";
+import { ACCOUNTS, emptyBalances, isExpenseTxType, TX_ACCOUNT_MAP, type AccountKey } from "./constants.js";
 
 export type Balances = Record<AccountKey, number> & Record<string, number>;
 
@@ -9,9 +9,11 @@ export type TxForDerive = {
   amount: number;
   currency?: string | null;
   directorId?: number | null;
-  postingStatus?: TransactionPostingStatus | null;
-  /** Reversal row: mirrors original with swapped debit/credit in apply. */
+  expensePaymentMode?: string | null;
+  transferFromAccountKey?: string | null;
+  transferToAccountKey?: string | null;
   reversalOfId?: number | null;
+  postingStatus?: TransactionPostingStatus | null;
 };
 
 export function bankKeyForCurrency(currency: string | null | undefined): "bank_ugx" | "bank_usd" | "bank_eur" {
@@ -35,17 +37,28 @@ function resolveCapitalKey(tx: TxForDerive): string {
   return directorCapitalKey(tx.directorId);
 }
 
-/** Signed convention: posting increases debitKey, decreases creditKey. */
-function applyPair(balances: Record<string, number>, debitKey: string, creditKey: string, amount: number) {
-  balances[debitKey] = (balances[debitKey] || 0) + amount;
-  balances[creditKey] = (balances[creditKey] || 0) - amount;
+function applyPair(
+  balances: Record<string, number>,
+  debitKey: string,
+  creditKey: string,
+  amount: number,
+  swap: boolean
+) {
+  const d = swap ? creditKey : debitKey;
+  const c = swap ? debitKey : creditKey;
+  balances[d] = (balances[d] || 0) + amount;
+  balances[c] = (balances[c] || 0) - amount;
 }
 
 /**
  * Applies one transaction to running balances (double-entry).
- * `CONTRIBUTION`: debit bank, credit director capital.
- * A reversal row (`reversalOfId` set) swaps debit/credit so it offsets the original posting.
- * Original rows stay in the journal with `REVERSED` status; both rows are applied so nets stay correct.
+ * - Currency maps `bank` to 1200/1210/1220.
+ * - Director capital uses dynamic keys `director_capital_{id}` (not the 3100 header).
+ * - Director side fund uses `director_side_fund_{id}` when tagged with directorId.
+ * - Expenses with ACCOUNTS_PAYABLE credit 2100 instead of bank.
+ * - Inter-account transfer: debit destination, credit source.
+ * - Reversal rows (`reversalOfId` set) swap debit and credit vs the normal map.
+ * - Original rows with `REVERSED` remain applied so reversal pairs net correctly.
  */
 export function applyTransactionToBalances(balances: Record<string, number>, tx: TxForDerive) {
   if (tx.postingStatus === "PENDING") return;
@@ -56,7 +69,22 @@ export function applyTransactionToBalances(balances: Record<string, number>, tx:
   const map = TX_ACCOUNT_MAP[tx.type];
   if (!map) return;
 
+  const swap = Boolean(tx.reversalOfId);
+
   if ((map.debit === "capital" || map.credit === "capital") && !tx.directorId) {
+    return;
+  }
+  if ((map.debit === "side_fund" || map.credit === "side_fund") && map.needsDirector && !tx.directorId) {
+    return;
+  }
+
+  if (tx.type === "INTER_ACCOUNT_TRANSFER") {
+    const from = tx.transferFromAccountKey as AccountKey | undefined;
+    const to = tx.transferToAccountKey as AccountKey | undefined;
+    if (!from || !to) return;
+    const debitDest = resolveBankKey(to, tx.currency);
+    const creditSrc = resolveBankKey(from, tx.currency);
+    applyPair(balances, debitDest, creditSrc, amt, swap);
     return;
   }
 
@@ -72,11 +100,18 @@ export function applyTransactionToBalances(balances: Record<string, number>, tx:
     if (map.credit === "capital") credit = capKey;
   }
 
-  if (tx.reversalOfId) {
-    [debit, credit] = [credit, debit];
+  if (map.debit === "side_fund" || map.credit === "side_fund") {
+    const sfKey = tx.directorId ? `director_side_fund_${tx.directorId}` : "side_fund";
+    if (map.debit === "side_fund") debit = sfKey;
+    if (map.credit === "side_fund") credit = sfKey;
   }
 
-  applyPair(balances, debit, credit, amt);
+  const bankResolved = resolveBankKey("bank", tx.currency);
+  if (credit === bankResolved && isExpenseTxType(tx.type) && tx.expensePaymentMode === "ACCOUNTS_PAYABLE") {
+    credit = "accounts_payable";
+  }
+
+  applyPair(balances, debit, credit, amt, swap);
 }
 
 export function deriveBalances(transactions: TxForDerive[]): Balances {
@@ -96,6 +131,7 @@ export function sumGroup(balances: Balances, group: (typeof ACCOUNTS)[AccountKey
   if (group === "Equity") {
     for (const [k, v] of Object.entries(balances)) {
       if (/^director_capital_\d+$/.test(k)) total += Number(v) || 0;
+      if (/^director_side_fund_\d+$/.test(k)) total += Number(v) || 0;
     }
   }
   return total;

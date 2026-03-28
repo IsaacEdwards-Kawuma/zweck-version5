@@ -8,7 +8,7 @@ import { useTransactions } from "../hooks/useTransactions";
 import { listDirectors } from "../api/directors";
 import { listTransactions, reverseTransaction, txItems } from "../api/transactions";
 import { eur, fmtDate, formatMoney, formatTxRef } from "../lib/format";
-import { LEDGER_ACCOUNT_FILTER_OPTIONS, TX_TYPE_LABELS } from "../lib/transactionTypes";
+import { ALL_TX_TYPE_VALUES, LEDGER_ACCOUNT_FILTER_OPTIONS, TX_TYPE_LABELS } from "../lib/transactionTypes";
 import { downloadTransactionsCsv } from "../lib/reportsAnalytics";
 
 export default function Ledger() {
@@ -179,7 +179,11 @@ export default function Ledger() {
             <div className="text-xs font-medium text-slate-700 dark:text-slate-300">Type</div>
             <select className="ui-input mt-1 max-w-[min(100%,20rem)]" value={type} onChange={(e) => { setType(e.target.value); resetPage(); }}>
               <option value="">All</option>
-              <option value="CONTRIBUTION">Director Capital Contribution</option>
+              {ALL_TX_TYPE_VALUES.map((v) => (
+                <option key={v} value={v}>
+                  {TX_TYPE_LABELS[v] || v}
+                </option>
+              ))}
             </select>
           </div>
           <div>
@@ -187,6 +191,7 @@ export default function Ledger() {
             <select className="ui-input mt-1" value={status} onChange={(e) => { setStatus(e.target.value); resetPage(); }}>
               <option value="">All</option>
               <option value="POSTED">Posted</option>
+              <option value="REVERSED">Reversed</option>
               <option value="DOCUMENT_MISSING">Document Missing</option>
             </select>
           </div>

@@ -1,5 +1,4 @@
 import { Router } from "express";
-import { TransactionPostingStatus } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { deriveBalances } from "../lib/derive.js";
 
@@ -29,6 +28,16 @@ export function buildPortfolioSplit(bank: number, activeProjects: ActiveProjectF
   return [{ key: "bank", name: "Bank", value: bank }, ...projectSplit];
 }
 
+function directorCapitalDisplay(balances: Record<string, number>, directorId: number): number {
+  const raw = Number(balances[`director_capital_${directorId}`] || 0);
+  return -raw;
+}
+
+function directorSideFundDisplay(balances: Record<string, number>, directorId: number): number {
+  const raw = Number(balances[`director_side_fund_${directorId}`] || 0);
+  return -raw;
+}
+
 router.get("/", async (_req, res) => {
   const txs = await prisma.transaction.findMany({
     select: {
@@ -37,10 +46,14 @@ router.get("/", async (_req, res) => {
       directorId: true,
       currency: true,
       postingStatus: true,
-      reversalOfId: true
+      reversalOfId: true,
+      expensePaymentMode: true,
+      transferFromAccountKey: true,
+      transferToAccountKey: true
     }
   });
   const balances = deriveBalances(txs as any);
+  const b = balances as Record<string, number>;
 
   const bank =
     (balances.bank_ugx || 0) + (balances.bank_usd || 0) + (balances.bank_eur || 0);
@@ -77,29 +90,16 @@ router.get("/", async (_req, res) => {
     }
   });
 
-  const totals = new Map<number, { capital: number; sideFund: number }>();
-  for (const d of directors) totals.set(d.id, { capital: 0, sideFund: 0 });
-  for (const t of txs) {
-    if (!t.directorId || t.type !== "CONTRIBUTION") continue;
-    const cur = totals.get(t.directorId) ?? { capital: 0, sideFund: 0 };
-    if (t.postingStatus !== TransactionPostingStatus.POSTED) continue;
-    if (t.reversalOfId != null) cur.capital -= t.amount;
-    else cur.capital += t.amount;
-    totals.set(t.directorId, cur);
-  }
-
   let totalEquity = 0;
   let totalCapital = 0;
   for (const d of directors) {
-    const row = totals.get(d.id) ?? { capital: 0, sideFund: 0 };
-    totalEquity += row.capital + row.sideFund;
-    totalCapital += row.capital;
+    totalEquity += directorCapitalDisplay(b, d.id) + directorSideFundDisplay(b, d.id);
+    totalCapital += directorCapitalDisplay(b, d.id);
   }
 
   const memberRows = directors.map((d) => {
-    const row = totals.get(d.id) ?? { capital: 0, sideFund: 0 };
-    const capital = row.capital;
-    const sideFund = row.sideFund;
+    const capital = directorCapitalDisplay(b, d.id);
+    const sideFund = directorSideFundDisplay(b, d.id);
     const memberTotal = capital + sideFund;
     return {
       ...d,
@@ -133,4 +133,3 @@ router.get("/", async (_req, res) => {
 });
 
 export default router;
-

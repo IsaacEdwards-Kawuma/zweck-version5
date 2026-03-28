@@ -8,7 +8,12 @@ import { prisma } from "../lib/prisma.js";
 import { apiError } from "../lib/http.js";
 import { requireRole } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
-import { ACCOUNTS, TX_ACCOUNT_MAP } from "../lib/constants.js";
+import {
+  ACCOUNTS,
+  INTER_ACCOUNT_TRANSFER_KEYS,
+  isExpenseTxType,
+  TX_ACCOUNT_MAP
+} from "../lib/constants.js";
 import { allocateNextReferenceNumber, peekNextReferenceNumber } from "../lib/referenceNumber.js";
 import { EMAIL_EVENTS, enqueueEmail } from "../services/emailBus.js";
 
@@ -44,6 +49,12 @@ function validateAmountForCurrency(amount: number, currency: string): boolean {
   }
   const cents = Math.round(amount * 100);
   return Math.abs(amount - cents / 100) < 1e-9;
+}
+
+/** Fixed slice moved to side fund when posting a contribution (matches historical product behavior). */
+function sideFundAllocationFor(currency: "EUR" | "USD" | "UGX"): number {
+  if (currency === "UGX") return 10_000;
+  return 10;
 }
 
 function shapeTransactionRow(
@@ -82,8 +93,9 @@ function shapeTransactionRow(
   const projectOut = t.project
     ? { id: t.project.id, code: t.project.code, name: t.project.name }
     : null;
-  const map = TX_ACCOUNT_MAP.CONTRIBUTION;
+  const map = TX_ACCOUNT_MAP[t.type];
   const currency = t.currency && t.currency.length ? t.currency : "EUR";
+  const postedBy = t.createdBy != null ? postedByNameByUserId.get(t.createdBy) ?? "—" : "System";
 
   function resolveAccountParts(accountKey: string): { key: string; code: number | null; name: string } {
     if (accountKey === "bank") {
@@ -97,6 +109,15 @@ function shapeTransactionRow(
       if (!row) return { key: "capital", code: 3110, name: "Director Capital" };
       return { key: `director_capital_${dirId}`, code: row.code, name: `Director Capital — ${row.name}` };
     }
+    if (accountKey === "side_fund") {
+      const dirId = t.director?.id;
+      if (dirId != null) {
+        const row = directorCapitalCodeById.get(dirId);
+        const label = row?.name || t.director?.name || "Director";
+        return { key: `director_side_fund_${dirId}`, code: ACCOUNTS.side_fund.code, name: `Side Fund — ${label}` };
+      }
+      return { key: "side_fund", code: ACCOUNTS.side_fund.code, name: ACCOUNTS.side_fund.name };
+    }
     const meta = (ACCOUNTS as Record<string, { code: number; name: string } | undefined>)[accountKey];
     if (!meta) return { key: accountKey, code: null, name: accountKey };
     return { key: accountKey, code: meta.code, name: meta.name };
@@ -105,17 +126,8 @@ function shapeTransactionRow(
   function displayAccount(parts: { code: number | null; name: string }) {
     return parts.code != null ? `${parts.code} ${parts.name}` : parts.name;
   }
-  const postedBy = t.createdBy != null ? postedByNameByUserId.get(t.createdBy) ?? "—" : "System";
 
-  let debit = map.debit === "bank" ? "bank" : map.debit;
-  let credit = map.credit === "bank" ? "bank" : map.credit;
-  let debitParts = resolveAccountParts(debit);
-  let creditParts = resolveAccountParts(credit);
-  if (t.reversalOfId) {
-    [debitParts, creditParts] = [creditParts, debitParts];
-  }
-
-  return {
+  const baseOut = {
     id: t.id,
     reference: t.referenceNumber,
     referenceNumber: t.referenceNumber,
@@ -143,6 +155,70 @@ function shapeTransactionRow(
           avatarUrl: t.director.avatarUrl
         }
       : null,
+    project: projectOut,
+    postedBy,
+    createdBy: t.createdBy,
+    createdAt: t.createdAt
+  };
+
+  if (!map) {
+    return {
+      ...baseOut,
+      debitAccount: "—",
+      creditAccount: "—",
+      debitAccountKey: "",
+      creditAccountKey: "",
+      debitAccountCode: null,
+      creditAccountCode: null,
+      debitAccountName: "—",
+      creditAccountName: "—"
+    };
+  }
+
+  if (t.type === "INTER_ACCOUNT_TRANSFER") {
+    const debitParts = t.transferToAccountKey
+      ? resolveAccountParts(t.transferToAccountKey)
+      : { key: "", code: null, name: "—" };
+    const creditParts = t.transferFromAccountKey
+      ? resolveAccountParts(t.transferFromAccountKey)
+      : { key: "", code: null, name: "—" };
+    let d = debitParts;
+    let c = creditParts;
+    if (t.reversalOfId) {
+      const tmp = d;
+      d = c;
+      c = tmp;
+    }
+    return {
+      ...baseOut,
+      debitAccount: displayAccount(d),
+      creditAccount: displayAccount(c),
+      debitAccountKey: d.key,
+      creditAccountKey: c.key,
+      debitAccountCode: d.code,
+      creditAccountCode: c.code,
+      debitAccountName: d.name,
+      creditAccountName: c.name
+    };
+  }
+
+  let debitKey = map.debit;
+  let creditKey = map.credit;
+  if (isExpenseTxType(t.type) && t.expensePaymentMode === "ACCOUNTS_PAYABLE" && map.credit === "bank") {
+    creditKey = "accounts_payable";
+  } else {
+    creditKey = map.credit === "bank" ? "bank" : map.credit;
+  }
+  debitKey = map.debit === "bank" ? "bank" : map.debit;
+
+  let debitParts = resolveAccountParts(debitKey);
+  let creditParts = resolveAccountParts(creditKey);
+  if (t.reversalOfId) {
+    [debitParts, creditParts] = [creditParts, debitParts];
+  }
+
+  return {
+    ...baseOut,
     debitAccount: displayAccount(debitParts),
     creditAccount: displayAccount(creditParts),
     debitAccountKey: debitParts.key,
@@ -150,11 +226,7 @@ function shapeTransactionRow(
     debitAccountCode: debitParts.code,
     creditAccountCode: creditParts.code,
     debitAccountName: debitParts.name,
-    creditAccountName: creditParts.name,
-    postedBy,
-    project: projectOut,
-    createdBy: t.createdBy,
-    createdAt: t.createdAt
+    creditAccountName: creditParts.name
   };
 }
 
@@ -168,6 +240,7 @@ function ledgerKeyMatchesFilter(rowKey: string | null | undefined, filterKey: st
   if (!rowKey) return false;
   if (rowKey === filterKey) return true;
   if (filterKey === "capital" && rowKey.startsWith("director_capital_")) return true;
+  if (filterKey === "side_fund" && rowKey.startsWith("director_side_fund_")) return true;
   return false;
 }
 
@@ -191,20 +264,63 @@ function runningDeltaForRow(row: any, filterAccountKey: string): number {
 
 const postSchema = z
   .object({
-    type: z.literal("CONTRIBUTION"),
+    type: z.nativeEnum(TxType),
     date: z.string().datetime(),
     amount: z.number().positive(),
     description: z.string().max(300).optional(),
-    directorId: z.number().int().positive(),
+    directorId: z.number().int().positive().optional(),
     currency: z.enum(["EUR", "USD", "UGX"]).default("EUR"),
     externalReference: z.string().max(200).optional(),
     documentUrl: z.string().max(500).optional(),
-    documentStatus: z.nativeEnum(DocumentStatus).optional()
+    documentStatus: z.nativeEnum(DocumentStatus).optional(),
+    expensePaymentMode: z.enum(["PAID", "ACCOUNTS_PAYABLE"]).optional(),
+    projectId: z.number().int().positive().optional(),
+    transferFromAccountKey: z.string().max(40).optional(),
+    transferToAccountKey: z.string().max(40).optional()
   })
   .refine((data) => validateAmountForCurrency(data.amount, data.currency), {
     message: "Amount must match currency rules (EUR/USD: max 2 decimals; UGX: whole numbers only)",
     path: ["amount"]
   });
+
+async function validatePostBody(
+  body: z.infer<typeof postSchema>
+): Promise<{ error?: string; field?: string }> {
+  const map = TX_ACCOUNT_MAP[body.type];
+  if (!map) return { error: "Unknown transaction type", field: "type" };
+
+  if (map.needsDirector && !body.directorId) {
+    return { error: "directorId is required for this transaction type", field: "directorId" };
+  }
+
+  if (body.type === "PROJECT_REVENUE" || body.type === "PROJECT_DISBURSEMENT") {
+    if (!body.projectId) return { error: "projectId is required for this transaction type", field: "projectId" };
+  }
+
+  if (body.type === "INTER_ACCOUNT_TRANSFER") {
+    const from = body.transferFromAccountKey as (typeof INTER_ACCOUNT_TRANSFER_KEYS)[number] | undefined;
+    const to = body.transferToAccountKey as (typeof INTER_ACCOUNT_TRANSFER_KEYS)[number] | undefined;
+    if (!from || !INTER_ACCOUNT_TRANSFER_KEYS.includes(from)) {
+      return { error: "transferFromAccountKey is invalid", field: "transferFromAccountKey" };
+    }
+    if (!to || !INTER_ACCOUNT_TRANSFER_KEYS.includes(to)) {
+      return { error: "transferToAccountKey is invalid", field: "transferToAccountKey" };
+    }
+    if (from === to) return { error: "Source and destination must differ", field: "transferToAccountKey" };
+  }
+
+  if (isExpenseTxType(body.type)) {
+    if (body.expensePaymentMode === "ACCOUNTS_PAYABLE" || body.expensePaymentMode === "PAID") {
+      /* ok */
+    } else if (body.expensePaymentMode != null) {
+      return { error: "Invalid expense payment mode", field: "expensePaymentMode" };
+    }
+  } else if (body.expensePaymentMode) {
+    return { error: "expensePaymentMode only applies to expense types", field: "expensePaymentMode" };
+  }
+
+  return {};
+}
 
 const updateSchema = z
   .object({
@@ -477,13 +593,24 @@ router.get("/:id", async (req, res) => {
 router.post("/", validateBody(postSchema), async (req, res) => {
   const body = req.body as z.infer<typeof postSchema>;
 
+  const v = await validatePostBody(body);
+  if (v.error) return res.status(400).json(apiError(v.error, v.field));
+
+  const map = TX_ACCOUNT_MAP[body.type];
   const dt = new Date(body.date);
   if (Number.isNaN(dt.getTime())) return res.status(400).json(apiError("Invalid date", "date"));
   const maxFuture = Date.now() + 24 * 60 * 60 * 1000;
   if (dt.getTime() > maxFuture) return res.status(400).json(apiError("Date cannot be in the future", "date"));
 
-  const director = await prisma.director.findUnique({ where: { id: body.directorId } });
-  if (!director) return res.status(400).json(apiError("Director not found", "directorId"));
+  if (map.needsDirector && body.directorId) {
+    const director = await prisma.director.findUnique({ where: { id: body.directorId } });
+    if (!director) return res.status(400).json(apiError("Director not found", "directorId"));
+  }
+
+  if (body.projectId) {
+    const p = await prisma.project.findUnique({ where: { id: body.projectId } });
+    if (!p) return res.status(400).json(apiError("Project not found", "projectId"));
+  }
 
   const docStatus =
     body.documentUrl && body.documentUrl.length > 0
@@ -492,25 +619,153 @@ router.post("/", validateBody(postSchema), async (req, res) => {
         ? DocumentStatus.NOT_REQUIRED
         : DocumentStatus.MISSING;
 
+  const commonData = {
+    currency: body.currency,
+    description: body.description ?? null,
+    externalReference: body.externalReference ?? null,
+    documentUrl: body.documentUrl ?? null,
+    documentStatus: docStatus,
+    postingStatus: TransactionPostingStatus.POSTED,
+    expensePaymentMode:
+      isExpenseTxType(body.type) && body.expensePaymentMode === "ACCOUNTS_PAYABLE"
+        ? "ACCOUNTS_PAYABLE"
+        : isExpenseTxType(body.type) && body.expensePaymentMode === "PAID"
+          ? "PAID"
+          : null,
+    projectId: body.projectId ?? null,
+    transferFromAccountKey: body.transferFromAccountKey ?? null,
+    transferToAccountKey: body.transferToAccountKey ?? null,
+    createdBy: req.user!.id
+  };
+
+  const sideChunk = sideFundAllocationFor(body.currency);
+
+  if (body.type === "CONTRIBUTION" && body.directorId) {
+    if (body.amount <= sideChunk) {
+      return res.status(400).json(
+        apiError(
+          `Contribution must be greater than ${sideChunk} ${body.currency} to allocate the side fund slice.`,
+          "amount"
+        )
+      );
+    }
+
+    const mainAmount = body.amount - sideChunk;
+    const sideAmount = sideChunk;
+
+    const refMain = await allocateNextReferenceNumber();
+    const refSide = await allocateNextReferenceNumber();
+
+    const [mainTx] = await prisma.$transaction([
+      prisma.transaction.create({
+        data: {
+          ...commonData,
+          referenceNumber: refMain,
+          type: "CONTRIBUTION",
+          date: dt,
+          amount: mainAmount,
+          directorId: body.directorId
+        }
+      }),
+      prisma.transaction.create({
+        data: {
+          ...commonData,
+          referenceNumber: refSide,
+          type: "SIDE_FUND",
+          date: dt,
+          amount: sideAmount,
+          description:
+            body.description ?? `Automatic side fund allocation (${sideAmount} ${body.currency}) from contribution`,
+          directorId: body.directorId
+        }
+      }),
+      prisma.auditLog.create({
+        data: {
+          userId: req.user!.id,
+          action: "CREATE_CONTRIBUTION_SPLIT",
+          entityType: "Transaction",
+          entityId: 0,
+          before: Prisma.JsonNull,
+          after: {
+            contributionAmount: mainAmount,
+            sideFundAmount: sideAmount,
+            directorId: body.directorId,
+            currency: body.currency
+          } as unknown as Prisma.InputJsonValue
+        }
+      })
+    ]);
+
+    enqueueEmail({
+      type: EMAIL_EVENTS.TX_POSTED,
+      recipient: req.user!.email,
+      payload: { referenceNumber: refMain, amount: body.amount, currency: body.currency }
+    });
+
+    return res.status(201).json({ id: mainTx.id, referenceNumber: refMain });
+  }
+
+  if (body.type === "RETAINED_EARNINGS_TRANSFER") {
+    const directors = await prisma.director.findMany({
+      orderBy: { createdAt: "asc" },
+      take: 5,
+      select: { id: true }
+    });
+    if (directors.length === 0) {
+      return res.status(400).json(apiError("No directors defined for retained earnings split", "type"));
+    }
+    const total = body.amount;
+    const n = directors.length;
+    const isUgx = body.currency === "UGX";
+    const base = isUgx ? Math.floor(total / n) : Math.floor((total * 100) / n) / 100;
+    let remainder = isUgx ? total - base * n : Math.round((total - base * n) * 100) / 100;
+    const refs: string[] = [];
+    for (let i = 0; i < n; i++) refs.push(await allocateNextReferenceNumber());
+    const createdIds: number[] = [];
+    await prisma.$transaction(async (tx) => {
+      for (let i = 0; i < n; i++) {
+        const amt = i === n - 1 ? base + remainder : base;
+        if (amt <= 0) continue;
+        const row = await tx.transaction.create({
+          data: {
+            ...commonData,
+            referenceNumber: refs[i]!,
+            type: "RETAINED_EARNINGS_TRANSFER",
+            date: dt,
+            amount: amt,
+            directorId: directors[i]!.id
+          }
+        });
+        createdIds.push(row.id);
+      }
+      await tx.auditLog.create({
+        data: {
+          userId: req.user!.id,
+          action: "CREATE_RETAINED_EARNINGS_SPLIT",
+          entityType: "Transaction",
+          entityId: createdIds[0] ?? 0,
+          before: Prisma.JsonNull,
+          after: { total, parts: createdIds.length } as unknown as Prisma.InputJsonValue
+        }
+      });
+    });
+    enqueueEmail({
+      type: EMAIL_EVENTS.TX_POSTED,
+      recipient: req.user!.email,
+      payload: { referenceNumber: refs[0]!, amount: body.amount, currency: body.currency }
+    });
+    return res.status(201).json({ ids: createdIds, count: createdIds.length });
+  }
+
   const ref = await allocateNextReferenceNumber();
   const tx = await prisma.transaction.create({
     data: {
-      currency: body.currency,
-      description: body.description ?? null,
-      externalReference: body.externalReference ?? null,
-      documentUrl: body.documentUrl ?? null,
-      documentStatus: docStatus,
-      postingStatus: TransactionPostingStatus.POSTED,
-      expensePaymentMode: null,
-      projectId: null,
-      transferFromAccountKey: null,
-      transferToAccountKey: null,
+      ...commonData,
       referenceNumber: ref,
-      type: "CONTRIBUTION",
+      type: body.type,
       date: dt,
       amount: body.amount,
-      directorId: body.directorId,
-      createdBy: req.user!.id
+      directorId: body.directorId ?? null
     }
   });
 
