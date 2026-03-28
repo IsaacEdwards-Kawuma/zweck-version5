@@ -40,4 +40,29 @@ describe("deriveBalances", () => {
     expect(balances.bank_eur).toBeCloseTo(0);
     expect(balances.director_capital_1).toBeCloseTo(0);
   });
+
+  it("nets A/P expense when reversed (reversal row keeps expensePaymentMode)", () => {
+    const balances = deriveBalances([
+      {
+        type: "REGISTRATION",
+        amount: 50,
+        currency: "EUR",
+        directorId: null,
+        expensePaymentMode: "ACCOUNTS_PAYABLE",
+        postingStatus: "REVERSED"
+      },
+      {
+        type: "REGISTRATION",
+        amount: 50,
+        currency: "EUR",
+        directorId: null,
+        expensePaymentMode: "ACCOUNTS_PAYABLE",
+        postingStatus: "POSTED",
+        reversalOfId: 1
+      }
+    ] as any);
+
+    expect(balances.reg_costs).toBeCloseTo(0);
+    expect(balances.accounts_payable).toBeCloseTo(0);
+  });
 });

@@ -517,7 +517,8 @@ router.post("/:id/reverse", requireRole("ADMIN"), validateBody(reverseSchema), a
         documentUrl: original.documentUrl,
         documentStatus: original.documentStatus,
         postingStatus: TransactionPostingStatus.POSTED,
-        expensePaymentMode: null,
+        /** Must match original so derive maps the same GL lines (e.g. A/P vs bank for expenses). */
+        expensePaymentMode: original.expensePaymentMode,
         projectId: original.projectId,
         transferFromAccountKey: original.transferFromAccountKey,
         transferToAccountKey: original.transferToAccountKey,
