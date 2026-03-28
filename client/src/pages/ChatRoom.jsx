@@ -996,60 +996,77 @@ export default function ChatRoom() {
   if (qMessages.error) return <ErrorBanner error={qMessages.error} />;
 
   return (
-    <div className="flex min-h-[60vh] flex-col gap-3">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Link to="/chat" className="mb-1 inline-block text-xs font-medium text-brand-700 hover:underline dark:text-brand-300">
-            ← All chats
-          </Link>
-          <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{title}</h1>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-            {room?.kind || "Room"} · #{numericRoomId}
-            {room?.kind === "GROUP" ? (
-              <>
-                {room.slowModeSeconds != null && room.slowModeSeconds > 0 ? (
-                  <span className="ml-1 rounded bg-slate-200 px-1.5 py-0.5 text-[11px] dark:bg-slate-700">
-                    Slow {room.slowModeSeconds}s
-                  </span>
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 pb-10">
+      <div className="rounded-2xl border border-slate-200/90 bg-white/70 p-5 shadow-sm dark:border-slate-700/80 dark:bg-slate-900/35 sm:p-6">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0 space-y-3">
+            <Link
+              to="/chat"
+              className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
+            >
+              <span aria-hidden>←</span> All chats
+            </Link>
+            <div>
+              <h1 className="text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl">{title}</h1>
+              <p className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                <span>{room?.kind || "Room"}</span>
+                <span className="text-slate-300 dark:text-slate-600">·</span>
+                <span className="font-mono text-xs text-slate-500">#{numericRoomId}</span>
+                {room?.kind === "GROUP" ? (
+                  <>
+                    {room.slowModeSeconds != null && room.slowModeSeconds > 0 ? (
+                      <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                        Slow {room.slowModeSeconds}s
+                      </span>
+                    ) : null}
+                    {room.adminOnlyPost ? (
+                      <span className="rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-900 dark:bg-amber-950/50 dark:text-amber-200">
+                        Admins only
+                      </span>
+                    ) : null}
+                  </>
                 ) : null}
-                {room.adminOnlyPost ? (
-                  <span className="ml-1 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] text-amber-900 dark:bg-amber-950/60 dark:text-amber-200">
-                    Admins only
-                  </span>
-                ) : null}
-              </>
-            ) : null}
-          </p>
-          {typingLabel ? (
-            <p className="mt-1 text-xs italic text-slate-500 dark:text-slate-400">{typingLabel} typing…</p>
-          ) : null}
-          {presence.viewerCount > 0 ? (
-            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-              {presence.viewerCount} active in this room
-            </p>
-          ) : null}
-          <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-            Mention with <code className="rounded bg-slate-100 px-0.5 dark:bg-slate-800">@email</code> · long-press for
-            reactions and actions.
-          </p>
-          {isDmRoom ? (
-            <p className="mt-1 text-[11px] text-emerald-800 dark:text-emerald-200/90">
-              {dmE2eeReady
-                ? "🔒 Direct messages (text and attachments) are end-to-end encrypted on this device; the server only stores ciphertext."
-                : "Setting up encryption… If the other person has not opened this chat yet, messages may be plaintext until both keys exist."}
-            </p>
-          ) : null}
-          {threadView != null ? (
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <button type="button" className="ui-btn-outline text-xs" onClick={() => setThreadView(null)}>
-                ← Main chat
-              </button>
-              <span className="text-xs text-slate-500 dark:text-slate-400">Thread view</span>
+              </p>
             </div>
-          ) : null}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button type="button" className="ui-btn-outline text-xs" onClick={() => setShowSearch((v) => !v)}>
+            {(typingLabel || presence.viewerCount > 0) && (
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                {typingLabel ? <span className="italic">{typingLabel} typing…</span> : null}
+                {typingLabel && presence.viewerCount > 0 ? <span className="mx-2 text-slate-300 dark:text-slate-600">·</span> : null}
+                {presence.viewerCount > 0 ? <span>{presence.viewerCount} active</span> : null}
+              </p>
+            )}
+            <details className="group max-w-xl rounded-xl border border-slate-100 bg-slate-50/80 p-3 text-sm dark:border-slate-700/50 dark:bg-slate-950/40">
+              <summary className="cursor-pointer list-none font-medium text-slate-600 outline-none marker:content-none dark:text-slate-300 [&::-webkit-details-marker]:hidden">
+                <span className="inline-flex items-center gap-2">
+                  Tips &amp; privacy
+                  <span className="text-xs font-normal text-slate-400 group-open:rotate-180">▼</span>
+                </span>
+              </summary>
+              <div className="mt-3 space-y-2 border-t border-slate-200/80 pt-3 text-xs leading-relaxed text-slate-600 dark:border-slate-700/80 dark:text-slate-400">
+                <p>
+                  Mention with <code className="rounded bg-white px-1 py-0.5 font-mono text-[11px] dark:bg-slate-800">@email</code>
+                  . Long-press a message for reactions and actions.
+                </p>
+                {isDmRoom ? (
+                  <p className="text-emerald-800 dark:text-emerald-200/90">
+                    {dmE2eeReady
+                      ? "Direct messages are end-to-end encrypted on this device; the server stores ciphertext only."
+                      : "Setting up encryption… If the other person has not opened this chat yet, messages may be plaintext until both keys exist."}
+                  </p>
+                ) : null}
+              </div>
+            </details>
+            {threadView != null ? (
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <button type="button" className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium dark:border-slate-600 dark:bg-slate-900" onClick={() => setThreadView(null)}>
+                  ← Main chat
+                </button>
+                <span className="text-sm text-slate-500 dark:text-slate-400">Thread view</span>
+              </div>
+            ) : null}
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-2 lg:justify-end">
+          <button type="button" className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800" onClick={() => setShowSearch((v) => !v)}>
             Search
           </button>
           <button
@@ -1317,9 +1334,10 @@ export default function ChatRoom() {
           </details>
         </div>
       </div>
+      </div>
 
       {room?.pinnedMessageId && room?.pinnedMessage ? (
-        <div className="rounded-lg border border-amber-200 bg-amber-50/90 px-3 py-2 text-sm dark:border-amber-800 dark:bg-amber-950/50">
+        <div className="rounded-2xl border border-amber-200/90 bg-amber-50/90 px-4 py-3 text-sm shadow-sm dark:border-amber-800/80 dark:bg-amber-950/40">
           <div className="text-[10px] font-semibold uppercase tracking-wide text-amber-900 dark:text-amber-200">Pinned</div>
           <div className="mt-1 line-clamp-2 text-slate-800 dark:text-slate-100">
             {room.pinnedMessage.sender?.email ? (
@@ -1338,7 +1356,7 @@ export default function ChatRoom() {
       ) : null}
 
       {showSearch ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white/70 p-3 dark:border-slate-700 dark:bg-slate-900/30">
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200/90 bg-white/80 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/40">
           <input
             className="ui-input min-w-[200px] flex-1"
             placeholder="Search messages in this room…"
@@ -1396,7 +1414,7 @@ export default function ChatRoom() {
         ref={scrollRef}
         role="region"
         aria-label="Chat messages"
-        className="min-h-[320px] flex-1 touch-pan-y overflow-y-auto overscroll-y-contain rounded-xl border border-slate-200 bg-white/70 p-3 dark:border-slate-700 dark:bg-slate-900/30"
+        className="min-h-[min(60vh,28rem)] flex-1 touch-pan-y overflow-y-auto overscroll-y-contain rounded-2xl border border-slate-200/90 bg-white/80 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/40 sm:p-5"
         onScroll={() => {
           const el = scrollRef.current;
           if (!el) return;
@@ -1406,9 +1424,9 @@ export default function ChatRoom() {
         }}
       >
         {messages.length === 0 ? (
-          <div className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">No messages yet.</div>
+          <div className="py-12 text-center text-sm text-slate-500 dark:text-slate-400">No messages yet.</div>
         ) : (
-          <ul className="space-y-3">
+          <ul className="space-y-4">
             {messages.map((m) => {
               const isMe = m.senderId === me?.id;
               return (
@@ -1783,7 +1801,7 @@ export default function ChatRoom() {
       </div>
 
       <form
-        className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white/70 p-3 dark:border-slate-700 dark:bg-slate-900/30"
+        className="flex flex-col gap-3 rounded-2xl border border-slate-200/90 bg-white/80 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/40"
         onSubmit={(e) => {
           e.preventDefault();
           const plain = draft.trim();
@@ -1842,7 +1860,7 @@ export default function ChatRoom() {
             </button>
           </div>
         ) : null}
-        <div className="flex flex-wrap items-end gap-2">
+        <div className="flex flex-wrap items-end gap-3">
         <input
           ref={fileInputRef}
           type="file"
