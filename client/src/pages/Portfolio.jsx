@@ -315,7 +315,7 @@ export default function Portfolio() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             <div className="rounded-xl ui-surface p-4">
               <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Total director equity</div>
               <div className="mt-1 text-xl font-semibold ui-page-heading">{eur(directorsBlock.totalEquity)}</div>
@@ -325,6 +325,11 @@ export default function Portfolio() {
               <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Contributed capital</div>
               <div className="mt-1 text-xl font-semibold ui-page-heading">{eur(directorsBlock.totalCapital)}</div>
               <div className="mt-1 text-xs text-slate-500">CONTRIBUTION transactions only</div>
+            </div>
+            <div className="rounded-xl ui-surface p-4">
+              <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Total side fund</div>
+              <div className="mt-1 text-xl font-semibold ui-page-heading">{eur(directorsBlock.totalSideFund ?? 0)}</div>
+              <div className="mt-1 text-xs text-slate-500">SIDE_FUND transactions only</div>
             </div>
             <div className="rounded-xl ui-surface p-4">
               <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Directors</div>

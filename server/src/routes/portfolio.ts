@@ -92,9 +92,13 @@ router.get("/", async (_req, res) => {
 
   let totalEquity = 0;
   let totalCapital = 0;
+  let totalSideFund = 0;
   for (const d of directors) {
-    totalEquity += directorCapitalDisplay(b, d.id) + directorSideFundDisplay(b, d.id);
-    totalCapital += directorCapitalDisplay(b, d.id);
+    const cap = directorCapitalDisplay(b, d.id);
+    const sf = directorSideFundDisplay(b, d.id);
+    totalEquity += cap + sf;
+    totalCapital += cap;
+    totalSideFund += sf;
   }
 
   const memberRows = directors.map((d) => {
@@ -125,6 +129,7 @@ router.get("/", async (_req, res) => {
     directors: {
       totalEquity,
       totalCapital,
+      totalSideFund,
       count: directors.length,
       activeCount: directors.filter((d) => d.active).length,
       list: memberRows

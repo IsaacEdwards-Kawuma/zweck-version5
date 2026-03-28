@@ -74,7 +74,11 @@ export default function Dashboard() {
   const bank =
     balances?.bank ??
     Number(balances?.bank_eur || 0) + Number(balances?.bank_usd || 0) + Number(balances?.bank_ugx || 0);
-  const totalDirectorCapital = (directors || []).reduce((s, d) => s + (d.total || 0), 0);
+  const directorsBlock = portfolio?.directors;
+  const totalDirectorEquity =
+    directorsBlock?.totalEquity ??
+    (directors || []).reduce((s, d) => s + (d.total || 0), 0);
+  const totalSideFund = directorsBlock?.totalSideFund ?? 0;
   const totalAssets = portfolio?.totalAssets || 0;
 
   const portfolioData = (portfolio?.split || [{ name: "Bank", key: "bank", value: portfolio?.assets?.bank || 0 }]).filter(
@@ -98,12 +102,15 @@ export default function Dashboard() {
         <p className="text-sm ui-page-muted">Live snapshot of Zweck Co. balances, analytics, and recent activity.</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <div className="transition-transform duration-300 hover:-translate-y-0.5">
           <MetricCard label="Bank Balance" value={eur(bank)} />
         </div>
         <div className="transition-transform duration-300 hover:-translate-y-0.5">
-          <MetricCard label="Total Director Capital" value={eur(totalDirectorCapital)} />
+          <MetricCard label="Total director equity" value={eur(totalDirectorEquity)} sub="Capital + side fund" />
+        </div>
+        <div className="transition-transform duration-300 hover:-translate-y-0.5">
+          <MetricCard label="Total side fund" value={eur(totalSideFund)} sub="Per director side fund balances" />
         </div>
         <div className="transition-transform duration-300 hover:-translate-y-0.5">
           <MetricCard label="Total Assets" value={eur(totalAssets)} sub="Bank and project-linked assets" />

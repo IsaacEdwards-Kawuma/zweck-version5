@@ -43,6 +43,7 @@ export function buildGeneralDirectorsCsv(p, directorsBlock) {
     ["Total assets (EUR)", eurPlain(p.totalAssets)],
     ["Total director equity (EUR)", eurPlain(directorsBlock.totalEquity)],
     ["Total contributed capital (EUR)", eurPlain(directorsBlock.totalCapital)],
+    ["Total side fund (EUR)", eurPlain(directorsBlock.totalSideFund ?? 0)],
     ["Directors (count)", String(directorsBlock.count)],
     [],
     [
@@ -368,6 +369,10 @@ export function printGeneralDirectorsStatement(p, directorsBlock, companyInfo) {
         <div class="summary-card__value">${eurPlain(directorsBlock.totalCapital)} €</div>
       </div>
       <div class="summary-card">
+        <div class="summary-card__label">Total side fund</div>
+        <div class="summary-card__value">${eurPlain(directorsBlock.totalSideFund ?? 0)} €</div>
+      </div>
+      <div class="summary-card">
         <div class="summary-card__label">Organisation assets</div>
         <div class="summary-card__value">${eurPlain(p.totalAssets)} €</div>
       </div>
@@ -424,6 +429,7 @@ export function printDirectorStatement(d, p, directorsBlock, companyInfo) {
       <tbody>
         <tr><td>Total director equity</td><td class="num">${eurPlain(directorsBlock.totalEquity)} €</td></tr>
         <tr><td>Total contributed capital</td><td class="num">${eurPlain(directorsBlock.totalCapital)} €</td></tr>
+        <tr><td>Total side fund</td><td class="num">${eurPlain(directorsBlock.totalSideFund ?? 0)} €</td></tr>
         <tr><td>Total assets (Bank and project-linked assets)</td><td class="num">${eurPlain(p.totalAssets)} €</td></tr>
       </tbody>
     </table>
