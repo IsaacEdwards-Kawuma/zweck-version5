@@ -365,6 +365,10 @@ model Transaction {
   transferFromAccountKey String? @db.VarChar(40)
   transferToAccountKey   String? @db.VarChar(40)
 
+  /** When set, these GL keys are used for posting instead of TX_ACCOUNT_MAP automation. */
+  manualDebitAccountKey   String? @db.VarChar(48)
+  manualCreditAccountKey  String? @db.VarChar(48)
+
   /** Set on a reversal row: points to the original transaction being reversed. */
   reversalOfId          Int?
   originalTransaction   Transaction? @relation("TxnReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)

@@ -14,6 +14,9 @@ export type TxForDerive = {
   transferToAccountKey?: string | null;
   reversalOfId?: number | null;
   postingStatus?: TransactionPostingStatus | null;
+  /** When both set, balances use these keys instead of `TX_ACCOUNT_MAP`. */
+  manualDebitAccountKey?: string | null;
+  manualCreditAccountKey?: string | null;
 };
 
 export function bankKeyForCurrency(currency: string | null | undefined): "bank_ugx" | "bank_usd" | "bank_eur" {
@@ -66,10 +69,15 @@ export function applyTransactionToBalances(balances: Record<string, number>, tx:
   const amt = Number(tx.amount) || 0;
   if (amt <= 0) return;
 
+  const swap = Boolean(tx.reversalOfId);
+
+  if (tx.manualDebitAccountKey && tx.manualCreditAccountKey) {
+    applyPair(balances, tx.manualDebitAccountKey, tx.manualCreditAccountKey, amt, swap);
+    return;
+  }
+
   const map = TX_ACCOUNT_MAP[tx.type];
   if (!map) return;
-
-  const swap = Boolean(tx.reversalOfId);
 
   if ((map.debit === "capital" || map.credit === "capital") && !tx.directorId) {
     return;

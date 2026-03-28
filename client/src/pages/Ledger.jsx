@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useOutletContext, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Loading from "../components/Loading";
@@ -22,6 +22,8 @@ export default function Ledger() {
   const initialAccountKey = searchParams.get("accountKey") || "";
   const initialStatus = searchParams.get("status") || "";
   const initialCurrency = searchParams.get("currency") || "";
+  const [sortOrder, setSortOrder] = useState(() => (initialAccountKey ? "oldest" : "newest"));
+  const prevAccountKeyRef = useRef(initialAccountKey);
   const [type, setType] = useState(initialType);
   const [directorId, setDirectorId] = useState(initialDirectorId);
   const [accountKey, setAccountKey] = useState(initialAccountKey);
@@ -31,6 +33,13 @@ export default function Ledger() {
   const [to, setTo] = useState(initialTo);
   const [page, setPage] = useState(1);
   const pageSize = 20;
+
+  useEffect(() => {
+    const prev = prevAccountKeyRef.current;
+    if (!prev && accountKey) setSortOrder("oldest");
+    if (prev && !accountKey) setSortOrder("newest");
+    prevAccountKeyRef.current = accountKey;
+  }, [accountKey]);
 
   const filters = useMemo(() => {
     const f = {
@@ -95,9 +104,9 @@ export default function Ledger() {
       const rb = b.referenceNumber || b.reference || "";
       return ra.localeCompare(rb);
     });
-    if (!accountKey) all.reverse();
+    if (sortOrder === "newest") all.reverse();
     return all;
-  }, [items, accountKey]);
+  }, [items, sortOrder]);
 
   const rowsWithBalance = rows;
   const openingBalance = Number(qTx.data?.openingBalance || 0);
@@ -220,6 +229,18 @@ export default function Ledger() {
                   {d.name}
                 </option>
               ))}
+            </select>
+          </div>
+          <div>
+            <div className="text-xs font-medium text-slate-700 dark:text-slate-300">Order</div>
+            <select
+              className="ui-input mt-1 min-w-[10rem]"
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value)}
+              title="Date order within the current page"
+            >
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
             </select>
           </div>
           <button type="button" onClick={exportCsv} className="ui-btn-outline-xs mt-2 font-semibold">

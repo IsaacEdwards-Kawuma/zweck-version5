@@ -6,22 +6,22 @@ export const TX_TYPE_GROUPS = [
   {
     label: "Capital & Equity",
     options: [
-      { value: "CONTRIBUTION", label: "1. Director Capital Contribution" },
-      { value: "CAPITAL_WITHDRAWAL", label: "2. Capital Withdrawal / Distribution" },
-      { value: "SIDE_FUND", label: "3. Side fund contributions" },
-      { value: "RETAINED_EARNINGS_TRANSFER", label: "Retained earnings ΓåÆ director capital (split)" }
+      { value: "CONTRIBUTION", label: "Director Capital Contribution" },
+      { value: "CAPITAL_WITHDRAWAL", label: "Capital Withdrawal / Distribution" },
+      { value: "SIDE_FUND", label: "Side fund contributions" },
+      { value: "RETAINED_EARNINGS_TRANSFER", label: "Retained earnings → director capital (split)" }
     ]
   },
   {
     label: "Revenue & Income",
     options: [
-      { value: "MMF_RETURN", label: "4. Investment Returns (MMF / project return)" },
-      { value: "INVESTMENT_RETURN", label: "4b. Investment Returns (general)" },
-      { value: "PROJECT_REVENUE", label: "5. Project Revenue" },
-      { value: "INTEREST_INCOME", label: "6. Interest Income" },
-      { value: "DIVIDEND_INCOME", label: "7. Dividend Income" },
-      { value: "RENTAL_INCOME", label: "8. Rental Income" },
-      { value: "OTHER_INCOME", label: "9. Other Income" },
+      { value: "MMF_RETURN", label: "Investment Returns (MMF / project return)" },
+      { value: "INVESTMENT_RETURN", label: "Investment Returns (general)" },
+      { value: "PROJECT_REVENUE", label: "Project Revenue" },
+      { value: "INTEREST_INCOME", label: "Interest Income" },
+      { value: "DIVIDEND_INCOME", label: "Dividend Income" },
+      { value: "RENTAL_INCOME", label: "Rental Income" },
+      { value: "OTHER_INCOME", label: "Other Income" },
       { value: "PENALTY", label: "Penalty & surcharges (income)" }
     ]
   },
@@ -30,53 +30,53 @@ export const TX_TYPE_GROUPS = [
     options: [
       { value: "MMF_DEPLOY", label: "MMF deploy (to investment)" },
       { value: "YPA_INVEST", label: "YPA / project invest" },
-      { value: "PROJECT_DISBURSEMENT", label: "10. Project Disbursement" },
-      { value: "ASSET_PURCHASE", label: "11. Asset Purchase" },
-      { value: "LOAN_ADVANCED", label: "12. Loan Advanced (company lends principal)" },
-      { value: "LOAN_REPAYMENT_RECEIVED", label: "14. Loan Repayment Received" }
+      { value: "PROJECT_DISBURSEMENT", label: "Project Disbursement" },
+      { value: "ASSET_PURCHASE", label: "Asset Purchase" },
+      { value: "LOAN_ADVANCED", label: "Loan Advanced (company lends principal)" },
+      { value: "LOAN_REPAYMENT_RECEIVED", label: "Loan Repayment Received" }
     ]
   },
   {
     label: "Operating Expenses",
     options: [
-      { value: "TX_CHARGE", label: "15. Bank Charges & Fees" },
-      { value: "REGISTRATION", label: "16. Registrations" },
-      { value: "LEGAL", label: "16. Legal & Professional Fees" },
-      { value: "TRANSPORT_TRAVEL", label: "17. Transport & Travel" },
-      { value: "COMMUNICATION_INTERNET", label: "18. Communication & Internet" },
-      { value: "OFFICE_ADMINISTRATION", label: "19. Office & Administration" },
-      { value: "PRINTING_STATIONERY", label: "20. Printing & Stationery" },
-      { value: "SALARIES_WAGES", label: "21. Salaries & Wages" },
-      { value: "DIRECTOR_FEE_ALLOWANCE", label: "21b. Director Fee / Allowance" },
-      { value: "UTILITIES", label: "22. Utilities" },
-      { value: "INSURANCE", label: "23. Insurance" },
-      { value: "MEALS_ENTERTAINMENT", label: "24. Meals & Entertainment" },
-      { value: "OTHER_OUT", label: "25. Miscellaneous Expense" }
+      { value: "TX_CHARGE", label: "Bank Charges & Fees" },
+      { value: "REGISTRATION", label: "Registrations" },
+      { value: "LEGAL", label: "Legal & Professional Fees" },
+      { value: "TRANSPORT_TRAVEL", label: "Transport & Travel" },
+      { value: "COMMUNICATION_INTERNET", label: "Communication & Internet" },
+      { value: "OFFICE_ADMINISTRATION", label: "Office & Administration" },
+      { value: "PRINTING_STATIONERY", label: "Printing & Stationery" },
+      { value: "SALARIES_WAGES", label: "Salaries & Wages" },
+      { value: "DIRECTOR_FEE_ALLOWANCE", label: "Director Fee / Allowance" },
+      { value: "UTILITIES", label: "Utilities" },
+      { value: "INSURANCE", label: "Insurance" },
+      { value: "MEALS_ENTERTAINMENT", label: "Meals & Entertainment" },
+      { value: "OTHER_OUT", label: "Miscellaneous Expense" }
     ]
   },
   {
     label: "Director & Intercompany",
     options: [
-      { value: "DIRECTOR_LOAN_TO_COMPANY", label: "26. Director Loan to Company" },
-      { value: "DIRECTOR_LOAN_REPAYMENT", label: "27. Director Loan Repayment" },
-      { value: "LOAN_IN", label: "29. Loan Received (External)" },
-      { value: "LOAN_REPAYMENT_EXTERNAL", label: "30. Loan Repayment (External)" }
+      { value: "DIRECTOR_LOAN_TO_COMPANY", label: "Director Loan to Company" },
+      { value: "DIRECTOR_LOAN_REPAYMENT", label: "Director Loan Repayment" },
+      { value: "LOAN_IN", label: "Loan Received (External)" },
+      { value: "LOAN_REPAYMENT_EXTERNAL", label: "Loan Repayment (External)" }
     ]
   },
   {
     label: "Tax & Compliance",
     options: [
-      { value: "WITHHOLDING_TAX", label: "31. Withholding Tax (WHT)" },
-      { value: "VAT_PAYABLE", label: "32. VAT Payable" },
-      { value: "CORPORATE_TAX_PROVISION", label: "33. Corporate Tax Provision" }
+      { value: "WITHHOLDING_TAX", label: "Withholding Tax (WHT)" },
+      { value: "VAT_PAYABLE", label: "VAT Payable" },
+      { value: "CORPORATE_TAX_PROVISION", label: "Corporate Tax Provision" }
     ]
   },
   {
     label: "Transfers",
     options: [
       { value: "INTER_ACCOUNT_TRANSFER", label: "Inter-account transfer" },
-      { value: "FOREIGN_EXCHANGE_GAIN", label: "35. Foreign Exchange — Gain" },
-      { value: "FOREIGN_EXCHANGE_LOSS", label: "35. Foreign Exchange — Loss" }
+      { value: "FOREIGN_EXCHANGE_GAIN", label: "Foreign Exchange — Gain" },
+      { value: "FOREIGN_EXCHANGE_LOSS", label: "Foreign Exchange — Loss" }
     ]
   }
 ];
@@ -224,6 +224,93 @@ export const INTER_ACCOUNT_TRANSFER_OPTIONS = [
   { value: "side_fund", label: "3200 Side Fund" },
   { value: "retained_earnings", label: "3300 Retained Earnings" }
 ];
+
+/** P&L and other GL lines for manual posting (must stay aligned with server `ACCOUNTS`). */
+const MANUAL_GL_EXTRA_OPTIONS = [
+  { value: "mmf_income", label: "4100 Investment returns (income)" },
+  { value: "income_investment", label: "4100 Investment income (general)" },
+  { value: "income_project", label: "4200 Project revenue" },
+  { value: "income_interest", label: "4300 Interest income" },
+  { value: "income_dividend", label: "4400 Dividend income" },
+  { value: "rental_income", label: "4500 Rental income" },
+  { value: "income_other", label: "4900 Other income" },
+  { value: "penalties", label: "4900 Penalties & surcharges" },
+  { value: "income_fx", label: "4900 Foreign exchange gain" },
+  { value: "reg_costs", label: "5100 Registrations (expense)" },
+  { value: "tx_charge", label: "5100 Bank charges & fees" },
+  { value: "legal", label: "5200 Legal & professional" },
+  { value: "exp_transport", label: "5300 Transport & travel" },
+  { value: "exp_communication", label: "5400 Communication & internet" },
+  { value: "exp_office", label: "5500 Office & administration" },
+  { value: "exp_printing", label: "5600 Printing & stationery" },
+  { value: "exp_salaries", label: "5700 Salaries & wages" },
+  { value: "exp_utilities", label: "5800 Utilities" },
+  { value: "exp_insurance", label: "5900 Insurance" },
+  { value: "exp_meals", label: "5910 Meals & entertainment" },
+  { value: "project_exp", label: "5920 Project disbursements" },
+  { value: "other_exp", label: "5990 Miscellaneous expense" },
+  { value: "exp_fx", label: "5990 Foreign exchange loss" }
+];
+
+/**
+ * @param {{ id: number, name?: string }[]} directors
+ * @returns {{ value: string, label: string }[]}
+ */
+export function buildManualGlAccountOptions(directors = []) {
+  const seen = new Set();
+  const out = [];
+  for (const o of INTER_ACCOUNT_TRANSFER_OPTIONS) {
+    seen.add(o.value);
+    out.push({ ...o });
+  }
+  for (const o of MANUAL_GL_EXTRA_OPTIONS) {
+    if (!seen.has(o.value)) {
+      seen.add(o.value);
+      out.push({ ...o });
+    }
+  }
+  for (const d of directors) {
+    out.push(
+      { value: `director_capital_${d.id}`, label: `311x Director capital — ${d.name}` },
+      { value: `director_side_fund_${d.id}`, label: `3200 Side fund — ${d.name}` }
+    );
+  }
+  return out.sort((a, b) => a.label.localeCompare(b.label));
+}
+
+/**
+ * Suggested concrete GL keys for the selected type (matches server automation intent).
+ * @param {string} type
+ * @param {string} currency
+ * @param {string} [directorId]
+ * @param {{ paymentAp?: boolean, transferFrom?: string, transferTo?: string }} [opts]
+ */
+export function defaultManualKeysFromType(type, currency, directorId, opts = {}) {
+  const { paymentAp = false, transferFrom = "", transferTo = "" } = opts;
+  const map = TX_ACCOUNT_MAP[type];
+  const bankKey = currency === "UGX" ? "bank_ugx" : currency === "USD" ? "bank_usd" : "bank_eur";
+  const dirNum = directorId ? Number(directorId) : NaN;
+  if (!map) return { debit: bankKey, credit: "other_exp" };
+  if (type === "INTER_ACCOUNT_TRANSFER") {
+    const debit = transferTo ? (transferTo === "bank" ? bankKey : transferTo) : bankKey;
+    const credit = transferFrom ? (transferFrom === "bank" ? bankKey : transferFrom) : bankKey;
+    return { debit, credit };
+  }
+  function resolve(k) {
+    if (k === "bank") return bankKey;
+    if (k === "capital" && Number.isFinite(dirNum)) return `director_capital_${dirNum}`;
+    if (k === "capital") return "capital";
+    if (k === "side_fund" && Number.isFinite(dirNum)) return `director_side_fund_${dirNum}`;
+    if (k === "side_fund") return "side_fund";
+    return k;
+  }
+  let debit = resolve(map.debit);
+  let credit = resolve(map.credit);
+  if (TX_POSTING_CATEGORY[type] === "EXPENSE" && paymentAp && map.credit === "bank") {
+    credit = "accounts_payable";
+  }
+  return { debit, credit };
+}
 
 /**
  * @param {string} bucket ALL | INCOME | EXPENSE | OTHER

@@ -49,7 +49,9 @@ router.get("/", async (_req, res) => {
       reversalOfId: true,
       expensePaymentMode: true,
       transferFromAccountKey: true,
-      transferToAccountKey: true
+      transferToAccountKey: true,
+      manualDebitAccountKey: true,
+      manualCreditAccountKey: true
     }
   });
   const balances = deriveBalances(txs as any);

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useOutletContext } from "react-router-dom";
 import DirectorAvatar from "../components/DirectorAvatar";
@@ -26,7 +26,9 @@ import {
   firstTxTypeInBucket,
   needsProjectForType,
   isExpenseBucketType,
-  INTER_ACCOUNT_TRANSFER_OPTIONS
+  INTER_ACCOUNT_TRANSFER_OPTIONS,
+  buildManualGlAccountOptions,
+  defaultManualKeysFromType
 } from "../lib/transactionTypes";
 
 const TEMPLATES = [
@@ -99,6 +101,42 @@ export default function PostTransaction() {
       if (next) setType(next);
     }
   }, [postingBucket]);
+
+  const manualGlOptions = useMemo(() => buildManualGlAccountOptions(qDirs.data || []), [qDirs.data]);
+
+  const suggestedManualKeys = useMemo(
+    () =>
+      defaultManualKeysFromType(type, currency, directorId, {
+        paymentAp,
+        transferFrom,
+        transferTo
+      }),
+    [type, currency, directorId, paymentAp, transferFrom, transferTo]
+  );
+
+  useEffect(() => {
+    if (useManualAccounts && !prevManualRef.current) {
+      const { debit, credit } = defaultManualKeysFromType(type, currency, directorId, {
+        paymentAp,
+        transferFrom,
+        transferTo
+      });
+      setManualDebit(debit);
+      setManualCredit(credit);
+    }
+    prevManualRef.current = useManualAccounts;
+  }, [useManualAccounts, type, currency, directorId, paymentAp, transferFrom, transferTo]);
+
+  function applySuggestedManualKeys() {
+    const { debit, credit } = suggestedManualKeys;
+    setManualDebit(debit);
+    setManualCredit(credit);
+  }
+
+  function labelForManualKey(key) {
+    if (!key) return "—";
+    return manualGlOptions.find((o) => o.value === key)?.label || key;
+  }
 
   const invalidateAll = async () => {
     await Promise.all([
@@ -232,6 +270,10 @@ export default function PostTransaction() {
     if (showExpensePayment) {
       base.expensePaymentMode = paymentAp ? "ACCOUNTS_PAYABLE" : "PAID";
     }
+    if (useManualAccounts && manualDebit && manualCredit) {
+      base.manualDebitAccountKey = manualDebit;
+      base.manualCreditAccountKey = manualCredit;
+    }
     return base;
   }
 
@@ -334,9 +376,9 @@ export default function PostTransaction() {
     <div className="max-w-2xl space-y-4">
       <div>
         <div className="text-lg font-semibold text-slate-900">Post Transaction</div>
-        <div className="text-sm text-slate-600">
-          Debits and credits are assigned automatically from the transaction type. Currency maps to bank accounts: UGX ΓåÆ 1200,
-          USD ΓåÆ 1210, EUR ΓåÆ 1220.
+        <div className="text-sm text-slate-600 dark:text-slate-300">
+          By default, debits and credits follow the selected transaction type. Use manual debit and credit below to pick exact GL lines;
+          suggested accounts mirror what automation would post. Currency maps to bank: UGX ΓåÆ 1200, USD ΓåÆ 1210, EUR ΓåÆ 1220.
         </div>
       </div>
 
@@ -393,6 +435,66 @@ export default function PostTransaction() {
                 </optgroup>
               ))}
             </select>
+          </div>
+
+          <div className="md:col-span-2 rounded-lg border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-600 dark:bg-slate-900/40">
+            <label className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-800 dark:text-slate-100">
+              <input
+                type="checkbox"
+                checked={useManualAccounts}
+                onChange={(e) => setUseManualAccounts(e.target.checked)}
+              />
+              Manual debit & credit (pick GL lines; overrides automated mapping for this posting)
+            </label>
+            {useManualAccounts ? (
+              <div className="mt-3 space-y-3">
+                <p className="text-xs text-slate-600 dark:text-slate-300">
+                  <span className="font-semibold text-slate-700 dark:text-slate-200">Suggested for this type:</span> Debit{" "}
+                  <span className="font-mono text-[11px]">{labelForManualKey(suggestedManualKeys.debit)}</span>
+                  {" · "}Credit{" "}
+                  <span className="font-mono text-[11px]">{labelForManualKey(suggestedManualKeys.credit)}</span>{" "}
+                  <button type="button" className="ml-1 text-brand-700 underline dark:text-brand-300" onClick={applySuggestedManualKeys}>
+                    Apply suggestion
+                  </button>
+                </p>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div>
+                    <label className="text-xs font-medium text-slate-700 dark:text-slate-200">Debit account</label>
+                    <select
+                      className="mt-1 w-full rounded-lg border-slate-300 text-sm dark:border-slate-600"
+                      value={manualDebit}
+                      onChange={(e) => setManualDebit(e.target.value)}
+                    >
+                      <option value="">Select account...</option>
+                      {manualGlOptions.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-700 dark:text-slate-200">Credit account</label>
+                    <select
+                      className="mt-1 w-full rounded-lg border-slate-300 text-sm dark:border-slate-600"
+                      value={manualCredit}
+                      onChange={(e) => setManualCredit(e.target.value)}
+                    >
+                      <option value="">Select account...</option>
+                      {manualGlOptions.map((o) => (
+                        <option key={`c-${o.value}`} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Choose concrete bank lines (1220/1210/1200). Director capital and side fund sub-accounts require the matching director
+                  below. Contribution with manual posting posts a single entry (no automatic side-fund split).
+                </p>
+              </div>
+            ) : null}
           </div>
 
           <div>
@@ -465,7 +567,7 @@ export default function PostTransaction() {
                   className="mt-1 w-full rounded-lg border-slate-300 text-sm"
                   value={transferFrom}
                   onChange={(e) => setTransferFrom(e.target.value)}
-                  required
+                  required={!useManualAccounts}
                 >
                   <option value="">Select account...</option>
                   {INTER_ACCOUNT_TRANSFER_OPTIONS.map((o) => (
@@ -563,16 +665,23 @@ export default function PostTransaction() {
           <input className="mt-1 w-full rounded-lg border-slate-300" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={300} />
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
-          <div className="font-semibold text-slate-900">{editingId ? "Edit transaction preview" : "Preview"}</div>
-          <div className="mt-1 text-slate-700">
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm dark:border-slate-600 dark:bg-slate-900/30">
+          <div className="font-semibold text-slate-900 dark:text-slate-100">{editingId ? "Edit transaction preview" : "Preview"}</div>
+          <div className="mt-1 text-slate-700 dark:text-slate-200">
             On <span className="font-medium">{fmtDate(date)}</span>, this will <span className="font-medium">debit</span>{" "}
-            <span className="rounded bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">{preview.debit}</span>{" "}
+            <span className="rounded bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+              {useManualAccounts ? labelForManualKey(manualDebit) || "—" : preview.debit}
+            </span>{" "}
             and <span className="font-medium">credit</span>{" "}
-            <span className="rounded bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700">{preview.credit}</span>{" "}
+            <span className="rounded bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700 dark:bg-rose-950/50 dark:text-rose-300">
+              {useManualAccounts ? labelForManualKey(manualCredit) || "—" : preview.credit}
+            </span>{" "}
             by <span className="font-semibold">{formatMoney(preview.amount, currency)}</span>.
-            {type === "CONTRIBUTION" ? (
-              <span className="mt-2 block text-xs text-slate-600">
+            {useManualAccounts ? (
+              <span className="mt-2 block text-xs text-slate-600 dark:text-slate-400">Manual GL posting — amounts hit the accounts you selected above.</span>
+            ) : null}
+            {type === "CONTRIBUTION" && !useManualAccounts ? (
+              <span className="mt-2 block text-xs text-slate-600 dark:text-slate-400">
                 Capital contribution splits: remainder to director capital, {currency === "UGX" ? "10,000" : "10"} {currency} to side
                 fund (3200).
               </span>
@@ -601,6 +710,7 @@ export default function PostTransaction() {
                 setProjectId("");
                 setTransferFrom("");
                 setTransferTo("");
+                setUseManualAccounts(false);
               }}
             >
               Cancel edit

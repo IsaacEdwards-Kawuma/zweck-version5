@@ -34,7 +34,9 @@ router.get("/balances", async (_req, res) => {
       currency: true,
       directorId: true,
       postingStatus: true,
-      reversalOfId: true
+      reversalOfId: true,
+      manualDebitAccountKey: true,
+      manualCreditAccountKey: true
     }
   });
   const balances = deriveBalances(txs as any);
@@ -66,7 +68,9 @@ router.get("/director/:id", async (req, res) => {
       reversalOfId: true,
       expensePaymentMode: true,
       transferFromAccountKey: true,
-      transferToAccountKey: true
+      transferToAccountKey: true,
+      manualDebitAccountKey: true,
+      manualCreditAccountKey: true
     }
   });
   const balances = deriveBalances(allForDerive as any);
@@ -99,7 +103,9 @@ router.get("/directors/all", async (_req, res) => {
       reversalOfId: true,
       expensePaymentMode: true,
       transferFromAccountKey: true,
-      transferToAccountKey: true
+      transferToAccountKey: true,
+      manualDebitAccountKey: true,
+      manualCreditAccountKey: true
     }
   });
   const balances = deriveBalances(allForDerive as any);
@@ -134,7 +140,9 @@ router.get("/directors", async (_req, res) => {
       reversalOfId: true,
       expensePaymentMode: true,
       transferFromAccountKey: true,
-      transferToAccountKey: true
+      transferToAccountKey: true,
+      manualDebitAccountKey: true,
+      manualCreditAccountKey: true
     }
   });
   const balances = deriveBalances(allForDerive as any);
@@ -161,7 +169,9 @@ router.get("/summary", async (_req, res) => {
       reversalOfId: true,
       expensePaymentMode: true,
       transferFromAccountKey: true,
-      transferToAccountKey: true
+      transferToAccountKey: true,
+      manualDebitAccountKey: true,
+      manualCreditAccountKey: true
     }
   });
 

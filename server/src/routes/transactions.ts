@@ -57,6 +57,37 @@ function sideFundAllocationFor(currency: "EUR" | "USD" | "UGX"): number {
   return 10;
 }
 
+/** Display parts for persisted manual GL keys (concrete keys, director_capital_*, director_side_fund_*). */
+function resolveStoredGlKey(
+  accountKey: string,
+  t: { currency?: string | null; director: { id: number; name: string } | null },
+  directorCapitalCodeById: Map<number, { code: number; name: string }>
+): { key: string; code: number | null; name: string } {
+  const currency = t.currency && t.currency.length ? t.currency : "EUR";
+  const cap = /^director_capital_(\d+)$/.exec(accountKey);
+  if (cap) {
+    const id = Number(cap[1]);
+    const row = directorCapitalCodeById.get(id);
+    const name = row?.name || (t.director?.id === id ? t.director.name : `Director ${id}`);
+    return { key: accountKey, code: row?.code ?? 3110, name: `Director Capital — ${name}` };
+  }
+  const sf = /^director_side_fund_(\d+)$/.exec(accountKey);
+  if (sf) {
+    const id = Number(sf[1]);
+    const row = directorCapitalCodeById.get(id);
+    const label = row?.name || (t.director?.id === id ? t.director.name : "Director");
+    return { key: accountKey, code: ACCOUNTS.side_fund.code, name: `Side Fund — ${label}` };
+  }
+  if (accountKey === "bank") {
+    if (currency === "UGX") return { key: "bank_ugx", code: 1200, name: "Cash at Bank (UGX)" };
+    if (currency === "USD") return { key: "bank_usd", code: 1210, name: "Cash at Bank (USD)" };
+    return { key: "bank_eur", code: 1220, name: "Cash at Bank (EUR)" };
+  }
+  const meta = (ACCOUNTS as Record<string, { code: number; name: string } | undefined>)[accountKey];
+  if (meta) return { key: accountKey, code: meta.code, name: meta.name };
+  return { key: accountKey, code: null, name: accountKey };
+}
+
 function shapeTransactionRow(
   t: {
     id: number;
@@ -74,6 +105,8 @@ function shapeTransactionRow(
     projectId: number | null;
     transferFromAccountKey: string | null;
     transferToAccountKey: string | null;
+    manualDebitAccountKey: string | null;
+    manualCreditAccountKey: string | null;
     reversalOfId: number | null;
     reversedByTransactionId: number | null;
     reversalReason: string | null;
@@ -147,6 +180,8 @@ function shapeTransactionRow(
     projectId: t.projectId,
     transferFromAccountKey: t.transferFromAccountKey,
     transferToAccountKey: t.transferToAccountKey,
+    manualDebitAccountKey: t.manualDebitAccountKey,
+    manualCreditAccountKey: t.manualCreditAccountKey,
     director: t.director
       ? {
           id: t.director.id,
@@ -160,6 +195,25 @@ function shapeTransactionRow(
     createdBy: t.createdBy,
     createdAt: t.createdAt
   };
+
+  if (t.manualDebitAccountKey && t.manualCreditAccountKey) {
+    let debitParts = resolveStoredGlKey(t.manualDebitAccountKey, t, directorCapitalCodeById);
+    let creditParts = resolveStoredGlKey(t.manualCreditAccountKey, t, directorCapitalCodeById);
+    if (t.reversalOfId) {
+      [debitParts, creditParts] = [creditParts, debitParts];
+    }
+    return {
+      ...baseOut,
+      debitAccount: displayAccount(debitParts),
+      creditAccount: displayAccount(creditParts),
+      debitAccountKey: debitParts.key,
+      creditAccountKey: creditParts.key,
+      debitAccountCode: debitParts.code,
+      creditAccountCode: creditParts.code,
+      debitAccountName: debitParts.name,
+      creditAccountName: creditParts.name
+    };
+  }
 
   if (!map) {
     return {
@@ -276,18 +330,80 @@ const postSchema = z
     expensePaymentMode: z.enum(["PAID", "ACCOUNTS_PAYABLE"]).optional(),
     projectId: z.number().int().positive().optional(),
     transferFromAccountKey: z.string().max(40).optional(),
-    transferToAccountKey: z.string().max(40).optional()
+    transferToAccountKey: z.string().max(40).optional(),
+    manualDebitAccountKey: z.string().max(48).optional(),
+    manualCreditAccountKey: z.string().max(48).optional()
   })
   .refine((data) => validateAmountForCurrency(data.amount, data.currency), {
     message: "Amount must match currency rules (EUR/USD: max 2 decimals; UGX: whole numbers only)",
     path: ["amount"]
   });
 
+async function validateManualLedgerKeys(
+  body: z.infer<typeof postSchema>
+): Promise<{ error?: string; field?: string }> {
+  const debit = body.manualDebitAccountKey!.trim();
+  const credit = body.manualCreditAccountKey!.trim();
+  if (debit === credit) {
+    return { error: "Debit and credit accounts must differ", field: "manualCreditAccountKey" };
+  }
+  if (debit === "bank" || credit === "bank") {
+    return {
+      error: "Use bank_eur, bank_usd, or bank_ugx (not the aggregate bank key).",
+      field: debit === "bank" ? "manualDebitAccountKey" : "manualCreditAccountKey"
+    };
+  }
+
+  async function checkKey(
+    key: string,
+    field: "manualDebitAccountKey" | "manualCreditAccountKey"
+  ): Promise<{ error?: string; field?: string } | undefined> {
+    const cap = /^director_capital_(\d+)$/.exec(key);
+    const sf = /^director_side_fund_(\d+)$/.exec(key);
+    if (cap || sf) {
+      const id = Number((cap || sf)![1]);
+      const d = await prisma.director.findUnique({ where: { id } });
+      if (!d) return { error: `No director matches account key ${key}`, field };
+      if (body.directorId != null && body.directorId !== id) {
+        return { error: `Account ${key} requires directorId ${id}`, field: "directorId" };
+      }
+      if (body.directorId == null) {
+        return { error: `Account ${key} requires directorId ${id}`, field: "directorId" };
+      }
+      return undefined;
+    }
+    if ((ACCOUNTS as Record<string, unknown>)[key]) return undefined;
+    return { error: `Unknown account key: ${key}`, field };
+  }
+
+  const e1 = await checkKey(debit, "manualDebitAccountKey");
+  if (e1) return e1;
+  const e2 = await checkKey(credit, "manualCreditAccountKey");
+  if (e2) return e2;
+  return {};
+}
+
 async function validatePostBody(
   body: z.infer<typeof postSchema>
 ): Promise<{ error?: string; field?: string }> {
   const map = TX_ACCOUNT_MAP[body.type];
   if (!map) return { error: "Unknown transaction type", field: "type" };
+
+  const hasManual =
+    Boolean(body.manualDebitAccountKey?.trim()) && Boolean(body.manualCreditAccountKey?.trim());
+  const partialManual =
+    Boolean(body.manualDebitAccountKey?.trim() || body.manualCreditAccountKey?.trim()) && !hasManual;
+  if (partialManual) {
+    return {
+      error: "Provide both manual debit and credit account keys, or leave both empty.",
+      field: "manualDebitAccountKey"
+    };
+  }
+
+  if (hasManual) {
+    const mv = await validateManualLedgerKeys(body);
+    if (mv.error) return mv;
+  }
 
   if (map.needsDirector && !body.directorId) {
     return { error: "directorId is required for this transaction type", field: "directorId" };
@@ -297,7 +413,7 @@ async function validatePostBody(
     if (!body.projectId) return { error: "projectId is required for this transaction type", field: "projectId" };
   }
 
-  if (body.type === "INTER_ACCOUNT_TRANSFER") {
+  if (body.type === "INTER_ACCOUNT_TRANSFER" && !hasManual) {
     const from = body.transferFromAccountKey as (typeof INTER_ACCOUNT_TRANSFER_KEYS)[number] | undefined;
     const to = body.transferToAccountKey as (typeof INTER_ACCOUNT_TRANSFER_KEYS)[number] | undefined;
     if (!from || !INTER_ACCOUNT_TRANSFER_KEYS.includes(from)) {
@@ -522,6 +638,8 @@ router.post("/:id/reverse", requireRole("ADMIN"), validateBody(reverseSchema), a
         projectId: original.projectId,
         transferFromAccountKey: original.transferFromAccountKey,
         transferToAccountKey: original.transferToAccountKey,
+        manualDebitAccountKey: original.manualDebitAccountKey,
+        manualCreditAccountKey: original.manualCreditAccountKey,
         reversalOfId: original.id,
         reversalReason: reason,
         createdBy: req.user!.id
@@ -620,6 +738,8 @@ router.post("/", validateBody(postSchema), async (req, res) => {
         ? DocumentStatus.NOT_REQUIRED
         : DocumentStatus.MISSING;
 
+  const hasManualPosting = Boolean(body.manualDebitAccountKey?.trim() && body.manualCreditAccountKey?.trim());
+
   const commonData = {
     currency: body.currency,
     description: body.description ?? null,
@@ -636,12 +756,14 @@ router.post("/", validateBody(postSchema), async (req, res) => {
     projectId: body.projectId ?? null,
     transferFromAccountKey: body.transferFromAccountKey ?? null,
     transferToAccountKey: body.transferToAccountKey ?? null,
+    manualDebitAccountKey: hasManualPosting ? body.manualDebitAccountKey!.trim() : null,
+    manualCreditAccountKey: hasManualPosting ? body.manualCreditAccountKey!.trim() : null,
     createdBy: req.user!.id
   };
 
   const sideChunk = sideFundAllocationFor(body.currency);
 
-  if (body.type === "CONTRIBUTION" && body.directorId) {
+  if (body.type === "CONTRIBUTION" && body.directorId && !hasManualPosting) {
     if (body.amount <= sideChunk) {
       return res.status(400).json(
         apiError(
@@ -706,7 +828,7 @@ router.post("/", validateBody(postSchema), async (req, res) => {
     return res.status(201).json({ id: mainTx.id, referenceNumber: refMain });
   }
 
-  if (body.type === "RETAINED_EARNINGS_TRANSFER") {
+  if (body.type === "RETAINED_EARNINGS_TRANSFER" && !hasManualPosting) {
     const directors = await prisma.director.findMany({
       orderBy: { createdAt: "asc" },
       take: 5,
