@@ -1,18 +1,19 @@
 import { useMemo, useState } from "react";
 import { useOutletContext, useSearchParams } from "react-router-dom";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Loading from "../components/Loading";
 import ErrorBanner from "../components/ErrorBanner";
 import DirectorAvatar from "../components/DirectorAvatar";
 import { useTransactions } from "../hooks/useTransactions";
 import { listDirectors } from "../api/directors";
-import { useQuery } from "@tanstack/react-query";
 import { listTransactions, reverseTransaction, txItems } from "../api/transactions";
 import { eur, fmtDate, formatMoney, formatTxRef } from "../lib/format";
 import { LEDGER_ACCOUNT_FILTER_OPTIONS, TX_TYPE_LABELS } from "../lib/transactionTypes";
 import { downloadTransactionsCsv } from "../lib/reportsAnalytics";
 
 export default function Ledger() {
+  const qc = useQueryClient();
+  const { me } = useOutletContext() || {};
   const [searchParams] = useSearchParams();
   const initialFrom = searchParams.get("from") || "";
   const initialTo = searchParams.get("to") || "";
