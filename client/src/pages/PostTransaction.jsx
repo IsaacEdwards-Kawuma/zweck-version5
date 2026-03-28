@@ -84,6 +84,10 @@ export default function PostTransaction() {
   const [recentQuery, setRecentQuery] = useState("");
   const [recentType, setRecentType] = useState("ALL");
   const [showOnlyDirectorTx, setShowOnlyDirectorTx] = useState(false);
+  const [useManualAccounts, setUseManualAccounts] = useState(false);
+  const [manualDebit, setManualDebit] = useState("");
+  const [manualCredit, setManualCredit] = useState("");
+  const prevManualRef = useRef(false);
 
   const map = TX_ACCOUNT_MAP[type];
   const needsDirector = Boolean(map?.needsDirector);
@@ -240,10 +244,28 @@ export default function PostTransaction() {
     if (parsed.value <= 0) return "Amount must be greater than zero.";
     if (needsDirector && !directorId) return "Select director for this transaction type.";
     if (needsProject && !projectId) return "Select a project.";
-    if (showTransfer && (!transferFrom || !transferTo)) return "Select source and destination accounts.";
-    if (showTransfer && transferFrom === transferTo) return "Source and destination must differ.";
+    if (showTransfer && !useManualAccounts && (!transferFrom || !transferTo)) return "Select source and destination accounts.";
+    if (showTransfer && !useManualAccounts && transferFrom === transferTo) return "Source and destination must differ.";
+    if (useManualAccounts) {
+      if (!manualDebit || !manualCredit) return "Select debit and credit GL accounts.";
+      if (manualDebit === manualCredit) return "Debit and credit accounts must be different.";
+    }
     return "";
-  }, [amount, currency, needsDirector, directorId, needsProject, projectId, showTransfer, transferFrom, transferTo, date]);
+  }, [
+    amount,
+    currency,
+    needsDirector,
+    directorId,
+    needsProject,
+    projectId,
+    showTransfer,
+    transferFrom,
+    transferTo,
+    date,
+    useManualAccounts,
+    manualDebit,
+    manualCredit
+  ]);
 
   const selectedDirector = useMemo(() => {
     if (!needsDirector || !directorId) return null;
