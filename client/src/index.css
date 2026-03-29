@@ -19,6 +19,18 @@ html.dark body {
   @apply bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100;
 }
 
+/**
+ * Dark mode: `html` gets class `dark` via lib/theme.js (applyTheme).
+ * Use Tailwind `dark:` variants or shared utilities below (ui-input, ui-select, ui-panel-elevated, …).
+ */
+html {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
 /* Ambient visual glow for richer depth without heavy textures */
 body::before {
   content: "";
@@ -193,6 +205,16 @@ html.dark ::selection {
 
   .ui-input {
     @apply rounded-lg border border-slate-300/90 bg-white/95 px-2 py-1.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-[box-shadow,border-color,background-color,transform] duration-150 focus:-translate-y-px focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-brand-400 dark:focus:ring-brand-400/20;
+  }
+
+  /** Native select elements — same tokens as .ui-input; options follow OS / color-scheme */
+  .ui-select {
+    @apply rounded-lg border border-slate-300/90 bg-white/95 px-3 py-2 text-sm text-slate-900 shadow-sm transition-[box-shadow,border-color,background-color] duration-150 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-brand-400 dark:focus:ring-brand-400/20;
+  }
+
+  /** Multiline fields */
+  .ui-textarea {
+    @apply min-h-24 w-full rounded-lg border border-slate-300/90 bg-white/95 px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-[box-shadow,border-color,background-color,transform] duration-150 focus:-translate-y-px focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-brand-400 dark:focus:ring-brand-400/20;
   }
 
   .ui-page-heading {

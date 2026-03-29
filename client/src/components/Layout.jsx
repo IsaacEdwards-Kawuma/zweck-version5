@@ -48,7 +48,7 @@ export default function Layout() {
         <main
           id="main-content"
           tabIndex={-1}
-          className="ui-animate-in min-w-0 flex-1 overflow-y-auto bg-slate-50/40 p-3 outline-none print:bg-white sm:p-4 md:p-6 print:p-8 dark:bg-slate-950/30"
+          className="ui-animate-in min-w-0 flex-1 overflow-y-auto bg-slate-50/40 p-3 outline-none print:bg-white sm:p-4 md:p-6 print:p-8 dark:bg-slate-950/55"
         >
           <Outlet context={{ me: qMe.data }} />
         </main>

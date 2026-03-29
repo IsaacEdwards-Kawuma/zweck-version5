@@ -49,25 +49,25 @@ export default function GlobalSearch() {
         onFocus={(e) => {
           if (e.target.value.trim().length >= 2) setOpen(true);
         }}
-        className="w-full rounded-lg border border-slate-200 bg-white/95 px-3 py-2 text-sm text-slate-800 shadow-sm outline-none ring-brand-500/30 placeholder:text-slate-400 focus:border-brand-400 focus:ring-2 dark:border-slate-600 dark:bg-slate-900/90 dark:text-slate-100 dark:placeholder:text-slate-500"
+        className="ui-input w-full px-3 py-2 shadow-sm ring-brand-500/30 focus:ring-2"
       />
       {open && trimmed.length >= 2 ? (
         <div
           role="listbox"
           aria-label="Search results"
-          className="absolute left-0 right-0 top-full z-50 mt-1 max-h-[min(70vh,420px)] overflow-auto rounded-xl border border-slate-200 bg-white py-2 text-sm shadow-xl dark:border-slate-600 dark:bg-slate-900"
+          className="absolute left-0 right-0 top-full z-50 mt-1 max-h-[min(70vh,420px)] overflow-auto rounded-xl border border-slate-200/90 bg-white/95 py-2 text-sm shadow-xl backdrop-blur-sm dark:border-slate-600 dark:bg-slate-900/95"
         >
           {qSearch.isLoading ? (
-            <div className="px-3 py-2 text-slate-500">Searching…</div>
+            <div className="px-3 py-2 text-sm ui-page-muted">Searching…</div>
           ) : qSearch.isError ? (
-            <div className="px-3 py-2 text-rose-600">Search failed.</div>
+            <div className="px-3 py-2 text-sm text-rose-600 dark:text-rose-400">Search failed.</div>
           ) : !hasResults ? (
-            <div className="px-3 py-2 text-slate-500">No matches.</div>
+            <div className="px-3 py-2 text-sm ui-page-muted">No matches.</div>
           ) : (
             <ul className="space-y-3 px-2">
               {d.directors?.length ? (
                 <li>
-                  <div className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                  <div className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                     Directors
                   </div>
                   <ul className="space-y-0.5">
@@ -80,7 +80,7 @@ export default function GlobalSearch() {
                           onClick={() => setOpen(false)}
                         >
                           <span className="font-medium text-slate-900 dark:text-slate-100">{row.name}</span>
-                          <span className="ml-2 text-xs text-slate-500">{row.email}</span>
+                          <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">{row.email}</span>
                         </Link>
                       </li>
                     ))}
@@ -89,7 +89,7 @@ export default function GlobalSearch() {
               ) : null}
               {d.meetings?.length ? (
                 <li>
-                  <div className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                  <div className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                     Meetings
                   </div>
                   <ul className="space-y-0.5">
@@ -102,7 +102,7 @@ export default function GlobalSearch() {
                           onClick={() => setOpen(false)}
                         >
                           <span className="font-medium text-slate-900 dark:text-slate-100">{row.title}</span>
-                          <span className="ml-2 text-xs text-slate-500">{row.date}</span>
+                          <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">{row.date}</span>
                         </Link>
                       </li>
                     ))}
@@ -111,7 +111,7 @@ export default function GlobalSearch() {
               ) : null}
               {d.documents?.length ? (
                 <li>
-                  <div className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                  <div className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                     Documents
                   </div>
                   <ul className="space-y-0.5">

@@ -59,7 +59,7 @@ export function ToastProvider({ children }) {
               <span className="min-w-0 flex-1">{t.message}</span>
               <button
                 type="button"
-                className="shrink-0 text-xs font-medium opacity-70 hover:opacity-100"
+                className="shrink-0 text-xs font-medium text-slate-600 opacity-80 hover:opacity-100 dark:text-slate-300"
                 onClick={() => dismiss(t.id)}
               >
                 Dismiss

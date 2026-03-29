@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma.js";
 import { apiError } from "../lib/http.js";
 import { requireRole } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
+import { notifyUser } from "../services/inAppNotifications.js";
 
 const router = Router();
 const db: any = prisma;
@@ -29,6 +30,47 @@ const meetingSchema = z.object({
 });
 
 const updateMeetingSchema = meetingSchema.partial();
+
+const createMeetingSchema = meetingSchema.extend({
+  inviteUserIds: z.array(z.number().int().positive()).max(500).optional()
+});
+
+function isDirectorAccount(u: { role: string; directorId: number | null }): boolean {
+  return u.role === "DIRECTOR" || u.directorId != null;
+}
+
+function meetingInviteBody(row: {
+  date: string;
+  time?: string | null;
+  location?: string | null;
+}): string {
+  const when = [row.date, row.time].filter(Boolean).join(" · ");
+  const parts = [`When: ${when}`];
+  if (row.location) parts.push(`Location: ${row.location}`);
+  return parts.join("\n");
+}
+
+/** Validates ids exist; Board meetings may only include director-linked accounts. */
+async function resolveInviteUserIds(
+  meetingType: string | null | undefined,
+  rawIds: number[] | undefined
+): Promise<number[]> {
+  if (!rawIds?.length) return [];
+  const unique = [...new Set(rawIds)];
+  const users = await prisma.user.findMany({
+    where: { id: { in: unique } },
+    select: { id: true, role: true, directorId: true }
+  });
+  if (users.length !== unique.length) {
+    throw new Error("INVALID_INVITE_USER");
+  }
+  const board = String(meetingType || "").trim().toLowerCase() === "board";
+  if (board) {
+    const bad = users.filter((u) => !isDirectorAccount(u));
+    if (bad.length) throw new Error("BOARD_INVITE_NON_DIRECTOR");
+  }
+  return unique;
+}
 
 router.get("/", async (_req, res) => {
   const rows = await db.meeting.findMany({ orderBy: [{ date: "desc" }, { id: "desc" }] });
@@ -81,12 +123,26 @@ router.get("/calendar.ics", async (_req, res) => {
   return res.send(lines.join("\r\n"));
 });
 
-router.post("/", requireRole("ADMIN"), validateBody(meetingSchema), async (req, res) => {
-  const body = req.body as z.infer<typeof meetingSchema>;
+router.post("/", requireRole("ADMIN"), validateBody(createMeetingSchema), async (req, res) => {
+  const body = req.body as z.infer<typeof createMeetingSchema>;
+  const { inviteUserIds, ...meetingFields } = body;
+  let inviteIds: number[] = [];
+  try {
+    inviteIds = await resolveInviteUserIds(meetingFields.meetingType, inviteUserIds);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "";
+    if (msg === "INVALID_INVITE_USER") {
+      return res.status(400).json(apiError("One or more selected attendees are invalid."));
+    }
+    if (msg === "BOARD_INVITE_NON_DIRECTOR") {
+      return res.status(400).json(apiError("Board meetings can only invite director accounts."));
+    }
+    throw e;
+  }
   const uid = req.user?.id ?? null;
   const row = await db.meeting.create({
     data: {
-      ...body,
+      ...meetingFields,
       createdById: uid,
       updatedById: uid
     }
@@ -101,6 +157,19 @@ router.post("/", requireRole("ADMIN"), validateBody(meetingSchema), async (req, 
       after: row as any
     }
   });
+  const creatorId = req.user?.id ?? null;
+  const bodyText = meetingInviteBody(row);
+  for (const inviteeId of inviteIds) {
+    if (creatorId != null && inviteeId === creatorId) continue;
+    await notifyUser(
+      inviteeId,
+      "MEETING_INVITE",
+      `Invitation: ${row.title}`,
+      bodyText,
+      "/meetings",
+      row.id
+    );
+  }
   return res.status(201).json(row);
 });
 

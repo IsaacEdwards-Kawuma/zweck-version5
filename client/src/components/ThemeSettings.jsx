@@ -17,14 +17,11 @@ export default function ThemeSettings() {
   }
 
   return (
-    <section
-      id="settings-theme"
-      className="ui-surface scroll-mt-24 rounded-xl p-5"
-    >
+    <section id="settings-theme" className="ui-panel-elevated scroll-mt-24 p-5">
       <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
         Display theme
       </h2>
-      <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+      <p className="mt-1 text-sm ui-body-text">
         Choose how ZweckOS looks on this browser. &quot;System&quot; updates when your OS light/dark mode changes.
       </p>
       <div className="mt-4 grid gap-3 sm:grid-cols-3">

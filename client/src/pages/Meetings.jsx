@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMe } from "../hooks/useMe";
@@ -41,13 +41,22 @@ function parseDateKeyLocal(dateKey) {
   return new Date(y, m - 1, d);
 }
 
+function isDirectorMember(u) {
+  return u.role === "DIRECTOR" || u.directorId != null;
+}
+
+function formatAttendeeLine(u) {
+  if (u.director?.name) return `${u.director.name} (${u.email})`;
+  return u.email;
+}
+
 const EMPTY_FORM = {
   title: "",
   date: "",
   time: "",
   location: "",
   chairperson: "",
-  attendees: "",
+  attendees: "", // derived from selected invitees on save
   attendanceCount: "",
   expectedAttendees: "",
   meetingType: "Board",
@@ -99,8 +108,15 @@ export default function Meetings() {
   const qMe = useMe(true);
   const q = useQuery({ queryKey: ["meetings"], queryFn: listMeetings });
   const isAdmin = qMe.data?.role === "ADMIN";
+  const qUsers = useQuery({
+    queryKey: ["users"],
+    queryFn: listUsers,
+    enabled: Boolean(isAdmin)
+  });
 
   const [form, setForm] = useState(EMPTY_FORM);
+  const [selectedAttendeeIds, setSelectedAttendeeIds] = useState([]);
+  const [attendeeFilter, setAttendeeFilter] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -114,6 +130,27 @@ export default function Meetings() {
   const [selectedDate, setSelectedDate] = useState("");
 
   const rows = useMemo(() => (Array.isArray(q.data) ? q.data : []), [q.data]);
+  const allUsers = useMemo(() => (Array.isArray(qUsers.data) ? qUsers.data : []), [qUsers.data]);
+
+  const eligibleInviteUsers = useMemo(() => {
+    const base =
+      form.meetingType === "Board" ? allUsers.filter(isDirectorMember) : [...allUsers];
+    const q = attendeeFilter.trim().toLowerCase();
+    if (!q) return base;
+    return base.filter((u) => {
+      const hay = `${u.email} ${u.director?.name || ""} ${u.role}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [allUsers, form.meetingType, attendeeFilter]);
+
+  useEffect(() => {
+    if (editingId != null) return;
+    if (form.meetingType === "Board") {
+      setSelectedAttendeeIds(allUsers.filter(isDirectorMember).map((u) => u.id));
+    } else {
+      setSelectedAttendeeIds([]);
+    }
+  }, [form.meetingType, allUsers, editingId]);
 
   const mCreate = useMutation({
     mutationFn: (payload) => createMeeting(payload),
@@ -207,29 +244,45 @@ export default function Meetings() {
     setForm((f) => ({ ...f, [name]: value }));
   }
 
+  function toggleAttendee(id) {
+    setSelectedAttendeeIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }
+
   function resetForm() {
     setForm(EMPTY_FORM);
     setEditingId(null);
+    setAttendeeFilter("");
+    const users = Array.isArray(qUsers.data) ? qUsers.data : [];
+    setSelectedAttendeeIds(users.filter(isDirectorMember).map((u) => u.id));
   }
 
   function onSubmit(e) {
     e.preventDefault();
     if (!isAdmin) return;
     if (!form.title.trim() || !form.date) return;
-    const payload = {
+    const attendeeLines = selectedAttendeeIds
+      .map((id) => allUsers.find((u) => u.id === id))
+      .filter(Boolean)
+      .map(formatAttendeeLine);
+    const basePayload = {
       ...form,
+      attendees: attendeeLines.join(", "),
       attendanceCount: form.attendanceCount === "" ? null : Number(form.attendanceCount),
       expectedAttendees: form.expectedAttendees === "" ? null : Number(form.expectedAttendees),
       reminderDays: form.reminderDays === "" ? null : Number(form.reminderDays)
     };
-    if (editingId) mUpdate.mutate({ id: editingId, payload });
-    else mCreate.mutate(payload);
+    if (editingId) mUpdate.mutate({ id: editingId, payload: basePayload });
+    else mCreate.mutate({ ...basePayload, inviteUserIds: selectedAttendeeIds });
     resetForm();
   }
 
   function onEdit(r) {
     if (!isAdmin) return;
     setEditingId(r.id);
+    setSelectedAttendeeIds([]);
+    setAttendeeFilter("");
     setForm({
       title: r.title || "",
       date: r.date || "",
@@ -445,7 +498,82 @@ export default function Meetings() {
           <LabeledInput label="Time" type="time" value={form.time} onChange={(v) => onChange("time", v)} />
           <LabeledInput label="Location" value={form.location} onChange={(v) => onChange("location", v)} />
           <LabeledInput label="Chairperson" value={form.chairperson} onChange={(v) => onChange("chairperson", v)} />
-          <LabeledInput label="Attendees" value={form.attendees} onChange={(v) => onChange("attendees", v)} />
+          <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            Meeting type
+            <select
+              className="ui-select mt-1 w-full disabled:cursor-not-allowed disabled:opacity-60"
+              value={form.meetingType}
+              onChange={(e) => onChange("meetingType", e.target.value)}
+              disabled={!isAdmin}
+            >
+              {MEETING_TYPES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </label>
+          {isAdmin ? (
+            <div className="md:col-span-2 space-y-2 rounded-xl border border-slate-200/90 bg-slate-50/50 p-3 dark:border-slate-700 dark:bg-slate-900/40">
+              <div className="space-y-1">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  Invite attendees
+                </div>
+                <p className="text-xs ui-page-muted">
+                  {form.meetingType === "Board"
+                    ? "Only director-linked accounts are listed. All are selected by default; uncheck anyone who should not get an invitation."
+                    : "All organization members are listed. Check who should receive an in-app invitation when you save a new meeting."}
+                </p>
+              </div>
+              {qUsers.isLoading ? (
+                <div className="text-sm ui-page-muted">Loading members…</div>
+              ) : (
+                <>
+                  <input
+                    type="search"
+                    className="ui-input w-full px-3 py-2"
+                    placeholder="Filter by name or email…"
+                    value={attendeeFilter}
+                    onChange={(e) => setAttendeeFilter(e.target.value)}
+                    autoComplete="off"
+                  />
+                  <div className="max-h-52 overflow-y-auto rounded-lg border border-slate-200 bg-white dark:border-slate-600 dark:bg-slate-900">
+                    {eligibleInviteUsers.length === 0 ? (
+                      <div className="p-3 text-sm ui-page-muted">
+                        {form.meetingType === "Board"
+                          ? "No director accounts found. Assign the Director role or link a user to a director profile."
+                          : "No members found."}
+                      </div>
+                    ) : (
+                      eligibleInviteUsers.map((u) => (
+                        <label
+                          key={u.id}
+                          className="flex cursor-pointer items-center gap-2 border-b border-slate-100 px-3 py-2 last:border-b-0 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800/80"
+                        >
+                          <input
+                            type="checkbox"
+                            className="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                            checked={selectedAttendeeIds.includes(u.id)}
+                            onChange={() => toggleAttendee(u.id)}
+                          />
+                          <span className="min-w-0 flex-1 text-sm text-slate-800 dark:text-slate-100">
+                            {formatAttendeeLine(u)}
+                          </span>
+                          <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                            {u.role}
+                          </span>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400">
+                    {selectedAttendeeIds.length} selected
+                    {editingId ? " · Invitations are sent only when you create a new meeting." : " · Saves send an in-app invitation to each selected person (except you)."}
+                  </div>
+                </>
+              )}
+            </div>
+          ) : null}
           <LabeledInput
             label="Attendance count"
             type="number"
@@ -458,20 +586,6 @@ export default function Meetings() {
             value={form.expectedAttendees}
             onChange={(v) => onChange("expectedAttendees", v)}
           />
-          <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            Meeting type
-            <select
-              className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-900"
-              value={form.meetingType}
-              onChange={(e) => onChange("meetingType", e.target.value)}
-            >
-              {MEETING_TYPES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </label>
           <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Priority
             <select
@@ -489,7 +603,7 @@ export default function Meetings() {
           <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Recurrence
             <select
-              className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-900"
+              className="ui-select mt-1 w-full"
               value={form.recurrence}
               onChange={(e) => onChange("recurrence", e.target.value)}
             >
@@ -515,7 +629,7 @@ export default function Meetings() {
           <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Status
             <select
-              className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-900"
+              className="ui-select mt-1 w-full disabled:cursor-not-allowed disabled:opacity-60"
               value={form.status}
               onChange={(e) => onChange("status", e.target.value)}
               disabled={!isAdmin}
@@ -551,18 +665,18 @@ export default function Meetings() {
         </form>
       </section>
 
-      <section className="ui-surface rounded-2xl p-4">
+      <section className="ui-panel-elevated">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="text-sm font-semibold ui-page-heading">Meeting register</div>
           <div className="flex flex-wrap gap-2">
             <input
-              className="w-56 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-900"
+              className="ui-input w-56 px-3 py-2"
               placeholder="Search title, chairperson, location..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
             <select
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-900"
+              className="ui-select px-3 py-2"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
@@ -573,11 +687,7 @@ export default function Meetings() {
                 </option>
               ))}
             </select>
-            <select
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-900"
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-            >
+            <select className="ui-select px-3 py-2" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
               <option value="ALL">All types</option>
               {MEETING_TYPES.map((s) => (
                 <option key={s} value={s}>
@@ -586,7 +696,7 @@ export default function Meetings() {
               ))}
             </select>
             <select
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-900"
+              className="ui-select px-3 py-2"
               value={priorityFilter}
               onChange={(e) => setPriorityFilter(e.target.value)}
             >
@@ -735,7 +845,7 @@ function LabeledInput({ label, value, onChange, type = "text", required = false 
       <input
         type={type}
         required={required}
-        className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-900"
+        className="ui-input mt-1 w-full px-3 py-2"
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
@@ -747,11 +857,7 @@ function LabeledTextArea({ label, value, onChange, className = "" }) {
   return (
     <label className={`text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 ${className}`}>
       {label}
-      <textarea
-        className="mt-1 min-h-24 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-900"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      />
+      <textarea className="ui-textarea mt-1" value={value} onChange={(e) => onChange(e.target.value)} />
     </label>
   );
 }
