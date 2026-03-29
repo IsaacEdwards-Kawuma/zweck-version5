@@ -569,8 +569,24 @@ router.get("/", async (req, res) => {
   const closingBalance = accountKey ? balancesByAccount.get(accountKey) || 0 : null;
 
   const total = allByAccount.length;
-  const pagedChronological = allByAccount.slice(offset, offset + limit);
-  const items = pagedChronological.reverse();
+
+  /** General ledger (no account filter): page by newest business date, then posting time — not oldest rows first. */
+  let items: any[];
+  if (accountKey) {
+    const pagedChronological = allByAccount.slice(offset, offset + limit);
+    items = pagedChronological.reverse();
+  } else {
+    const newestFirst = [...allByAccount].sort((a, b) => {
+      const da = new Date(a.date).getTime();
+      const db = new Date(b.date).getTime();
+      if (db !== da) return db - da;
+      const ca = new Date(a.createdAt).getTime();
+      const cb = new Date(b.createdAt).getTime();
+      if (cb !== ca) return cb - ca;
+      return b.id - a.id;
+    });
+    items = newestFirst.slice(offset, offset + limit);
+  }
   const sumAmount = allByAccount.reduce((s, t) => s + Number(t.amount || 0), 0);
   const count = allByAccount.length;
   const byType: Record<string, number> = {};

@@ -100,6 +100,9 @@ export default function Ledger() {
       const da = new Date(a.date).getTime();
       const db = new Date(b.date).getTime();
       if (da !== db) return da - db;
+      const ca = new Date(a.createdAt).getTime();
+      const cb = new Date(b.createdAt).getTime();
+      if (ca !== cb) return ca - cb;
       const ra = a.referenceNumber || a.reference || "";
       const rb = b.referenceNumber || b.reference || "";
       return ra.localeCompare(rb);
@@ -148,7 +151,10 @@ export default function Ledger() {
       <div className="ui-surface flex flex-col gap-3 rounded-xl p-4 md:flex-row md:items-end md:justify-between">
         <div>
           <div className="text-lg font-semibold ui-page-heading">Transaction Ledger</div>
-          <div className="text-sm ui-body-text">Newest first. Use filters to narrow down results.</div>
+          <div className="text-sm ui-body-text">
+            Recent postings first (by date, then time posted). Use filters to narrow results. The Order control only re-sorts the
+            current page.
+          </div>
         </div>
         <div className="flex flex-wrap items-end gap-2">
           <div>
