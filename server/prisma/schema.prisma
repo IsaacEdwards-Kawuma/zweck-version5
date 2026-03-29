@@ -566,6 +566,10 @@ model ReconciliationNote {
 enum InternalFormKind {
   REQUISITION
   GENERAL_REQUEST
+  /** Expense / reimbursement: attach receipt PDF or image for treasurer to approve before posting in ledger. */
+  TRANSACTION_RECEIPT
+  /** Formal acknowledgement (policy, receipt, training); requires details; approver files a printable record. */
+  ACKNOWLEDGEMENT
 }
 
 enum InternalFormStatus {
@@ -584,6 +588,9 @@ model InternalForm {
   currency        String?            @db.VarChar(3)
   purpose         String?            @db.VarChar(500)
   vendor          String?            @db.VarChar(200)
+  /** Uploaded receipt (PDF/image) for TRANSACTION_RECEIPT; public URL path under /api/uploads/internal-forms/ */
+  receiptUrl      String?            @map("receipt_url") @db.VarChar(500)
+  receiptFileName String?            @map("receipt_file_name") @db.VarChar(255)
   status          InternalFormStatus @default(PENDING)
   requestedById   Int
   requestedBy     User               @relation("InternalFormRequester", fields: [requestedById], references: [id], onDelete: Cascade)

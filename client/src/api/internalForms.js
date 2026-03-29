@@ -19,6 +19,14 @@ export async function createInternalForm(payload) {
   return data;
 }
 
+/** Upload PDF or image receipt; returns { receiptUrl, fileName }. */
+export async function uploadInternalFormReceipt(file) {
+  const form = new FormData();
+  form.append("file", file);
+  const { data } = await api.post("/internal-forms/upload-receipt", form);
+  return data;
+}
+
 export async function decideInternalForm(id, payload) {
   const { data } = await api.patch(`/internal-forms/${id}/decision`, payload);
   return data;

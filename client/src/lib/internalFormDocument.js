@@ -18,6 +18,8 @@ function escapeMultiline(s) {
 function kindLabel(k) {
   if (k === "REQUISITION") return "Requisition";
   if (k === "GENERAL_REQUEST") return "General request";
+  if (k === "TRANSACTION_RECEIPT") return "Expense / receipt (treasurer → ledger)";
+  if (k === "ACKNOWLEDGEMENT") return "Acknowledgement";
   return String(k);
 }
 
@@ -55,6 +57,11 @@ export function buildApprovedFormHtml(row) {
   const submitted = row.createdAt ? new Date(row.createdAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—";
   const generated = new Date().toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 
+  const receiptCell =
+    row.receiptUrl && String(row.receiptUrl).trim()
+      ? `<a href="${escapeHtml(String(row.receiptUrl))}" style="color:#1d4ed8;font-weight:600;">${escapeHtml(row.receiptFileName || "View receipt")}</a> <span style="color:#64748b;font-size:11px;">(open in ZweckOS while online)</span>`
+      : "—";
+
   const requestRows = [
     rowPair("Reference", escapeHtml(`#${String(row.id)}`)),
     rowPair("Form type", escapeHtml(kindLabel(row.kind))),
@@ -63,9 +70,24 @@ export function buildApprovedFormHtml(row) {
     rowPair("Amount", escapeHtml(amountLine)),
     rowPair("Purpose / budget line", escapeHtml(row.purpose || "—")),
     rowPair("Vendor / payee", escapeHtml(row.vendor || "—")),
+    rowPair("Receipt on file", receiptCell),
     rowPair("Requested by", escapeHtml(requesterName(row))),
     rowPair("Date submitted", escapeHtml(submitted))
   ].join("");
+
+  const acknowledgementNote =
+    row.kind === "ACKNOWLEDGEMENT"
+      ? `<div class="footer-note" style="margin-bottom:16px;background:#f0fdfa;border-color:#5eead4;">
+        <strong style="color:#0f766e;">Acknowledgement.</strong> The requester attests to the statement above. The approver confirms this record may be filed as proof of acknowledgement. Retain this printout with policies, training records, or handover documentation as needed.
+      </div>`
+      : "";
+
+  const treasurerNote =
+    row.kind === "TRANSACTION_RECEIPT"
+      ? `<div class="footer-note" style="margin-bottom:16px;background:#eff6ff;border-color:#93c5fd;">
+        <strong style="color:#1e3a8a;">Treasurer.</strong> This approval authorizes posting the matching amount in <strong>Post transaction</strong> / ledger. Keep this printout with your files; the uploaded receipt remains in ZweckOS under Forms.
+      </div>`
+      : "";
 
   const approvalRows = [
     rowPair("Decision", '<strong style="color:#047857;">Approved</strong>'),
@@ -80,7 +102,7 @@ export function buildApprovedFormHtml(row) {
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <meta name="color-scheme" content="light"/>
-<title>ZweckOS — Approved form #${row.id}</title>
+<title>ZweckOS — ${row.kind === "ACKNOWLEDGEMENT" ? "Acknowledgement" : "Approved form"} #${row.id}</title>
 <style>
   * { box-sizing: border-box; }
   html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -217,8 +239,12 @@ export function buildApprovedFormHtml(row) {
   <div class="sheet">
     <header class="head">
       <div class="head-eyebrow">Zweck Co. Ltd · Kampala</div>
-      <h1 class="head-title">Internal request — approval record</h1>
-      <p class="head-sub">This document certifies that the request below was reviewed and <strong>approved</strong> in ZweckOS.</p>
+      <h1 class="head-title">${row.kind === "ACKNOWLEDGEMENT" ? "Acknowledgement — approval record" : "Internal request — approval record"}</h1>
+      <p class="head-sub">${
+        row.kind === "ACKNOWLEDGEMENT"
+          ? "This document certifies that the acknowledgement below was reviewed and <strong>approved</strong> in ZweckOS."
+          : "This document certifies that the request below was reviewed and <strong>approved</strong> in ZweckOS."
+      }</p>
       <div class="stamp" aria-hidden="true">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>
         APPROVED
@@ -230,6 +256,9 @@ export function buildApprovedFormHtml(row) {
 
       <h2 class="section-label">Authorization</h2>
       <table class="doc-table" role="presentation">${approvalRows}</table>
+
+      ${acknowledgementNote}
+      ${treasurerNote}
 
       <div class="footer-note">
         <strong>Verification.</strong> Reference <strong>#${row.id}</strong> — retain this copy for your records.

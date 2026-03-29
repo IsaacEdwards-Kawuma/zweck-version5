@@ -1,4 +1,7 @@
+import fs from "node:fs";
+import path from "node:path";
 import { Router } from "express";
+import multer from "multer";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
@@ -9,15 +12,67 @@ import { notifyUser } from "../services/inAppNotifications.js";
 
 const router = Router();
 
-const createBody = z.object({
-  kind: z.enum(["REQUISITION", "GENERAL_REQUEST"]),
-  title: z.string().min(1).max(300),
-  description: z.string().max(8000).optional().nullable(),
-  amount: z.number().nonnegative().optional().nullable(),
-  currency: z.enum(["EUR", "USD", "UGX"]).optional().nullable(),
-  purpose: z.string().max(500).optional().nullable(),
-  vendor: z.string().max(200).optional().nullable()
+const uploadRoot = path.join(process.cwd(), "uploads", "internal-forms");
+fs.mkdirSync(uploadRoot, { recursive: true });
+
+const receiptUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, uploadRoot),
+    filename: (_req, file, cb) => {
+      const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80);
+      cb(null, `${Date.now()}-${safe}`);
+    }
+  }),
+  limits: { fileSize: 8 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ok =
+      file.mimetype === "application/pdf" ||
+      file.mimetype === "image/jpeg" ||
+      file.mimetype === "image/png" ||
+      file.mimetype === "image/webp" ||
+      file.mimetype === "image/gif";
+    if (!ok) return cb(new Error("Only PDF and images (JPEG, PNG, WebP, GIF) are allowed"));
+    cb(null, true);
+  }
 });
+
+const createBody = z
+  .object({
+    kind: z.enum(["REQUISITION", "GENERAL_REQUEST", "TRANSACTION_RECEIPT", "ACKNOWLEDGEMENT"]),
+    title: z.string().min(1).max(300),
+    description: z.string().max(8000).optional().nullable(),
+    amount: z.number().nonnegative().optional().nullable(),
+    currency: z.enum(["EUR", "USD", "UGX"]).optional().nullable(),
+    purpose: z.string().max(500).optional().nullable(),
+    vendor: z.string().max(200).optional().nullable(),
+    receiptUrl: z.string().max(500).optional().nullable(),
+    receiptFileName: z.string().max(255).optional().nullable()
+  })
+  .superRefine((data, ctx) => {
+    if (data.kind === "TRANSACTION_RECEIPT") {
+      const url = data.receiptUrl?.trim();
+      if (!url) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Receipt attachment is required", path: ["receiptUrl"] });
+      }
+      if (data.amount == null || data.currency == null) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Amount and currency are required for expense / receipt requests",
+          path: ["amount"]
+        });
+      }
+    }
+    if (data.kind === "ACKNOWLEDGEMENT") {
+      const desc = data.description?.trim();
+      if (!desc) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Acknowledgement details are required (what you are acknowledging)",
+          path: ["description"]
+        });
+      }
+    }
+  });
 
 const decisionBody = z.object({
   status: z.enum(["APPROVED", "REJECTED"]),
@@ -33,6 +88,8 @@ function serializeForm(row: {
   currency: string | null;
   purpose: string | null;
   vendor: string | null;
+  receiptUrl: string | null;
+  receiptFileName: string | null;
   status: string;
   requestedById: number;
   reviewedById: number | null;
@@ -51,6 +108,23 @@ function serializeForm(row: {
     updatedAt: row.updatedAt.toISOString()
   };
 }
+
+router.post(
+  "/upload-receipt",
+  requireAuth,
+  (req, res, next) => {
+    receiptUpload.single("file")(req, res, (err) => {
+      if (err) return res.status(400).json(apiError(err instanceof Error ? err.message : "Upload failed"));
+      next();
+    });
+  },
+  async (req, res) => {
+    const f = req.file;
+    if (!f) return res.status(400).json(apiError("file required"));
+    const publicUrl = `/api/uploads/internal-forms/${f.filename}`;
+    return res.json({ receiptUrl: publicUrl, fileName: f.originalname });
+  }
+);
 
 router.get("/", requireAuth, async (req, res) => {
   const user = req.user!;
@@ -71,7 +145,7 @@ router.get("/", requireAuth, async (req, res) => {
   if (status && ["PENDING", "APPROVED", "REJECTED", "CANCELLED"].includes(status)) {
     where.status = status as Prisma.InternalFormWhereInput["status"];
   }
-  if (kind && ["REQUISITION", "GENERAL_REQUEST"].includes(kind)) {
+  if (kind && ["REQUISITION", "GENERAL_REQUEST", "TRANSACTION_RECEIPT"].includes(kind)) {
     where.kind = kind as Prisma.InternalFormWhereInput["kind"];
   }
 
@@ -97,6 +171,8 @@ router.post("/", requireAuth, validateBody(createBody), async (req, res) => {
     currency: body.currency ?? null,
     purpose: body.purpose ?? null,
     vendor: body.vendor ?? null,
+    receiptUrl: body.receiptUrl?.trim() || null,
+    receiptFileName: body.receiptFileName?.trim() || null,
     status: "PENDING",
     requestedBy: { connect: { id: user.id } }
   };
@@ -124,9 +200,20 @@ router.post("/", requireAuth, validateBody(createBody), async (req, res) => {
   for (const u of observers) notifyIds.add(u.id);
   notifyIds.delete(user.id);
 
-  const kindLabel = body.kind === "REQUISITION" ? "Requisition" : "General request";
+  const kindLabel =
+    body.kind === "REQUISITION"
+      ? "Requisition"
+      : body.kind === "TRANSACTION_RECEIPT"
+        ? "Expense / receipt"
+        : body.kind === "ACKNOWLEDGEMENT"
+          ? "Acknowledgement"
+          : "General request";
   const title = `New ${kindLabel}: ${body.title}`;
-  const bodyText = [body.purpose, body.amount != null ? `Amount: ${body.amount} ${body.currency || ""}`.trim() : null]
+  const bodyText = [
+    body.purpose,
+    body.amount != null ? `Amount: ${body.amount} ${body.currency || ""}`.trim() : null,
+    body.receiptFileName ? `Receipt: ${body.receiptFileName}` : null
+  ]
     .filter(Boolean)
     .join("\n");
   for (const id of notifyIds) {

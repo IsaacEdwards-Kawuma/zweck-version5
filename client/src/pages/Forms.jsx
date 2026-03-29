@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMe } from "../hooks/useMe";
 import Loading from "../components/Loading";
@@ -10,13 +11,18 @@ import {
   cancelInternalForm,
   createInternalForm,
   decideInternalForm,
-  listInternalForms
+  listInternalForms,
+  uploadInternalFormReceipt
 } from "../api/internalForms";
 import { downloadApprovedForm, printApprovedForm } from "../lib/internalFormDocument";
 
 const KINDS = [
   { value: "REQUISITION", label: "Requisition (spend / procurement)" },
-  { value: "GENERAL_REQUEST", label: "General internal request" }
+  { value: "GENERAL_REQUEST", label: "General internal request" },
+  {
+    value: "TRANSACTION_RECEIPT",
+    label: "Expense / receipt (treasurer approves → post in ledger)"
+  }
 ];
 
 const STATUSES = ["PENDING", "APPROVED", "REJECTED", "CANCELLED"];
@@ -35,6 +41,8 @@ const EMPTY = {
 function kindLabel(k) {
   if (k === "REQUISITION") return "Requisition";
   if (k === "GENERAL_REQUEST") return "General";
+  if (k === "TRANSACTION_RECEIPT") return "Expense / receipt";
+  if (k === "ACKNOWLEDGEMENT") return "Acknowledgement";
   return k;
 }
 
@@ -92,6 +100,7 @@ export default function Forms() {
     mutationFn: (payload) => createInternalForm(payload),
     onSuccess: async () => {
       setForm(EMPTY);
+      if (receiptFileRef.current) receiptFileRef.current.value = "";
       await qc.invalidateQueries({ queryKey: ["internal-forms"] });
     }
   });
@@ -118,10 +127,14 @@ export default function Forms() {
 
   const rows = Array.isArray(q.data) ? q.data : [];
 
-  function submitCreate(e) {
+  async function submitCreate(e) {
     e.preventDefault();
     const title = form.title.trim();
     if (!title) return;
+    if (form.kind === "ACKNOWLEDGEMENT" && !form.description.trim()) {
+      window.alert("Enter what you are acknowledging in the details field.");
+      return;
+    }
     const amountRaw = String(form.amount).trim();
     let amount = null;
     if (amountRaw !== "") {
@@ -129,6 +142,32 @@ export default function Forms() {
       if (!Number.isFinite(n) || n < 0) return;
       amount = n;
     }
+
+    let receiptUrl = null;
+    let receiptFileName = null;
+    if (form.kind === "TRANSACTION_RECEIPT") {
+      const file = receiptFileRef.current?.files?.[0];
+      if (!file) {
+        window.alert("Attach a receipt (PDF or image) so the treasurer can verify the expense.");
+        return;
+      }
+      if (amount == null) {
+        window.alert("Enter the expense amount and currency.");
+        return;
+      }
+      setSubmittingReceipt(true);
+      try {
+        const up = await uploadInternalFormReceipt(file);
+        receiptUrl = up.receiptUrl;
+        receiptFileName = up.fileName;
+      } catch (err) {
+        setSubmittingReceipt(false);
+        window.alert(String(err?.message || err || "Upload failed"));
+        return;
+      }
+      setSubmittingReceipt(false);
+    }
+
     mCreate.mutate({
       kind: form.kind,
       title,
@@ -136,7 +175,9 @@ export default function Forms() {
       amount,
       currency: amount != null ? form.currency : null,
       purpose: form.purpose.trim() || null,
-      vendor: form.vendor.trim() || null
+      vendor: form.vendor.trim() || null,
+      receiptUrl: form.kind === "TRANSACTION_RECEIPT" ? receiptUrl : null,
+      receiptFileName: form.kind === "TRANSACTION_RECEIPT" ? receiptFileName : null
     });
   }
 
@@ -145,7 +186,7 @@ export default function Forms() {
       <PageHero
         icon={IconClipboard}
         title="Internal forms"
-        subtitle="Submit requisitions and general requests. The treasurer (or an admin if none is set) approves or rejects spend. CEO, secretary, and operational manager can see the full queue; only treasurer or admin can approve."
+        subtitle="Submit requisitions, general requests, or expense/receipt packages with an attachment. The treasurer (or an admin) approves before you post in the ledger. CEO, secretary, and operational manager can see the full queue; only treasurer or admin can approve."
       />
 
       <section className="rounded-2xl border border-slate-200/90 bg-white/90 p-5 shadow-sm dark:border-slate-700/80 dark:bg-slate-900/60">
@@ -157,7 +198,11 @@ export default function Forms() {
               <select
                 className="ui-input mt-1 w-full"
                 value={form.kind}
-                onChange={(e) => setForm((f) => ({ ...f, kind: e.target.value }))}
+                onChange={(e) => {
+                  const kind = e.target.value;
+                  setForm((f) => ({ ...f, kind }));
+                  if (kind !== "TRANSACTION_RECEIPT" && receiptFileRef.current) receiptFileRef.current.value = "";
+                }}
               >
                 {KINDS.map((k) => (
                   <option key={k.value} value={k.value}>
@@ -179,19 +224,49 @@ export default function Forms() {
             </label>
           </div>
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-            Details
+            {form.kind === "ACKNOWLEDGEMENT" ? (
+              <>
+                Acknowledgement details <span className="text-rose-600">*</span>
+              </>
+            ) : (
+              "Details"
+            )}
             <textarea
               className="ui-input mt-1 min-h-[88px] w-full resize-y"
               value={form.description}
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-              placeholder="Context, timeline, links…"
+              placeholder={
+                form.kind === "ACKNOWLEDGEMENT"
+                  ? "State clearly what you acknowledge (e.g. receipt of policy, completion of training, handover of items)…"
+                  : "Context, timeline, links…"
+              }
               maxLength={8000}
+              required={form.kind === "ACKNOWLEDGEMENT"}
             />
           </label>
-          {form.kind === "REQUISITION" ? (
+          {form.kind === "ACKNOWLEDGEMENT" ? (
+            <div className="rounded-xl border border-teal-200/80 bg-teal-50/60 p-4 text-sm text-slate-700 dark:border-teal-800/50 dark:bg-teal-950/25 dark:text-slate-200">
+              <p className="font-medium text-teal-900 dark:text-teal-100">Formal acknowledgement</p>
+              <p className="mt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+                Use this when you need a dated, approver-signed record that you received or understood something. After approval, use{" "}
+                <strong>Print</strong> or <strong>Download</strong> in the queue for a physical or PDF copy.
+              </p>
+              <label className="mt-3 block text-xs font-medium text-slate-600 dark:text-slate-400">
+                Context (optional)
+                <input
+                  className="ui-input mt-1 w-full text-sm"
+                  value={form.purpose}
+                  onChange={(e) => setForm((f) => ({ ...f, purpose: e.target.value }))}
+                  placeholder="e.g. Department, project, document reference"
+                  maxLength={500}
+                />
+              </label>
+            </div>
+          ) : null}
+          {form.kind === "REQUISITION" || form.kind === "TRANSACTION_RECEIPT" ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                Amount (optional)
+                Amount {form.kind === "TRANSACTION_RECEIPT" ? <span className="text-rose-600">*</span> : <span className="text-slate-400">(optional)</span>}
                 <input
                   className="ui-input mt-1 w-full"
                   type="number"
@@ -199,14 +274,16 @@ export default function Forms() {
                   step="0.01"
                   value={form.amount}
                   onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
+                  required={form.kind === "TRANSACTION_RECEIPT"}
                 />
               </label>
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                Currency
+                Currency {form.kind === "TRANSACTION_RECEIPT" ? <span className="text-rose-600">*</span> : null}
                 <select
                   className="ui-input mt-1 w-full"
                   value={form.currency}
                   onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value }))}
+                  required={form.kind === "TRANSACTION_RECEIPT"}
                 >
                   {CURRENCIES.map((c) => (
                     <option key={c} value={c}>
@@ -221,7 +298,7 @@ export default function Forms() {
                   className="ui-input mt-1 w-full"
                   value={form.vendor}
                   onChange={(e) => setForm((f) => ({ ...f, vendor: e.target.value }))}
-                  placeholder="Who would be paid"
+                  placeholder={form.kind === "TRANSACTION_RECEIPT" ? "Merchant or person on the receipt" : "Who would be paid"}
                   maxLength={200}
                 />
               </label>
@@ -232,13 +309,38 @@ export default function Forms() {
                   value={form.purpose}
                   onChange={(e) => setForm((f) => ({ ...f, purpose: e.target.value }))}
                   maxLength={500}
+                  placeholder={form.kind === "TRANSACTION_RECEIPT" ? "e.g. Travel, supplies, reimbursement" : ""}
                 />
               </label>
             </div>
           ) : null}
+          {form.kind === "TRANSACTION_RECEIPT" ? (
+            <div className="rounded-xl border border-brand-200/80 bg-brand-50/50 p-4 dark:border-brand-800/50 dark:bg-brand-950/20">
+              <label className="block text-sm font-medium text-slate-800 dark:text-slate-200">
+                Receipt attachment <span className="text-rose-600">*</span>
+                <input
+                  ref={receiptFileRef}
+                  type="file"
+                  accept="application/pdf,image/jpeg,image/png,image/webp,image/gif,.pdf"
+                  className="ui-input mt-2 w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-brand-600 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white hover:file:bg-brand-700"
+                />
+              </label>
+              <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
+                PDF or photo of the receipt. The treasurer reviews this, then can enter the transaction in{" "}
+                <Link className="font-medium text-brand-700 underline dark:text-brand-300" to="/post">
+                  Post transaction
+                </Link>
+                . After approval, print this request for your physical records.
+              </p>
+            </div>
+          ) : null}
           <div className="flex flex-wrap items-center gap-2">
-            <button type="submit" className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 disabled:opacity-60" disabled={mCreate.isPending}>
-              {mCreate.isPending ? "Submitting…" : "Submit request"}
+            <button
+              type="submit"
+              className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 disabled:opacity-60"
+              disabled={mCreate.isPending || submittingReceipt}
+            >
+              {submittingReceipt ? "Uploading receipt…" : mCreate.isPending ? "Submitting…" : "Submit request"}
             </button>
             {mCreate.error ? (
               <span className="text-sm text-rose-600 dark:text-rose-400">{String(mCreate.error?.message || mCreate.error)}</span>
@@ -308,9 +410,22 @@ export default function Forms() {
                       {row.description ? (
                         <div className="mt-0.5 line-clamp-2 text-xs text-slate-500 dark:text-slate-400">{row.description}</div>
                       ) : null}
-                      {row.kind === "REQUISITION" && (row.purpose || row.vendor) ? (
+                      {(row.kind === "REQUISITION" || row.kind === "TRANSACTION_RECEIPT" || row.kind === "ACKNOWLEDGEMENT") &&
+                      (row.purpose || row.vendor) ? (
                         <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                           {[row.purpose, row.vendor].filter(Boolean).join(" · ")}
+                        </div>
+                      ) : null}
+                      {row.receiptUrl ? (
+                        <div className="mt-1">
+                          <a
+                            href={row.receiptUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs font-medium text-brand-700 underline-offset-2 hover:underline dark:text-brand-300"
+                          >
+                            View receipt
+                          </a>
                         </div>
                       ) : null}
                     </td>
@@ -328,6 +443,14 @@ export default function Forms() {
                       <div className="flex flex-wrap justify-end gap-1">
                         {canReview && pending ? (
                           <>
+                            {row.kind === "TRANSACTION_RECEIPT" ? (
+                              <Link
+                                to="/post"
+                                className="rounded-lg border border-brand-300 bg-brand-50 px-2 py-1 text-xs font-semibold text-brand-900 hover:bg-brand-100 dark:border-brand-500/50 dark:bg-brand-950/40 dark:text-brand-100 dark:hover:bg-brand-900/50"
+                              >
+                                Post transaction
+                              </Link>
+                            ) : null}
                             <button
                               type="button"
                               className="rounded-lg bg-emerald-600 px-2 py-1 text-xs font-semibold text-white hover:bg-emerald-700"
