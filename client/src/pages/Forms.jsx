@@ -293,6 +293,7 @@ export default function Forms() {
               {rows.map((row) => {
                 const isMine = row.requestedById === qMe.data?.id;
                 const pending = row.status === "PENDING";
+                const approved = row.status === "APPROVED";
                 return (
                   <tr key={row.id} className="text-slate-800 dark:text-slate-200">
                     <td className="px-3 py-2 whitespace-nowrap">{kindLabel(row.kind)}</td>
