@@ -501,7 +501,9 @@ export default function Settings() {
                 ? "bg-violet-100 text-violet-800 ring-1 ring-violet-200/80"
                 : session.role === "DIRECTOR"
                   ? "bg-accent-100 text-accent-800 ring-1 ring-accent-200/80"
-                  : "bg-slate-100 text-slate-700 ring-1 ring-slate-200/80"
+                  : session.role === "TREASURER"
+                    ? "bg-emerald-100 text-emerald-900 ring-1 ring-emerald-200/80 dark:bg-emerald-950/50 dark:text-emerald-200 dark:ring-emerald-800/60"
+                    : "bg-slate-100 text-slate-700 ring-1 ring-slate-200/80"
             ].join(" ")}
           >
             {session.role || "USER"}
@@ -969,6 +971,7 @@ export default function Settings() {
                           >
                             <option value="USER">USER</option>
                             <option value="DIRECTOR">DIRECTOR</option>
+                            <option value="TREASURER">TREASURER</option>
                             <option value="ADMIN">ADMIN</option>
                           </select>
                           {isSelf ? (

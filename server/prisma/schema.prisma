@@ -62,6 +62,8 @@ model User {
   loginEvents LoginEvent[]
   blocksCreated UserBlock[] @relation("UserBlocks")
   blocksReceived UserBlock[] @relation("UserBlockedBy")
+  internalFormsRequested InternalForm[] @relation("InternalFormRequester")
+  internalFormsReviewed  InternalForm[] @relation("InternalFormReviewer")
 }
 
 model UserBlock {
@@ -238,6 +240,7 @@ enum Role {
   ADMIN
   USER
   DIRECTOR
+  TREASURER
 }
 
 enum ProjectStatus {
@@ -554,5 +557,43 @@ model ReconciliationNote {
   updatedAt        DateTime @updatedAt
 
   @@unique([periodFrom, statementDate])
+}
+
+/** Purchase / payment requisitions and other internal requests (treasurer approval). */
+enum InternalFormKind {
+  REQUISITION
+  GENERAL_REQUEST
+}
+
+enum InternalFormStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+model InternalForm {
+  id              Int                @id @default(autoincrement())
+  kind            InternalFormKind
+  title           String             @db.VarChar(300)
+  description     String?            @db.Text
+  amount          Decimal?           @db.Decimal(18, 2)
+  currency        String?            @db.VarChar(3)
+  purpose         String?            @db.VarChar(500)
+  vendor          String?            @db.VarChar(200)
+  status          InternalFormStatus @default(PENDING)
+  requestedById   Int
+  requestedBy     User               @relation("InternalFormRequester", fields: [requestedById], references: [id], onDelete: Cascade)
+  reviewedById    Int?
+  reviewedBy      User?              @relation("InternalFormReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewNote      String?            @db.Text
+  decidedAt       DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([status, createdAt])
+  @@index([requestedById])
+  @@index([kind])
+  @@map("internal_forms")
 }
 

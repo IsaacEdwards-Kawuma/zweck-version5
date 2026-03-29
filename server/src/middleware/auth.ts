@@ -6,7 +6,7 @@ import { apiError } from "../lib/http.js";
 export type AuthUser = {
   id: number;
   email: string;
-  role: "ADMIN" | "USER" | "DIRECTOR";
+  role: "ADMIN" | "USER" | "DIRECTOR" | "TREASURER";
   directorId: number | null;
   sessionId?: number | null;
 };
@@ -86,6 +86,13 @@ export function requireRole(role: AuthUser["role"]) {
     if (req.user.role !== role) return res.status(403).json(apiError("Forbidden"));
     next();
   };
+}
+
+/** Approve/reject internal forms (requisitions, etc.). */
+export function requireTreasurerOrAdmin(req: Request, res: Response, next: NextFunction) {
+  if (!req.user) return res.status(401).json(apiError("Unauthorized"));
+  if (req.user.role === "ADMIN" || req.user.role === "TREASURER") return next();
+  return res.status(403).json(apiError("Treasurer or admin only"));
 }
 
 /** Admins, or directors editing their own profile (same `directorId` as `:id`). */

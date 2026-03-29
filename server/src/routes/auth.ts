@@ -51,7 +51,7 @@ function getSecret(): string {
 function signToken(user: {
   id: number;
   email: string;
-  role: "ADMIN" | "USER" | "DIRECTOR";
+  role: AuthUser["role"];
   directorId: number | null;
   sessionId?: number | null;
 }) {

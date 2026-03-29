@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
+import type { Role } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { apiError } from "../lib/http.js";
 import { requireRole } from "../middleware/auth.js";
@@ -8,7 +9,7 @@ import { notifyUser } from "../services/inAppNotifications.js";
 
 const router = Router();
 const updateRoleBody = z.object({
-  role: z.enum(["ADMIN", "USER", "DIRECTOR"])
+  role: z.enum(["ADMIN", "USER", "DIRECTOR", "TREASURER"])
 });
 
 function parseLimit(raw: unknown, fallback: number) {
@@ -173,7 +174,7 @@ router.patch(
 
     const updated = await prisma.user.update({
       where: { id },
-      data: { role },
+      data: { role: role as Role },
       select: {
         id: true,
         email: true,
@@ -185,7 +186,13 @@ router.patch(
 
     if (existing.role !== role) {
       const label = (r: string) =>
-        r === "ADMIN" ? "Admin" : r === "DIRECTOR" ? "Director" : "User";
+        r === "ADMIN"
+          ? "Admin"
+          : r === "DIRECTOR"
+            ? "Director"
+            : r === "TREASURER"
+              ? "Treasurer"
+              : "User";
       await notifyUser(
         id,
         "ROLE_CHANGED",

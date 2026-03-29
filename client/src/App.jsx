@@ -21,6 +21,7 @@ const ProjectDetail = lazy(() => import("./pages/ProjectDetail"));
 const Reports = lazy(() => import("./pages/Reports"));
 const Meetings = lazy(() => import("./pages/Meetings"));
 const Documents = lazy(() => import("./pages/Documents"));
+const Forms = lazy(() => import("./pages/Forms"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const Users = lazy(() => import("./pages/Users"));
 const AuditLog = lazy(() => import("./pages/AuditLog"));
@@ -47,6 +48,7 @@ export default function App() {
             <Route path="/reports" element={<Reports />} />
             <Route path="/meetings" element={<Meetings />} />
             <Route path="/documents" element={<Documents />} />
+            <Route path="/forms" element={<Forms />} />
             <Route path="/chat" element={<Chat />} />
             <Route path="/chat/rooms/:roomId" element={<ChatRoom />} />
             <Route path="/users" element={<Users />} />

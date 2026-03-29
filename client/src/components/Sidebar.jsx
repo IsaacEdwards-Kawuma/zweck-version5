@@ -9,6 +9,7 @@ const links = [
   { to: "/meetings", label: "Meetings", icon: "meetings" },
   { to: "/chat", label: "Chat", icon: "chat" },
   { to: "/documents", label: "Documents", icon: "documents" },
+  { to: "/forms", label: "Forms", icon: "forms" },
   { to: "/post", label: "Post Transaction", icon: "post" },
   { to: "/ledger", label: "Ledger", icon: "ledger" },
   { to: "/reconciliation", label: "Reconciliation", icon: "reconcile" },
@@ -60,6 +61,14 @@ function NavIcon({ name }) {
         <svg {...common}>
           <path d="M6 2h9l5 5v15H6z" />
           <path d="M15 2v5h5M9 12h8M9 16h8" />
+        </svg>
+      );
+    case "forms":
+      return (
+        <svg {...common}>
+          <path d="M9 5H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-4" />
+          <path d="M13 3H9a2 2 0 0 0-2 2v1h8V5a2 2 0 0 0-2-2z" />
+          <path d="m9 12 2 2 4-4" />
         </svg>
       );
     case "post":
