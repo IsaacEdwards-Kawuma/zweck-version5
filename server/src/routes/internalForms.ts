@@ -63,7 +63,8 @@ router.get("/", requireAuth, async (req, res) => {
     user.role === "ADMIN" ||
     user.role === "TREASURER" ||
     user.role === "SECRETARY" ||
-    user.role === "OPERATIONAL_MANAGER";
+    user.role === "OPERATIONAL_MANAGER" ||
+    user.role === "CEO";
   if (!canSeeAll || mine) {
     where.requestedById = user.id;
   }
@@ -114,7 +115,7 @@ router.post("/", requireAuth, validateBody(createBody), async (req, res) => {
       ? await prisma.user.findMany({ where: { role: "ADMIN" }, select: { id: true } })
       : [];
   const observers = await prisma.user.findMany({
-    where: { role: { in: ["SECRETARY", "OPERATIONAL_MANAGER"] } },
+    where: { role: { in: ["SECRETARY", "OPERATIONAL_MANAGER", "CEO"] } },
     select: { id: true }
   });
   const notifyIds = new Set<number>();

@@ -66,7 +66,7 @@ export default function Forms() {
   const role = qMe.data?.role;
   const canReview = role === "ADMIN" || role === "TREASURER";
   const canSeeAll =
-    canReview || role === "SECRETARY" || role === "OPERATIONAL_MANAGER";
+    canReview || role === "SECRETARY" || role === "OPERATIONAL_MANAGER" || role === "CEO";
 
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [kindFilter, setKindFilter] = useState("ALL");
@@ -145,7 +145,7 @@ export default function Forms() {
       <PageHero
         icon={IconClipboard}
         title="Internal forms"
-        subtitle="Submit requisitions and general requests. The treasurer (or an admin if none is set) approves or rejects spend. Secretaries and operational managers can see the full queue; only treasurer or admin can approve."
+        subtitle="Submit requisitions and general requests. The treasurer (or an admin if none is set) approves or rejects spend. CEO, secretary, and operational manager can see the full queue; only treasurer or admin can approve."
       />
 
       <section className="rounded-2xl border border-slate-200/90 bg-white/90 p-5 shadow-sm dark:border-slate-700/80 dark:bg-slate-900/60">

@@ -243,6 +243,7 @@ enum Role {
   TREASURER
   SECRETARY
   OPERATIONAL_MANAGER
+  CEO
 }
 
 enum ProjectStatus {

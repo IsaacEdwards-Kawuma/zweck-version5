@@ -8,6 +8,7 @@ import { useMe } from "../hooks/useMe";
 function formatRoleLabel(role) {
   if (role === "OPERATIONAL_MANAGER") return "Operational manager";
   if (role === "SECRETARY") return "Secretary";
+  if (role === "CEO") return "CEO";
   return role;
 }
 

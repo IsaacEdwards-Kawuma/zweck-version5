@@ -507,7 +507,9 @@ export default function Settings() {
                       ? "bg-sky-100 text-sky-900 ring-1 ring-sky-200/80 dark:bg-sky-950/50 dark:text-sky-200 dark:ring-sky-800/60"
                       : session.role === "OPERATIONAL_MANAGER"
                         ? "bg-indigo-100 text-indigo-900 ring-1 ring-indigo-200/80 dark:bg-indigo-950/50 dark:text-indigo-200 dark:ring-indigo-800/60"
-                        : "bg-slate-100 text-slate-700 ring-1 ring-slate-200/80"
+                        : session.role === "CEO"
+                          ? "bg-amber-200 text-amber-950 ring-1 ring-amber-300/90 dark:bg-amber-950/60 dark:text-amber-100 dark:ring-amber-700/60"
+                          : "bg-slate-100 text-slate-700 ring-1 ring-slate-200/80"
             ].join(" ")}
           >
             {session.role === "OPERATIONAL_MANAGER"
@@ -982,6 +984,7 @@ export default function Settings() {
                             <option value="TREASURER">TREASURER</option>
                             <option value="SECRETARY">Secretary</option>
                             <option value="OPERATIONAL_MANAGER">Operational manager</option>
+                            <option value="CEO">CEO</option>
                             <option value="ADMIN">ADMIN</option>
                           </select>
                           {isSelf ? (

@@ -6,7 +6,7 @@ import { apiError } from "../lib/http.js";
 export type AuthUser = {
   id: number;
   email: string;
-  role: "ADMIN" | "USER" | "DIRECTOR" | "TREASURER" | "SECRETARY" | "OPERATIONAL_MANAGER";
+  role: "ADMIN" | "USER" | "DIRECTOR" | "TREASURER" | "SECRETARY" | "OPERATIONAL_MANAGER" | "CEO";
   directorId: number | null;
   sessionId?: number | null;
 };

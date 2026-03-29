@@ -9,7 +9,7 @@ import { notifyUser } from "../services/inAppNotifications.js";
 
 const router = Router();
 const updateRoleBody = z.object({
-  role: z.enum(["ADMIN", "USER", "DIRECTOR", "TREASURER", "SECRETARY", "OPERATIONAL_MANAGER"])
+  role: z.enum(["ADMIN", "USER", "DIRECTOR", "TREASURER", "SECRETARY", "OPERATIONAL_MANAGER", "CEO"])
 });
 
 function parseLimit(raw: unknown, fallback: number) {
@@ -196,7 +196,9 @@ router.patch(
                 ? "Secretary"
                 : r === "OPERATIONAL_MANAGER"
                   ? "Operational manager"
-                  : "User";
+                  : r === "CEO"
+                    ? "CEO"
+                    : "User";
       await notifyUser(
         id,
         "ROLE_CHANGED",
