@@ -35,8 +35,9 @@ const createMeetingSchema = meetingSchema.extend({
   inviteUserIds: z.array(z.number().int().positive()).max(500).optional()
 });
 
-function isDirectorAccount(u: { role: string; directorId: number | null }): boolean {
-  return u.role === "DIRECTOR" || u.directorId != null;
+/** Board invites: admins and director-linked users only. */
+function isAllowedBoardInvitee(u: { role: string; directorId: number | null }): boolean {
+  return u.role === "ADMIN" || u.role === "DIRECTOR" || u.directorId != null;
 }
 
 function meetingInviteBody(row: {
@@ -50,7 +51,7 @@ function meetingInviteBody(row: {
   return parts.join("\n");
 }
 
-/** Validates ids exist; Board meetings may only include director-linked accounts. */
+/** Validates ids exist; Board meetings may only include admins and director-linked accounts. */
 async function resolveInviteUserIds(
   meetingType: string | null | undefined,
   rawIds: number[] | undefined
@@ -66,8 +67,8 @@ async function resolveInviteUserIds(
   }
   const board = String(meetingType || "").trim().toLowerCase() === "board";
   if (board) {
-    const bad = users.filter((u) => !isDirectorAccount(u));
-    if (bad.length) throw new Error("BOARD_INVITE_NON_DIRECTOR");
+    const bad = users.filter((u) => !isAllowedBoardInvitee(u));
+    if (bad.length) throw new Error("BOARD_INVITE_NOT_ELIGIBLE");
   }
   return unique;
 }
@@ -134,8 +135,8 @@ router.post("/", requireRole("ADMIN"), validateBody(createMeetingSchema), async 
     if (msg === "INVALID_INVITE_USER") {
       return res.status(400).json(apiError("One or more selected attendees are invalid."));
     }
-    if (msg === "BOARD_INVITE_NON_DIRECTOR") {
-      return res.status(400).json(apiError("Board meetings can only invite director accounts."));
+    if (msg === "BOARD_INVITE_NOT_ELIGIBLE") {
+      return res.status(400).json(apiError("Board meetings may only invite admins and director-linked accounts."));
     }
     throw e;
   }

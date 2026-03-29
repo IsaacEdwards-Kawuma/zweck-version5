@@ -42,8 +42,9 @@ function parseDateKeyLocal(dateKey) {
   return new Date(y, m - 1, d);
 }
 
-function isDirectorMember(u) {
-  return u.role === "DIRECTOR" || u.directorId != null;
+/** Board meetings: admins plus director-linked accounts (Director role or linked profile). */
+function isBoardAttendeeOption(u) {
+  return u.role === "ADMIN" || u.role === "DIRECTOR" || u.directorId != null;
 }
 
 function formatAttendeeLine(u) {
@@ -147,7 +148,7 @@ export default function Meetings() {
   useEffect(() => {
     if (editingId != null) return;
     if (form.meetingType === "Board") {
-      setSelectedAttendeeIds(allUsers.filter(isDirectorMember).map((u) => u.id));
+      setSelectedAttendeeIds(allUsers.filter(isBoardAttendeeOption).map((u) => u.id));
     } else {
       setSelectedAttendeeIds([]);
     }
@@ -256,7 +257,7 @@ export default function Meetings() {
     setEditingId(null);
     setAttendeeFilter("");
     const users = Array.isArray(qUsers.data) ? qUsers.data : [];
-    setSelectedAttendeeIds(users.filter(isDirectorMember).map((u) => u.id));
+    setSelectedAttendeeIds(users.filter(isBoardAttendeeOption).map((u) => u.id));
   }
 
   function onSubmit(e) {
@@ -522,7 +523,7 @@ export default function Meetings() {
                 </div>
                 <p className="text-xs ui-page-muted">
                   {form.meetingType === "Board"
-                    ? "Only director-linked accounts are listed. All are selected by default; uncheck anyone who should not get an invitation."
+                    ? "Admins and director-linked accounts are listed. All are selected by default; uncheck anyone who should not get an invitation."
                     : "All organization members are listed. Check who should receive an in-app invitation when you save a new meeting."}
                 </p>
               </div>
@@ -542,7 +543,7 @@ export default function Meetings() {
                     {eligibleInviteUsers.length === 0 ? (
                       <div className="p-3 text-sm ui-page-muted">
                         {form.meetingType === "Board"
-                          ? "No director accounts found. Assign the Director role or link a user to a director profile."
+                          ? "No admins or director-linked accounts found. Add an admin user or assign the Director role / link a director profile."
                           : "No members found."}
                       </div>
                     ) : (
