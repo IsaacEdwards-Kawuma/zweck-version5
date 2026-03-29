@@ -12,6 +12,7 @@ import {
   decideInternalForm,
   listInternalForms
 } from "../api/internalForms";
+import { downloadApprovedForm, printApprovedForm } from "../lib/internalFormDocument";
 
 const KINDS = [
   { value: "REQUISITION", label: "Requisition (spend / procurement)" },
@@ -64,6 +65,8 @@ export default function Forms() {
   const qMe = useMe(true);
   const role = qMe.data?.role;
   const canReview = role === "ADMIN" || role === "TREASURER";
+  const canSeeAll =
+    canReview || role === "SECRETARY" || role === "OPERATIONAL_MANAGER";
 
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [kindFilter, setKindFilter] = useState("ALL");
@@ -75,9 +78,9 @@ export default function Forms() {
     const p = {};
     if (statusFilter !== "ALL") p.status = statusFilter;
     if (kindFilter !== "ALL") p.kind = kindFilter;
-    if (canReview && mineOnly) p.mine = true;
+    if (canSeeAll && mineOnly) p.mine = true;
     return p;
-  }, [statusFilter, kindFilter, canReview, mineOnly]);
+  }, [statusFilter, kindFilter, canSeeAll, mineOnly]);
 
   const q = useQuery({
     queryKey: ["internal-forms", listParams],
@@ -142,7 +145,7 @@ export default function Forms() {
       <PageHero
         icon={IconClipboard}
         title="Internal forms"
-        subtitle="Submit requisitions and general requests. Requisitions that involve spend are reviewed by the treasurer (or an admin if no treasurer is assigned)."
+        subtitle="Submit requisitions and general requests. The treasurer (or an admin if none is set) approves or rejects spend. Secretaries and operational managers can see the full queue; only treasurer or admin can approve."
       />
 
       <section className="rounded-2xl border border-slate-200/90 bg-white/90 p-5 shadow-sm dark:border-slate-700/80 dark:bg-slate-900/60">
@@ -264,7 +267,7 @@ export default function Forms() {
                 </option>
               ))}
             </select>
-            {canReview ? (
+            {canSeeAll ? (
               <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
                 <input type="checkbox" checked={mineOnly} onChange={(e) => setMineOnly(e.target.checked)} className="rounded border-slate-300" />
                 My requests only
@@ -331,6 +334,24 @@ export default function Forms() {
                               onClick={() => setDecision({ id: row.id, status: "REJECTED", title: row.title })}
                             >
                               Reject
+                            </button>
+                          </>
+                        ) : null}
+                        {approved ? (
+                          <>
+                            <button
+                              type="button"
+                              className="rounded-lg border border-emerald-600/80 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-900 hover:bg-emerald-100 dark:border-emerald-500/60 dark:bg-emerald-950/40 dark:text-emerald-100 dark:hover:bg-emerald-900/50"
+                              onClick={() => printApprovedForm(row)}
+                            >
+                              Print
+                            </button>
+                            <button
+                              type="button"
+                              className="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+                              onClick={() => downloadApprovedForm(row)}
+                            >
+                              Download
                             </button>
                           </>
                         ) : null}

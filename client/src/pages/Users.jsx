@@ -5,6 +5,12 @@ import ErrorBanner from "../components/ErrorBanner";
 import { listUsers } from "../api/users";
 import { useMe } from "../hooks/useMe";
 
+function formatRoleLabel(role) {
+  if (role === "OPERATIONAL_MANAGER") return "Operational manager";
+  if (role === "SECRETARY") return "Secretary";
+  return role;
+}
+
 export default function Users() {
   const qMe = useMe(true);
   const q = useQuery({ queryKey: ["users"], queryFn: listUsers, enabled: qMe.data?.role === "ADMIN" });
@@ -45,7 +51,7 @@ export default function Users() {
                 <td className="px-4 py-3">{u.email}</td>
                 <td className="px-4 py-3">
                   <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-800 dark:bg-slate-700 dark:text-slate-100">
-                    {u.role}
+                    {formatRoleLabel(u.role)}
                   </span>
                 </td>
                 <td className="px-4 py-3">

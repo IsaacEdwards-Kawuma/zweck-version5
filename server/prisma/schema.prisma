@@ -241,6 +241,8 @@ enum Role {
   USER
   DIRECTOR
   TREASURER
+  SECRETARY
+  OPERATIONAL_MANAGER
 }
 
 enum ProjectStatus {

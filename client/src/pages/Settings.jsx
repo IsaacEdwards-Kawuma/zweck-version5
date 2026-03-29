@@ -503,10 +503,18 @@ export default function Settings() {
                   ? "bg-accent-100 text-accent-800 ring-1 ring-accent-200/80"
                   : session.role === "TREASURER"
                     ? "bg-emerald-100 text-emerald-900 ring-1 ring-emerald-200/80 dark:bg-emerald-950/50 dark:text-emerald-200 dark:ring-emerald-800/60"
-                    : "bg-slate-100 text-slate-700 ring-1 ring-slate-200/80"
+                    : session.role === "SECRETARY"
+                      ? "bg-sky-100 text-sky-900 ring-1 ring-sky-200/80 dark:bg-sky-950/50 dark:text-sky-200 dark:ring-sky-800/60"
+                      : session.role === "OPERATIONAL_MANAGER"
+                        ? "bg-indigo-100 text-indigo-900 ring-1 ring-indigo-200/80 dark:bg-indigo-950/50 dark:text-indigo-200 dark:ring-indigo-800/60"
+                        : "bg-slate-100 text-slate-700 ring-1 ring-slate-200/80"
             ].join(" ")}
           >
-            {session.role || "USER"}
+            {session.role === "OPERATIONAL_MANAGER"
+              ? "Operational manager"
+              : session.role === "SECRETARY"
+                ? "Secretary"
+                : session.role || "USER"}
           </span>
         </p>
         <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
@@ -972,6 +980,8 @@ export default function Settings() {
                             <option value="USER">USER</option>
                             <option value="DIRECTOR">DIRECTOR</option>
                             <option value="TREASURER">TREASURER</option>
+                            <option value="SECRETARY">Secretary</option>
+                            <option value="OPERATIONAL_MANAGER">Operational manager</option>
                             <option value="ADMIN">ADMIN</option>
                           </select>
                           {isSelf ? (

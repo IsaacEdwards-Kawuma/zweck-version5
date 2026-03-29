@@ -59,7 +59,11 @@ router.get("/", requireAuth, async (req, res) => {
   const mine = req.query.mine === "true" || req.query.mine === "1";
 
   const where: Prisma.InternalFormWhereInput = {};
-  const canSeeAll = user.role === "ADMIN" || user.role === "TREASURER";
+  const canSeeAll =
+    user.role === "ADMIN" ||
+    user.role === "TREASURER" ||
+    user.role === "SECRETARY" ||
+    user.role === "OPERATIONAL_MANAGER";
   if (!canSeeAll || mine) {
     where.requestedById = user.id;
   }
@@ -109,9 +113,14 @@ router.post("/", requireAuth, validateBody(createBody), async (req, res) => {
     treasurers.length === 0
       ? await prisma.user.findMany({ where: { role: "ADMIN" }, select: { id: true } })
       : [];
+  const observers = await prisma.user.findMany({
+    where: { role: { in: ["SECRETARY", "OPERATIONAL_MANAGER"] } },
+    select: { id: true }
+  });
   const notifyIds = new Set<number>();
   for (const u of treasurers) notifyIds.add(u.id);
   for (const u of fallbackAdmins) notifyIds.add(u.id);
+  for (const u of observers) notifyIds.add(u.id);
   notifyIds.delete(user.id);
 
   const kindLabel = body.kind === "REQUISITION" ? "Requisition" : "General request";
