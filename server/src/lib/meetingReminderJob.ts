@@ -1,7 +1,5 @@
 import { prisma } from "./prisma.js";
 import { logger } from "./logger.js";
-import { sendMeetingReminderEmail } from "./email.js";
-import { getPublicAppUrl } from "./publicAppUrl.js";
 
 /** Calendar date yyyy-mm-dd in UTC for "today". */
 function utcTodayYmd(): string {
@@ -76,53 +74,33 @@ export async function runMeetingReminderJob(): Promise<MeetingReminderJobResult>
       },
       select: {
         id: true,
-        email: true,
-        emailMeetingReminders: true,
         inAppMeetingReminders: true
       }
     });
 
-    const emailList = [...new Set(users.filter((u) => u.emailMeetingReminders).map((u) => u.email.toLowerCase()))];
-
     const inAppUsers = users.filter((u) => u.inAppMeetingReminders);
 
-    if (emailList.length === 0 && inAppUsers.length === 0) {
+    if (inAppUsers.length === 0) {
       await prisma.meetingReminderSent.create({ data: { meetingId: meeting.id } });
       skipped += 1;
       continue;
     }
 
-    const appUrl = getPublicAppUrl() || "http://localhost:5173";
-
     try {
-      if (emailList.length > 0) {
-        await sendMeetingReminderEmail(emailList, {
-          title: meeting.title,
-          date: meeting.date,
-          time: meeting.time,
-          location: meeting.location,
-          meetingsUrl: `${appUrl}/meetings`
-        });
-      }
-      if (inAppUsers.length > 0) {
-        const body = meetingReminderBodyLines(meeting.date, meeting.time, meeting.location);
-        await prisma.notification.createMany({
-          data: inAppUsers.map((u) => ({
-            userId: u.id,
-            type: "MEETING_REMINDER",
-            title: `Reminder: ${meeting.title}`,
-            body,
-            link: "/meetings",
-            meetingId: meeting.id
-          }))
-        });
-      }
+      const body = meetingReminderBodyLines(meeting.date, meeting.time, meeting.location);
+      await prisma.notification.createMany({
+        data: inAppUsers.map((u) => ({
+          userId: u.id,
+          type: "MEETING_REMINDER",
+          title: `Reminder: ${meeting.title}`,
+          body,
+          link: "/meetings",
+          meetingId: meeting.id
+        }))
+      });
       await prisma.meetingReminderSent.create({ data: { meetingId: meeting.id } });
       sent += 1;
-      logger.info(
-        { meetingId: meeting.id, emailCount: emailList.length, inAppCount: inAppUsers.length },
-        "[meeting-reminders] sent"
-      );
+      logger.info({ meetingId: meeting.id, inAppCount: inAppUsers.length }, "[meeting-reminders] sent");
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       errors.push(`meeting ${meeting.id}: ${msg}`);

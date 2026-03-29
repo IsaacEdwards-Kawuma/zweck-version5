@@ -15,7 +15,7 @@ import {
   TX_ACCOUNT_MAP
 } from "../lib/constants.js";
 import { allocateNextReferenceNumber, peekNextReferenceNumber } from "../lib/referenceNumber.js";
-import { EMAIL_EVENTS, enqueueEmail } from "../services/emailBus.js";
+import { notifyUser } from "../services/inAppNotifications.js";
 
 const router = Router();
 
@@ -665,11 +665,13 @@ router.post("/:id/reverse", requireRole("ADMIN"), validateBody(reverseSchema), a
     return rev;
   });
 
-  enqueueEmail({
-    type: EMAIL_EVENTS.TX_REVERSED,
-    recipient: req.user!.email,
-    payload: { referenceNumber: original.referenceNumber }
-  });
+  await notifyUser(
+    req.user!.id,
+    "TX_REVERSED",
+    "Transaction reversed",
+    `Reference ${original.referenceNumber} was reversed.`,
+    "/ledger"
+  );
 
   return res.status(201).json({
     id: reversal.id,
@@ -819,11 +821,13 @@ router.post("/", validateBody(postSchema), async (req, res) => {
       })
     ]);
 
-    enqueueEmail({
-      type: EMAIL_EVENTS.TX_POSTED,
-      recipient: req.user!.email,
-      payload: { referenceNumber: refMain, amount: body.amount, currency: body.currency }
-    });
+    await notifyUser(
+      req.user!.id,
+      "TX_POSTED",
+      "Transaction posted",
+      `Reference ${refMain} · ${body.amount} ${body.currency}`,
+      "/ledger"
+    );
 
     return res.status(201).json({ id: mainTx.id, referenceNumber: refMain });
   }
@@ -872,11 +876,13 @@ router.post("/", validateBody(postSchema), async (req, res) => {
         }
       });
     });
-    enqueueEmail({
-      type: EMAIL_EVENTS.TX_POSTED,
-      recipient: req.user!.email,
-      payload: { referenceNumber: refs[0]!, amount: body.amount, currency: body.currency }
-    });
+    await notifyUser(
+      req.user!.id,
+      "TX_POSTED",
+      "Transactions posted",
+      `Retained earnings split · ${createdIds.length} parts · total ${body.amount} ${body.currency}`,
+      "/ledger"
+    );
     return res.status(201).json({ ids: createdIds, count: createdIds.length });
   }
 
@@ -903,11 +909,13 @@ router.post("/", validateBody(postSchema), async (req, res) => {
     }
   });
 
-  enqueueEmail({
-    type: EMAIL_EVENTS.TX_POSTED,
-    recipient: req.user!.email,
-    payload: { referenceNumber: ref, amount: body.amount, currency: body.currency }
-  });
+  await notifyUser(
+    req.user!.id,
+    "TX_POSTED",
+    "Transaction posted",
+    `Reference ${ref} · ${body.amount} ${body.currency}`,
+    "/ledger"
+  );
 
   return res.status(201).json({ id: tx.id, referenceNumber: ref });
 });

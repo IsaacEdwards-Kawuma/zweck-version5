@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma.js";
 import { apiError } from "../lib/http.js";
 import { requireRole } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
+import { notifyUser } from "../services/inAppNotifications.js";
 
 const router = Router();
 const updateRoleBody = z.object({
@@ -181,6 +182,18 @@ router.patch(
         createdAt: true
       }
     });
+
+    if (existing.role !== role) {
+      const label = (r: string) =>
+        r === "ADMIN" ? "Admin" : r === "DIRECTOR" ? "Director" : "User";
+      await notifyUser(
+        id,
+        "ROLE_CHANGED",
+        "Your role was updated",
+        `Your access level changed from ${label(existing.role)} to ${label(role)}.`,
+        "/settings"
+      );
+    }
 
     return res.json(updated);
   }

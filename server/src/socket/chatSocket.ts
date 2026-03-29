@@ -7,8 +7,6 @@ import type { AuthUser } from "../middleware/auth.js";
 import { assertUserCanAccessChatRoom, normalizeChatBodyWithAttachment } from "../lib/chatPermissions.js";
 import { getMentionableUserIds, parseMentionEmails, resolveMentionUserIds } from "../lib/chatMentions.js";
 import { extractFirstHttpUrl, fetchLinkPreview } from "../lib/linkPreview.js";
-import { EMAIL_EVENTS, enqueueEmail } from "../services/emailBus.js";
-
 let chatIoSingleton: SocketIOServer | null = null;
 
 export function getChatIo(): SocketIOServer | null {
@@ -367,13 +365,12 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
         if (recipientUserIds.length) {
           const prefs = await prisma.user.findMany({
             where: { id: { in: recipientUserIds } },
-            select: { id: true, email: true, inAppChatMessages: true, inAppChatMentionsOnly: true }
+            select: { id: true, inAppChatMessages: true, inAppChatMentionsOnly: true }
           });
           const allowedInApp = new Set(prefs.filter((p) => p.inAppChatMessages).map((p) => p.id));
           const globalChatMentionsOnly = new Set(
             prefs.filter((p) => p.inAppChatMentionsOnly).map((p) => p.id)
           );
-          const emailByUserId = new Map(prefs.map((p) => [p.id, p.email]));
 
           const memberPrefs = await prisma.chatRoomMember.findMany({
             where: { roomId, userId: { in: recipientUserIds } },
@@ -412,21 +409,6 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
                 meetingId: null
               }))
             });
-            // Free-tier safe: only send external email for direct mentions, not every chat message.
-            for (const uid of toNotify) {
-              if (!mentionedUserIds.includes(uid)) continue;
-              const recipient = emailByUserId.get(uid);
-              if (!recipient) continue;
-              enqueueEmail({
-                type: EMAIL_EVENTS.NOTIFICATION,
-                recipient,
-                payload: {
-                  subject: "You were mentioned in chat",
-                  message: `${senderLabel} mentioned you in chat.`
-                },
-                dedupeKey: `chat-mention:${roomId}:${message.id}:${uid}`
-              });
-            }
           }
         }
 

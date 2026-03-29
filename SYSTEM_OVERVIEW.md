@@ -96,7 +96,9 @@ Key accounting fields in `Transaction`:
 - `documentStatus`
 - `createdBy` and `createdAt`
 
-Reversal behavior: admins call `POST /api/transactions/:id/reverse` with `{ "reason": "..." }`. The server creates a new posted transaction with swapped amounts, links both sides, marks the original as `REVERSED`, and emits `TX_REVERSED` for email. Balance derivation (`deriveBalances`) keeps the original historical effect and applies the offsetting reversal so nets stay correct; director capital uses the same derivation via `/api/accounts/balances` and both `/api/accounts/directors` and `/api/accounts/directors/all`.
+Reversal behavior: admins call `POST /api/transactions/:id/reverse` with `{ "reason": "..." }`. The server creates a new posted transaction with swapped amounts, links both sides, marks the original as `REVERSED`, and creates an in-app `TX_REVERSED` notification for the admin. Balance derivation (`deriveBalances`) keeps the original historical effect and applies the offsetting reversal so nets stay correct; director capital uses the same derivation via `/api/accounts/balances` and both `/api/accounts/directors` and `/api/accounts/directors/all`.
+
+Alerts (transactions, reports, chat, meetings, password reset, role changes) use the in-app **Notification** model (bell UI), not outbound email. Password reset tokens are still stored server-side; there is no email delivery—see `PASSWORD_RESET_DEV_LINK` in `server/.env.example` for local testing.
 
 ## 6) Authentication and Authorization
 

@@ -7,12 +7,11 @@ import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { apiError } from "../lib/http.js";
-import { sendPasswordResetEmail } from "../lib/email.js";
 import { getPublicAppUrl } from "../lib/publicAppUrl.js";
 import { logger } from "../lib/logger.js";
 import { isAuthDisabled, requireAuth, type AuthUser } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
-import { EMAIL_EVENTS, enqueueEmail } from "../services/emailBus.js";
+import { notifyUser } from "../services/inAppNotifications.js";
 
 const router = Router();
 
@@ -41,7 +40,7 @@ function hashResetToken(raw: string): string {
 }
 
 const FORGOT_PASSWORD_MESSAGE =
-  "If an account exists for that email, we sent password reset instructions.";
+  "If an account exists for that email, we recorded a reset (see in-app notifications when signed in).";
 
 function getSecret(): string {
   const secret = process.env.JWT_SECRET;
@@ -166,14 +165,26 @@ router.post(
     }
     const resetUrl = `${base || "http://localhost:5173"}/reset-password?token=${encodeURIComponent(raw)}`;
 
-    try {
-      await sendPasswordResetEmail(user.email, resetUrl);
-    } catch (e) {
-      logger.error(e);
-      return res.status(500).json(apiError("Could not send email. Try again later."));
+    await notifyUser(
+      user.id,
+      "PASSWORD_RESET",
+      "Password reset requested",
+      "Zweck does not send email. If you are signed in elsewhere, use the reset flow from there or open this account’s notifications after signing in. If you are locked out, contact an administrator.",
+      null
+    );
+
+    const devLink = ["1", "true", "yes"].includes(
+      String(process.env.PASSWORD_RESET_DEV_LINK || "").toLowerCase()
+    );
+    if (devLink) {
+      logger.warn("[auth] PASSWORD_RESET_DEV_LINK: returning devResetUrl in JSON (dev only)");
     }
 
-    return res.json({ ok: true, message: FORGOT_PASSWORD_MESSAGE });
+    return res.json({
+      ok: true,
+      message: FORGOT_PASSWORD_MESSAGE,
+      ...(devLink ? { devResetUrl: resetUrl } : {})
+    });
   }
 );
 
@@ -291,11 +302,8 @@ async function handleRegister(
     }
   });
 
-  enqueueEmail({
-    type: EMAIL_EVENTS.USER_CREATED,
-    recipient: user.email,
-    payload: { name: body.director?.name || user.email.split("@")[0] }
-  });
+  const displayName = body.director?.name || user.email.split("@")[0];
+  await notifyUser(user.id, "WELCOME", "Welcome to Zweck", `Hi ${displayName}, your account is ready.`, "/");
 
   const token = signToken({ id: user.id, email: user.email, role: user.role, directorId: user.directorId ?? null });
 
