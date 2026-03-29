@@ -4,6 +4,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Loading from "../components/Loading";
 import ErrorBanner from "../components/ErrorBanner";
 import MetricCard from "../components/MetricCard";
+import PageHero, { SectionTitle } from "../components/PageHero";
+import { IconBank, IconBuilding, IconListNumbers, IconScale, IconUsers, IconWallet } from "../components/Icons";
 import DirectorCard from "../components/DirectorCard";
 import { useDirectorsAll } from "../hooks/useDashboard";
 import { createDirector, updateDirector, deleteDirector } from "../api/directors";
@@ -177,32 +179,32 @@ export default function Directors() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="text-lg font-semibold ui-page-heading">Director Accounts</div>
-          <div className="text-sm text-slate-600">Capital + side fund totals per director. Search, sort, compare, export.</div>
-        </div>
+      <PageHero
+        icon={IconUsers}
+        title="Director accounts"
+        subtitle="Capital and side fund totals per director. Search, sort, compare trends, and export."
+      >
         {directors.length > 0 ? (
           <button
             type="button"
-            className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-sm font-medium text-brand-900 hover:bg-brand-100"
+            className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-sm font-medium text-brand-900 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-brand-100 dark:border-brand-500/40 dark:bg-brand-950/50 dark:text-brand-200"
             onClick={() => downloadDirectorsCsv(filtered)}
           >
-            Export CSV (visible)
+            Export CSV
           </button>
         ) : null}
+      </PageHero>
+
+      <div className="ui-stagger grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+        <MetricCard label="Directors" value={String(stats.count)} sub="In roster" icon={IconUsers} />
+        <MetricCard label="Active" value={String(stats.active)} sub="Marked active" icon={IconScale} />
+        <MetricCard label="Inactive" value={String(stats.inactive)} sub="Not active" icon={IconListNumbers} />
+        <MetricCard label="With photos" value={String(stats.withPhotos)} sub="Avatar uploaded" icon={IconBuilding} />
+        <MetricCard label="With contact" value={String(stats.withContact)} sub="Email or phone" icon={IconWallet} />
+        <MetricCard label="Combined total" value={eur(stats.sum)} sub="Capital + side fund" icon={IconBank} />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-        <MetricCard label="Directors" value={String(stats.count)} sub="In roster" />
-        <MetricCard label="Active" value={String(stats.active)} sub="Marked active" />
-        <MetricCard label="Inactive" value={String(stats.inactive)} sub="Not active" />
-        <MetricCard label="With photos" value={String(stats.withPhotos)} sub="Avatar uploaded" />
-        <MetricCard label="With contact" value={String(stats.withContact)} sub="Email or phone" />
-        <MetricCard label="Combined total" value={eur(stats.sum)} sub="Capital + side fund" />
-      </div>
-
-      <div className="rounded-xl ui-surface p-4">
+      <div className="ui-panel-elevated">
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-[200px] flex-1">
             <label className="text-xs font-medium text-slate-600 dark:text-slate-400" htmlFor="dir-search">
@@ -273,9 +275,9 @@ export default function Directors() {
       </div>
 
       {chartData.length > 0 ? (
-        <div className="rounded-2xl ui-surface p-4">
-          <div className="text-sm font-semibold ui-page-heading">Totals in current list (top 14)</div>
-          <p className="text-xs ui-page-muted">Quick comparison of capital + side fund by director.</p>
+        <div className="ui-panel-elevated">
+          <SectionTitle icon={IconBank}>Totals in current list (top 14)</SectionTitle>
+          <p className="mt-2 text-xs ui-page-muted">Quick comparison of capital + side fund by director.</p>
           <div className="mt-3 h-72">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ left: 4, right: 8, bottom: 40 }}>
@@ -291,8 +293,11 @@ export default function Directors() {
       ) : null}
 
       {me?.role === "ADMIN" && (
-        <div className="space-y-3 rounded-xl ui-surface p-4">
-          <div className="text-sm font-semibold ui-page-heading">{editingId ? "Edit director" : "Add director"}</div>
+        <div className="ui-panel-elevated space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="h-6 w-1 rounded-full bg-gradient-to-b from-brand-500 to-sky-500" aria-hidden />
+            <div className="text-sm font-semibold ui-page-heading">{editingId ? "Edit director" : "Add director"}</div>
+          </div>
           <form
             className="grid grid-cols-1 gap-3 md:grid-cols-4"
             onSubmit={(e) => {

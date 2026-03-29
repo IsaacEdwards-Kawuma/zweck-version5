@@ -1,5 +1,7 @@
 import { useMemo, useId } from "react";
 import MetricCard from "../components/MetricCard";
+import PageHero, { SectionTitle } from "../components/PageHero";
+import { IconBank, IconBuilding, IconDashboard, IconListNumbers, IconScale, IconWallet } from "../components/Icons";
 import DirectorAvatar from "../components/DirectorAvatar";
 import Loading from "../components/Loading";
 import ErrorBanner from "../components/ErrorBanner";
@@ -97,47 +99,42 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h2 className="text-xl font-semibold ui-page-heading">Overview</h2>
-        <p className="text-sm ui-page-muted">Live snapshot of Zweck Co. balances, analytics, and recent activity.</p>
+      <PageHero
+        icon={IconDashboard}
+        title="Overview"
+        subtitle="Live snapshot of balances, analytics, and recent ledger activity — all in one place."
+      />
+
+      <div className="ui-stagger grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <MetricCard label="Bank Balance" value={eur(bank)} icon={IconBank} />
+        <MetricCard label="Total director equity" value={eur(totalDirectorEquity)} sub="Capital + side fund" icon={IconScale} />
+        <MetricCard label="Total side fund" value={eur(totalSideFund)} sub="Per director side fund balances" icon={IconWallet} />
+        <MetricCard label="Total Assets" value={eur(totalAssets)} sub="Bank and project-linked assets" icon={IconBuilding} />
+        <MetricCard label="Transaction Count" value={String(count)} icon={IconListNumbers} />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <div className="transition-transform duration-300 hover:-translate-y-0.5">
-          <MetricCard label="Bank Balance" value={eur(bank)} />
+      <div className="space-y-4">
+        <div>
+          <SectionTitle icon={IconDashboard}>Analytics</SectionTitle>
+          <p className="mt-2 text-sm ui-page-muted">Rolling windows and breakdowns from posted transactions.</p>
         </div>
-        <div className="transition-transform duration-300 hover:-translate-y-0.5">
-          <MetricCard label="Total director equity" value={eur(totalDirectorEquity)} sub="Capital + side fund" />
-        </div>
-        <div className="transition-transform duration-300 hover:-translate-y-0.5">
-          <MetricCard label="Total side fund" value={eur(totalSideFund)} sub="Per director side fund balances" />
-        </div>
-        <div className="transition-transform duration-300 hover:-translate-y-0.5">
-          <MetricCard label="Total Assets" value={eur(totalAssets)} sub="Bank and project-linked assets" />
-        </div>
-        <div className="transition-transform duration-300 hover:-translate-y-0.5">
-          <MetricCard label="Transaction Count" value={String(count)} />
-        </div>
-      </div>
 
-      <div>
-        <h3 className="text-lg font-semibold text-slate-900">Analytics</h3>
-        <p className="text-sm text-slate-500">Rolling windows and breakdowns from posted transactions.</p>
-
-        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="ui-stagger grid grid-cols-1 gap-4 md:grid-cols-2">
           <MetricCard
             label="Transactions (last 30 days)"
             value={String(comp.last30.count)}
             sub={compareSub(comp.prev30.count, comp.countDeltaPct)}
+            icon={IconListNumbers}
           />
           <MetricCard
             label="Volume (last 30 days)"
             value={eur(comp.last30.volume)}
             sub={compareSub(comp.prev30.volume, comp.volumeDeltaPct, eur)}
+            icon={IconBank}
           />
         </div>
 
-        <div className="ui-surface mt-6 rounded-2xl p-4">
+        <div className="ui-panel-elevated mt-2">
           <div className="text-sm font-semibold ui-page-heading">Monthly transaction volume</div>
           <p className="text-xs ui-page-muted">Sum of amounts per calendar month (last 12 months).</p>
           <div className="mt-3 h-64">
@@ -175,7 +172,7 @@ export default function Dashboard() {
         </div>
 
         <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <div className="ui-surface rounded-2xl p-4">
+          <div className="ui-panel-elevated">
             <div className="text-sm font-semibold ui-page-heading">Volume by transaction type</div>
             <p className="text-xs ui-page-muted">Total EUR per type (all time).</p>
             <div className="mt-2 h-72">
@@ -195,7 +192,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="ui-surface rounded-2xl p-4">
+          <div className="ui-panel-elevated">
             <div className="text-sm font-semibold ui-page-heading">Director capital inflows</div>
             <p className="text-xs ui-page-muted">Sum of contributions and side-fund postings per director.</p>
             <div className="mt-2 h-72">
@@ -227,7 +224,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="ui-surface lg:col-span-2 rounded-2xl p-4">
+        <div className="ui-panel-elevated lg:col-span-2">
           <div className="text-sm font-semibold ui-page-heading">Director Capital Accounts</div>
           <div className="mt-3 max-h-72 overflow-x-auto rounded-xl border border-slate-200/90 bg-slate-50/70 p-3 dark:border-slate-600 dark:bg-slate-900/50">
             <table className="min-w-full text-sm">
@@ -271,7 +268,7 @@ export default function Dashboard() {
         </div>
 
         <div className="space-y-4">
-          <div className="ui-surface rounded-2xl p-4">
+          <div className="ui-panel-elevated">
             <div className="text-sm font-semibold ui-page-heading">Portfolio Split</div>
             <div className="mt-2 h-40">
               <ResponsiveContainer width="100%" height="100%">
@@ -312,7 +309,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="ui-surface rounded-2xl p-4">
+          <div className="ui-panel-elevated">
             <div className="text-sm font-semibold ui-page-heading">Income vs Expenses</div>
             <div className="mt-2 h-40">
               <ResponsiveContainer width="100%" height="100%">
@@ -342,8 +339,11 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div>
-        <div className="mb-2 text-sm font-semibold ui-page-heading">Last 7 Transactions</div>
+      <div className="ui-animate-in">
+        <div className="mb-3 flex items-center gap-2">
+          <span className="h-6 w-1 rounded-full bg-gradient-to-b from-brand-500 to-sky-500" aria-hidden />
+          <h3 className="text-lg font-semibold ui-page-heading">Last 7 transactions</h3>
+        </div>
         <TransactionTable rows={recent} />
       </div>
     </div>

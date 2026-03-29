@@ -200,6 +200,39 @@ html.dark ::selection {
   .ui-stat-strip {
     @apply border border-slate-100 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/75;
   }
+
+  /** Staggered entrance for grid children (respects reduced-motion via global rule) */
+  .ui-stagger > * {
+    animation: fade-slide-up 340ms ease-out both;
+  }
+  .ui-stagger > *:nth-child(1) {
+    animation-delay: 0ms;
+  }
+  .ui-stagger > *:nth-child(2) {
+    animation-delay: 45ms;
+  }
+  .ui-stagger > *:nth-child(3) {
+    animation-delay: 90ms;
+  }
+  .ui-stagger > *:nth-child(4) {
+    animation-delay: 135ms;
+  }
+  .ui-stagger > *:nth-child(5) {
+    animation-delay: 180ms;
+  }
+  .ui-stagger > *:nth-child(6) {
+    animation-delay: 225ms;
+  }
+  .ui-stagger > *:nth-child(7) {
+    animation-delay: 270ms;
+  }
+  .ui-stagger > *:nth-child(8) {
+    animation-delay: 315ms;
+  }
+
+  .ui-panel-elevated {
+    @apply rounded-2xl border border-slate-200/90 bg-white/90 p-4 shadow-sm backdrop-blur-sm transition-shadow duration-300 hover:shadow-md dark:border-slate-700/90 dark:bg-slate-900/85;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -11,6 +11,15 @@ import {
   listMeetings,
   updateMeeting
 } from "../api/meetings";
+import PageHero, { SectionTitle } from "../components/PageHero";
+import {
+  IconBolt,
+  IconCalendar,
+  IconCheckCircle,
+  IconClipboard,
+  IconClock,
+  IconXCircle
+} from "../components/Icons";
 
 const STATUS = ["SCHEDULED", "COMPLETED", "CANCELLED", "DRAFT"];
 const MEETING_TYPES = ["Board", "Management", "Project", "Finance", "Operations", "Other"];
@@ -266,16 +275,14 @@ export default function Meetings() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="text-lg font-semibold ui-page-heading">Meetings</div>
-          <div className="text-sm ui-body-text">
-            Schedule governance meetings, track attendance, keep minutes, and follow up action items.
-          </div>
-        </div>
+      <PageHero
+        icon={IconCalendar}
+        title="Meetings"
+        subtitle="Schedule governance meetings, track attendance, keep minutes, and follow up action items."
+      >
         <button
           type="button"
-          className="ui-btn-outline text-sm shrink-0"
+          className="ui-btn-outline shrink-0 text-sm shadow-sm transition-all hover:-translate-y-0.5"
           onClick={async () => {
             try {
               await downloadMeetingsCalendarIcs();
@@ -284,24 +291,24 @@ export default function Meetings() {
             }
           }}
         >
-          Download calendar (.ics)
+          Download .ics
         </button>
-      </div>
+      </PageHero>
 
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-        <StatCard label="Total" value={stats.total} />
-        <StatCard label="Scheduled" value={stats.scheduled} />
-        <StatCard label="Completed" value={stats.completed} />
-        <StatCard label="Cancelled" value={stats.cancelled} />
-        <StatCard label="Upcoming" value={stats.upcoming} />
-        <StatCard label="High priority" value={stats.highPriority} />
+      <section className="ui-stagger grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+        <StatCard label="Total" value={stats.total} icon={IconClipboard} accent="slate" />
+        <StatCard label="Scheduled" value={stats.scheduled} icon={IconClock} accent="sky" />
+        <StatCard label="Completed" value={stats.completed} icon={IconCheckCircle} accent="emerald" />
+        <StatCard label="Cancelled" value={stats.cancelled} icon={IconXCircle} accent="rose" />
+        <StatCard label="Upcoming" value={stats.upcoming} icon={IconCalendar} accent="brand" />
+        <StatCard label="High priority" value={stats.highPriority} icon={IconBolt} accent="amber" />
       </section>
 
-      <section className="ui-surface rounded-2xl p-4">
+      <section className="ui-panel-elevated">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <div className="text-sm font-semibold ui-page-heading">Meeting calendar</div>
-            <div className="text-xs text-slate-500 dark:text-slate-400">
+            <SectionTitle icon={IconCalendar}>Meeting calendar</SectionTitle>
+            <div className="mt-1 text-xs ui-page-muted">
               Click a day to view meetings. Days with meetings show a badge.
             </div>
           </div>
@@ -422,13 +429,16 @@ export default function Meetings() {
       </section>
 
       {!isAdmin ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
+        <div className="ui-animate-pop rounded-xl border border-amber-200/90 bg-amber-50/90 p-4 text-sm text-amber-800 shadow-sm backdrop-blur-sm dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
           You are in read-only mode. Only admins can add, update, or delete meetings.
         </div>
       ) : null}
 
-      <section className="ui-surface rounded-2xl p-4">
-        <div className="text-sm font-semibold ui-page-heading">{editingId ? "Edit meeting" : "New meeting"}</div>
+      <section className="ui-panel-elevated">
+        <div className="flex items-center gap-2">
+          <span className="h-6 w-1 rounded-full bg-gradient-to-b from-brand-500 to-sky-500" aria-hidden />
+          <div className="text-sm font-semibold ui-page-heading">{editingId ? "Edit meeting" : "New meeting"}</div>
+        </div>
         <form className="mt-3 grid gap-3 md:grid-cols-2" onSubmit={onSubmit}>
           <LabeledInput label="Meeting title" value={form.title} onChange={(v) => onChange("title", v)} required />
           <LabeledInput label="Date" type="date" value={form.date} onChange={(v) => onChange("date", v)} required />
@@ -677,11 +687,43 @@ export default function Meetings() {
   );
 }
 
-function StatCard({ label, value }) {
+const ACCENT_ICON = {
+  slate: "from-slate-100 to-slate-200/80 text-slate-600 dark:from-slate-800 dark:to-slate-700 dark:text-slate-300",
+  sky: "from-sky-100 to-sky-200/80 text-sky-700 dark:from-sky-950/80 dark:to-sky-900/60 dark:text-sky-300",
+  emerald: "from-emerald-100 to-emerald-200/80 text-emerald-700 dark:from-emerald-950/80 dark:to-emerald-900/60 dark:text-emerald-300",
+  rose: "from-rose-100 to-rose-200/80 text-rose-700 dark:from-rose-950/80 dark:to-rose-900/60 dark:text-rose-300",
+  brand: "from-brand-100 to-brand-200/80 text-brand-800 dark:from-brand-950/80 dark:to-brand-900/60 dark:text-brand-300",
+  amber: "from-amber-100 to-amber-200/80 text-amber-800 dark:from-amber-950/80 dark:to-amber-900/60 dark:text-amber-300"
+};
+
+const ACCENT_GLOW = {
+  slate: "bg-slate-400/15",
+  sky: "bg-sky-400/20",
+  emerald: "bg-emerald-400/20",
+  rose: "bg-rose-400/20",
+  brand: "bg-brand-400/20",
+  amber: "bg-amber-400/20"
+};
+
+function StatCard({ label, value, icon: Icon, accent = "slate" }) {
+  const iconCls = ACCENT_ICON[accent] || ACCENT_ICON.slate;
+  const glowCls = ACCENT_GLOW[accent] || ACCENT_GLOW.slate;
   return (
-    <div className="ui-surface rounded-xl p-4">
-      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</div>
-      <div className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100">{value}</div>
+    <div className="ui-animate-pop group relative overflow-hidden rounded-xl border border-slate-200/90 bg-white/90 p-4 shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md dark:border-slate-700/90 dark:bg-slate-900/85">
+      <div className={`pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full blur-2xl ${glowCls} opacity-70`} />
+      <div className="relative flex items-start justify-between gap-2">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</div>
+          <div className="mt-1 text-2xl font-bold tabular-nums tracking-tight text-slate-900 dark:text-slate-100">{value}</div>
+        </div>
+        {Icon ? (
+          <span
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br shadow-sm ring-1 ring-black/5 dark:ring-white/10 ${iconCls}`}
+          >
+            <Icon className="h-5 w-5" />
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 }

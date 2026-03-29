@@ -4,6 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import Loading from "../components/Loading";
 import ErrorBanner from "../components/ErrorBanner";
 import MetricCard from "../components/MetricCard";
+import PageHero from "../components/PageHero";
+import { IconBank, IconListNumbers, IconReports, IconScale } from "../components/Icons";
 import PrintStatementHeader from "../components/PrintStatementHeader";
 import { listTransactions, txItems } from "../api/transactions";
 import { trackReportEvent } from "../api/reports";
@@ -801,27 +803,24 @@ export default function Reports() {
       {typeof txTotal === "number" && txTotal > 100000 ? (
         <div
           role="status"
-          className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-200"
+          className="ui-animate-pop rounded-xl border border-amber-200/90 bg-amber-50/90 px-4 py-3 text-sm text-amber-900 shadow-sm backdrop-blur-sm dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-200"
         >
           Loaded {(100000).toLocaleString()} of {txTotal.toLocaleString()} posted transactions. Narrow the date range
           for complete figures.
         </div>
       ) : null}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="text-lg font-semibold ui-page-heading">Reports</div>
-          <div className="text-sm ui-body-text">
-            Time-based views of income, expenses, and contributions from the ledger. Filter by date or export
-            CSV.
-          </div>
-        </div>
+      <PageHero
+        icon={IconReports}
+        title="Reports"
+        subtitle="Time-based views of income, expenses, and contributions from the ledger. Filter by date, print, or export CSV."
+      >
         <div className="flex flex-wrap items-center gap-2 print:hidden">
           <button type="button" className="ui-btn-outline" onClick={() => window.print()}>
-            Print report
+            Print
           </button>
           <button
             type="button"
-            className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-sm font-medium text-brand-900 hover:bg-brand-100 dark:border-brand-500/40 dark:bg-brand-950/50 dark:text-brand-200 dark:hover:bg-brand-900/60"
+            className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-sm font-medium text-brand-900 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-brand-100 dark:border-brand-500/40 dark:bg-brand-950/50 dark:text-brand-200 dark:hover:bg-brand-900/60"
             onClick={async () => {
               if (!txs.length) return window.alert("No transactions in the selected range to export.");
               downloadTransactionsCsv(txs, "zweck-transactions-export.csv");
@@ -832,12 +831,12 @@ export default function Reports() {
           </button>
           <Link
             to={ledgerHref}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
           >
-            Open in ledger
+            Open ledger
           </Link>
         </div>
-      </div>
+      </PageHero>
 
       <PrintStatementHeader
         title="Financial report"
@@ -921,14 +920,15 @@ export default function Reports() {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <MetricCard label="Contributions (period)" value={eur(kpis.contributions)} />
-        <MetricCard label="Income (period)" value={eur(kpis.income)} sub="Project returns, penalties, loan" />
-        <MetricCard label="Expenses (period)" value={eur(kpis.expenses)} sub="Reg, charges, legal, other" />
+      <div className="ui-stagger grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <MetricCard label="Contributions (period)" value={eur(kpis.contributions)} icon={IconBank} />
+        <MetricCard label="Income (period)" value={eur(kpis.income)} sub="Project returns, penalties, loan" icon={IconScale} />
+        <MetricCard label="Expenses (period)" value={eur(kpis.expenses)} sub="Reg, charges, legal, other" icon={IconListNumbers} />
         <MetricCard
           label="Net (income − expenses)"
           value={eur(kpis.net)}
           sub={kpis.net >= 0 ? "Surplus" : "Deficit"}
+          icon={IconReports}
         />
       </div>
 

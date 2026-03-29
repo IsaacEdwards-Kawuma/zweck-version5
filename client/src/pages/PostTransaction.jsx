@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useOutletContext } from "react-router-dom";
 import DirectorAvatar from "../components/DirectorAvatar";
+import PageHero, { SectionTitle } from "../components/PageHero";
+import { IconPostTx, IconSparkles } from "../components/Icons";
 import ErrorBanner from "../components/ErrorBanner";
 import {
   postTransaction,
@@ -44,7 +46,7 @@ function bankPreviewLabel(currency) {
 }
 
 function mapPreviewAccount(key, currency) {
-  if (!key) return "ΓÇö";
+  if (!key) return "—";
   if (key === "bank") return bankPreviewLabel(currency);
   const opt = INTER_ACCOUNT_TRANSFER_OPTIONS.find((o) => o.value === key);
   if (opt) return opt.label;
@@ -214,11 +216,11 @@ export default function PostTransaction() {
     if (type === "RETAINED_EARNINGS_TRANSFER") {
       return {
         debit: "3300 Retained Earnings",
-        credit: "3110ΓÇô3150 Director Capital (split equally)",
+        credit: "3110–3150 Director Capital (split equally)",
         amount: Number.isFinite(n) ? n : 0
       };
     }
-    const debit = map?.debit === "bank" ? bankPreviewLabel(currency) : map?.debit || "ΓÇö";
+    const debit = map?.debit === "bank" ? bankPreviewLabel(currency) : map?.debit || "—";
     let credit =
       map?.credit === "bank"
         ? showExpensePayment && paymentAp
@@ -226,7 +228,7 @@ export default function PostTransaction() {
           : bankPreviewLabel(currency)
         : map?.credit === "capital"
           ? "Director capital (selected director)"
-          : map?.credit || "ΓÇö";
+          : map?.credit || "—";
     return {
       debit,
       credit,
@@ -392,25 +394,25 @@ export default function PostTransaction() {
     URL.revokeObjectURL(url);
   }
 
-  const previewRefLabel = qPreviewRef.data?.referenceNumber || "ΓÇª";
+  const previewRefLabel = qPreviewRef.data?.referenceNumber || "…";
 
   return (
-    <div className="max-w-2xl space-y-4">
-      <div>
-        <div className="text-lg font-semibold text-slate-900">Post Transaction</div>
-        <div className="text-sm text-slate-600 dark:text-slate-300">
-          By default, debits and credits follow the selected transaction type. Use manual debit and credit below to pick exact GL lines;
-          suggested accounts mirror what automation would post. Currency maps to bank: UGX ΓåÆ 1200, USD ΓåÆ 1210, EUR ΓåÆ 1220.
-        </div>
-      </div>
+    <div className="mx-auto max-w-4xl space-y-6">
+      <PageHero
+        icon={IconPostTx}
+        title="Post transaction"
+        subtitle="Debits and credits follow the selected type by default. Use manual GL lines when you need exact control. Currency maps to bank: UGX → 1200, USD → 1210, EUR → 1220."
+      />
 
       {success ? (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{success}</div>
+        <div className="ui-animate-pop rounded-xl border border-emerald-200/90 bg-emerald-50/90 p-4 text-sm text-emerald-900 shadow-sm backdrop-blur-sm dark:border-emerald-800/50 dark:bg-emerald-950/40 dark:text-emerald-100">
+          {success}
+        </div>
       ) : null}
 
-      <div className="rounded-xl ui-surface p-4">
-        <div className="text-sm font-semibold text-slate-900">Quick templates</div>
-        <div className="mt-2 flex flex-wrap gap-2">
+      <div className="ui-panel-elevated">
+        <SectionTitle icon={IconSparkles}>Quick templates</SectionTitle>
+        <div className="mt-4 flex flex-wrap gap-2">
           {TEMPLATES.map((t) => (
             <button key={t.id} type="button" className="ui-btn-outline-xs" onClick={() => applyTemplate(t)}>
               {t.label}
@@ -428,7 +430,11 @@ export default function PostTransaction() {
         </div>
       </div>
 
-      <form onSubmit={onSubmit} className="space-y-4 rounded-xl ui-surface p-4">
+      <form onSubmit={onSubmit} className="ui-panel-elevated space-y-4">
+        <div className="flex items-center gap-2 border-b border-slate-200/80 pb-3 dark:border-slate-700/80">
+          <span className="h-6 w-1 rounded-full bg-gradient-to-b from-brand-500 to-sky-500" aria-hidden />
+          <div className="text-lg font-semibold ui-page-heading">Transaction details</div>
+        </div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div>
             <label className="text-xs font-medium text-slate-700">Category</label>
@@ -524,7 +530,7 @@ export default function PostTransaction() {
             <input
               className="mt-1 w-full rounded-lg border-slate-200 bg-slate-50 font-mono text-sm"
               readOnly
-              value={editingId ? "ΓÇö" : previewRefLabel}
+              value={editingId ? "—" : previewRefLabel}
               title="Assigned when you post (sequential per month)"
             />
           </div>
@@ -574,7 +580,7 @@ export default function PostTransaction() {
                 <option value="">Select project...</option>
                 {(qProjects.data || []).map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.code} ┬╖ {p.name}
+                    {p.code} · {p.name}
                   </option>
                 ))}
               </select>
@@ -671,7 +677,7 @@ export default function PostTransaction() {
           <label className="text-xs font-medium text-slate-700">Source document (PDF or image, optional)</label>
           <div className="mt-1 flex flex-wrap items-center gap-2">
             <input type="file" accept="application/pdf,image/*" onChange={onPickDocument} disabled={uploadingDoc || Boolean(editingId)} />
-            {uploadingDoc ? <span className="text-xs text-slate-500">UploadingΓÇª</span> : null}
+            {uploadingDoc ? <span className="text-xs text-slate-500">Uploading…</span> : null}
             {documentUrl ? (
               <a href={documentUrl} target="_blank" rel="noreferrer" className="text-xs text-brand-700 underline">
                 View attached
@@ -749,7 +755,10 @@ export default function PostTransaction() {
 
       <div className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="text-sm font-semibold text-slate-900">Recent transactions</div>
+          <div className="flex items-center gap-2">
+            <span className="h-6 w-1 rounded-full bg-gradient-to-b from-brand-500 to-sky-500" aria-hidden />
+            <div className="text-lg font-semibold ui-page-heading">Recent transactions</div>
+          </div>
           <div className="flex flex-wrap gap-2">
             <input
               className="ui-input px-2 py-1.5 text-sm"
@@ -779,11 +788,11 @@ export default function PostTransaction() {
           </div>
         </div>
         {qRecent.isLoading ? (
-          <div className="text-sm text-slate-500">LoadingΓÇª</div>
+          <div className="text-sm ui-page-muted">Loading…</div>
         ) : qRecent.error ? (
           <ErrorBanner error={qRecent.error} />
         ) : (
-          <div className="overflow-x-auto rounded-xl ui-surface text-sm">
+          <div className="ui-table-wrap overflow-x-auto text-sm">
             <table className="min-w-full text-left">
               <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-600">
                 <tr>
@@ -815,12 +824,12 @@ export default function PostTransaction() {
                         {TX_TYPE_LABELS[t.type] || t.type.replaceAll("_", " ")}
                       </td>
                       <td className="px-3 py-2">
-                        {t.director?.name || <span className="text-slate-400">ΓÇö</span>}
+                        {t.director?.name || <span className="text-slate-400">—</span>}
                       </td>
                       <td className="px-3 py-2 whitespace-nowrap text-right font-semibold">
                         {formatMoney(t.amount, t.currency || "EUR")}
                       </td>
-                      <td className="px-3 py-2 text-xs text-slate-600">{t.documentStatus || "ΓÇö"}</td>
+                      <td className="px-3 py-2 text-xs text-slate-600">{t.documentStatus || "—"}</td>
                       <td className="px-3 py-2">
                         <div className="flex flex-wrap gap-2">
                           <button

@@ -7,8 +7,9 @@ export default function DirectorCard({ director, maxTotal, onClick }) {
 
   return (
     <button
+      type="button"
       onClick={onClick}
-      className="ui-surface w-full rounded-xl p-4 text-left hover:bg-slate-50 dark:hover:bg-slate-700/50"
+      className="ui-surface w-full rounded-xl p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-md hover:ring-2 hover:ring-brand-500/15 dark:hover:bg-slate-800/70 dark:hover:ring-brand-400/20"
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
