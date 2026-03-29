@@ -275,6 +275,12 @@ export default function Forms() {
             ) : null}
           </div>
         </div>
+        <p className="mt-3 max-w-3xl text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+          Rows with status <span className="font-semibold text-emerald-800 dark:text-emerald-300">APPROVED</span> show{" "}
+          <span className="font-medium text-slate-600 dark:text-slate-300">Print</span> and{" "}
+          <span className="font-medium text-slate-600 dark:text-slate-300">Download</span> so you can file or share a formal
+          approval record. Use your browser&apos;s print dialog to save as PDF; Download saves the same page as an HTML file.
+        </p>
 
         <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
           <table className="min-w-full text-left text-sm">
@@ -343,6 +349,7 @@ export default function Forms() {
                             <button
                               type="button"
                               className="rounded-lg border border-emerald-600/80 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-900 hover:bg-emerald-100 dark:border-emerald-500/60 dark:bg-emerald-950/40 dark:text-emerald-100 dark:hover:bg-emerald-900/50"
+                              aria-label={`Print approval record for request ${row.id}: ${row.title}`}
                               onClick={() => printApprovedForm(row)}
                             >
                               Print
@@ -350,6 +357,7 @@ export default function Forms() {
                             <button
                               type="button"
                               className="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+                              aria-label={`Download approval record for request ${row.id}: ${row.title}`}
                               onClick={() => downloadApprovedForm(row)}
                             >
                               Download
