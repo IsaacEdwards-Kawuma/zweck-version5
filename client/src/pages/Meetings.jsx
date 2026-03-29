@@ -136,7 +136,7 @@ export default function Meetings() {
 
   const eligibleInviteUsers = useMemo(() => {
     const base =
-      form.meetingType === "Board" ? allUsers.filter(isDirectorMember) : [...allUsers];
+      form.meetingType === "Board" ? allUsers.filter(isBoardAttendeeOption) : [...allUsers];
     const q = attendeeFilter.trim().toLowerCase();
     if (!q) return base;
     return base.filter((u) => {
