@@ -186,6 +186,8 @@ function DirectorProfileCard({ d, portfolio: pf, directorsBlock: m, companyInfo 
 export default function Portfolio() {
   const q = usePortfolio();
   const [scenarioAmount, setScenarioAmount] = useState("");
+  const dark = useDarkClass();
+  const gridStroke = dark ? "#475569" : "#e2e8f0";
 
   const qAbout = useQuery({
     queryKey: ["about-page"],
