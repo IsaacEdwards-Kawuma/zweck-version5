@@ -3,12 +3,14 @@ import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Loading from "../components/Loading";
 import ErrorBanner from "../components/ErrorBanner";
+import PageHero from "../components/PageHero";
+import { IconSettings } from "../components/Icons";
 import ThemeSettings from "../components/ThemeSettings";
 import { getHealth, getSettings, updateNotificationPreferences, updateOrgSettings } from "../api/settings";
 import { listUsers, updateUserRole, listLoginEvents, listMyLoginEvents } from "../api/users";
 import { pingIntegration } from "../api/integrations";
 
-const SECTION = "ui-surface scroll-mt-24 rounded-xl p-5";
+const SECTION = "ui-panel-elevated scroll-mt-24 p-5";
 const PREFS_KEY = "zweck_settings_prefs_v1";
 const LOGIN_ALERT_PREFS_KEY = "zweck_login_alert_thresholds_v1";
 const LOGIN_BURST_ALERT_PREFS_KEY = "zweck_login_burst_alert_v1";
@@ -379,72 +381,72 @@ export default function Settings() {
 
   return (
     <div className="space-y-8 print:hidden">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Settings</h1>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+      <PageHero
+        icon={IconSettings}
+        title="Settings"
+        subtitle={
+          <>
             {isAdmin
               ? "Account summary, shortcuts, application map, and server monitoring (read-only)."
               : "Account summary, shortcuts, and application map."}
-          </p>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Last updated:{" "}
-            {qSettings.dataUpdatedAt ? new Date(qSettings.dataUpdatedAt).toLocaleString() : "—"} · Mode:{" "}
-            <code className="rounded bg-slate-100 px-1 dark:bg-slate-800 dark:text-slate-200">
-              {import.meta.env.MODE}
-            </code>
-            {qHealth.isFetching ? " · Refreshing health…" : null}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => void refreshAll()}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-          >
-            Refresh data
-          </button>
-          <button
-            type="button"
-            onClick={() => copyText(origin || "", "App URL copied.")}
-            className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-sm font-medium text-brand-900 hover:bg-brand-100 dark:border-brand-500/40 dark:bg-brand-950/50 dark:text-brand-200 dark:hover:bg-brand-900/60"
-          >
-            Copy app URL
-          </button>
-          <button
-            type="button"
-            onClick={() => copyText(app.version || "", "API version copied.")}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-          >
-            Copy API version
-          </button>
-        </div>
-      </div>
+            <span className="mt-2 block text-xs text-slate-500 dark:text-slate-400">
+              Last updated:{" "}
+              {qSettings.dataUpdatedAt ? new Date(qSettings.dataUpdatedAt).toLocaleString() : "—"} · Mode:{" "}
+              <code className="rounded bg-slate-100 px-1 dark:bg-slate-800 dark:text-slate-200">
+                {import.meta.env.MODE}
+              </code>
+              {qHealth.isFetching ? " · Refreshing health…" : null}
+            </span>
+          </>
+        }
+      >
+        <button type="button" onClick={() => void refreshAll()} className="ui-btn-outline">
+          Refresh data
+        </button>
+        <button
+          type="button"
+          onClick={() => copyText(origin || "", "App URL copied.")}
+          className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-sm font-medium text-brand-900 transition hover:-translate-y-0.5 hover:bg-brand-100 hover:shadow-sm dark:border-brand-500/40 dark:bg-brand-950/50 dark:text-brand-200 dark:hover:bg-brand-900/60"
+        >
+          Copy app URL
+        </button>
+        <button type="button" onClick={() => copyText(app.version || "", "API version copied.")} className="ui-btn-outline">
+          Copy API version
+        </button>
+      </PageHero>
       {copyMsg ? (
-        <div className="text-sm text-emerald-800 dark:text-emerald-300">{copyMsg}</div>
+        <div
+          role="status"
+          className="ui-animate-pop rounded-xl border border-emerald-200/90 bg-emerald-50/95 px-4 py-2.5 text-sm text-emerald-900 shadow-sm dark:border-emerald-500/30 dark:bg-emerald-950/50 dark:text-emerald-200"
+        >
+          {copyMsg}
+        </div>
       ) : null}
 
       <nav
         aria-label="Settings sections"
-        className="flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-sm dark:border-slate-700 dark:bg-slate-900/60"
+        className="ui-animate-in ui-panel-elevated flex flex-col gap-3 p-4 sm:flex-row sm:flex-wrap sm:items-center"
       >
         <input
-          className="ui-input min-w-[200px] px-3 py-1.5"
+          className="ui-input min-w-0 flex-1 px-3 py-2 sm:max-w-xs"
           placeholder="Find section..."
           value={sectionQuery}
           onChange={(e) => setSectionQuery(e.target.value)}
         />
-        {filteredNav.map((n) => (
-          <a
-            key={n.href}
-            href={n.href}
-            className="rounded-lg bg-white px-3 py-1.5 font-medium text-brand-800 shadow-sm ring-1 ring-slate-200/80 hover:bg-brand-50 dark:bg-slate-800 dark:text-brand-200 dark:ring-slate-600 dark:hover:bg-slate-700"
-          >
-            {n.label}
-          </a>
-        ))}
+        <div className="ui-stagger flex flex-1 flex-wrap gap-2">
+          {filteredNav.map((n) => (
+            <a
+              key={n.href}
+              href={n.href}
+              className="rounded-lg border border-slate-200/80 bg-white/90 px-3 py-1.5 text-sm font-medium text-brand-800 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-300 hover:bg-brand-50/90 dark:border-slate-600 dark:bg-slate-800/90 dark:text-brand-200 dark:hover:border-brand-500/40 dark:hover:bg-slate-700/80"
+            >
+              {n.label}
+            </a>
+          ))}
+        </div>
       </nav>
 
+      <div className="ui-stagger flex flex-col gap-8">
       <section id="settings-workspace" className={SECTION}>
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Workspace preferences</h2>
         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -1470,6 +1472,7 @@ export default function Settings() {
           <code className="rounded bg-slate-100 px-1 dark:bg-slate-900">INCIDENT_RUNBOOK_URL</code>.
         </p>
       </section> : null}
+      </div>
     </div>
   );
 }
