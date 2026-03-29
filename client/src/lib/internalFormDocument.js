@@ -34,6 +34,14 @@ function reviewerLine(row) {
   return "—";
 }
 
+function rowPair(label, valueHtml, { multiline = false } = {}) {
+  const th =
+    "font-weight:600;text-align:left;padding:10px 14px;border:1px solid #cbd5e1;background:#f1f5f9;color:#334155;width:34%;vertical-align:top;font-size:11px;letter-spacing:0.02em;text-transform:uppercase;";
+  const tdBase = "padding:10px 14px;border:1px solid #cbd5e1;color:#0f172a;font-size:13px;line-height:1.45;";
+  const td = multiline ? `${tdBase}vertical-align:top;` : tdBase;
+  return `<tr class="doc-row" style="page-break-inside:avoid;"><th style="${th}">${escapeHtml(label)}</th><td style="${td}">${valueHtml}</td></tr>`;
+}
+
 /**
  * Printable / downloadable HTML for an approved internal form (requisition or general request).
  * @param {object} row — API row from GET /internal-forms
@@ -43,26 +51,27 @@ export function buildApprovedFormHtml(row) {
     row.amount != null && row.currency
       ? formatMoney(row.amount, row.currency)
       : "—";
-  const decided = row.decidedAt ? new Date(row.decidedAt).toLocaleString() : "—";
-  const submitted = row.createdAt ? new Date(row.createdAt).toLocaleString() : "—";
+  const decided = row.decidedAt ? new Date(row.decidedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—";
+  const submitted = row.createdAt ? new Date(row.createdAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—";
+  const generated = new Date().toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 
-  const th = "text-align:left;padding:8px 12px;border:1px solid #ccc;background:#f8fafc;width:32%;";
-  const td = "padding:8px 12px;border:1px solid #ccc;";
-  const tdTop = `${td}vertical-align:top;`;
+  const requestRows = [
+    rowPair("Reference", escapeHtml(`#${String(row.id)}`)),
+    rowPair("Form type", escapeHtml(kindLabel(row.kind))),
+    rowPair("Title", escapeHtml(row.title || "—")),
+    rowPair("Details", escapeMultiline(row.description), { multiline: true }),
+    rowPair("Amount", escapeHtml(amountLine)),
+    rowPair("Purpose / budget line", escapeHtml(row.purpose || "—")),
+    rowPair("Vendor / payee", escapeHtml(row.vendor || "—")),
+    rowPair("Requested by", escapeHtml(requesterName(row))),
+    rowPair("Date submitted", escapeHtml(submitted))
+  ].join("");
 
-  const rowsHtml = [
-    `<tr><th style="${th}">${escapeHtml("Reference ID")}</th><td style="${td}">${escapeHtml(String(row.id))}</td></tr>`,
-    `<tr><th style="${th}">${escapeHtml("Type")}</th><td style="${td}">${escapeHtml(kindLabel(row.kind))}</td></tr>`,
-    `<tr><th style="${th}">${escapeHtml("Title")}</th><td style="${tdTop}">${escapeHtml(row.title || "—")}</td></tr>`,
-    `<tr><th style="${th}">${escapeHtml("Details")}</th><td style="${tdTop}">${escapeMultiline(row.description)}</td></tr>`,
-    `<tr><th style="${th}">${escapeHtml("Amount")}</th><td style="${td}">${escapeHtml(amountLine)}</td></tr>`,
-    `<tr><th style="${th}">${escapeHtml("Purpose / budget line")}</th><td style="${td}">${escapeHtml(row.purpose || "—")}</td></tr>`,
-    `<tr><th style="${th}">${escapeHtml("Vendor / payee")}</th><td style="${td}">${escapeHtml(row.vendor || "—")}</td></tr>`,
-    `<tr><th style="${th}">${escapeHtml("Requested by")}</th><td style="${td}">${escapeHtml(requesterName(row))}</td></tr>`,
-    `<tr><th style="${th}">${escapeHtml("Submitted")}</th><td style="${td}">${escapeHtml(submitted)}</td></tr>`,
-    `<tr><th style="${th}">${escapeHtml("Approved on")}</th><td style="${td}">${escapeHtml(decided)}</td></tr>`,
-    `<tr><th style="${th}">${escapeHtml("Approved by")}</th><td style="${td}">${escapeHtml(reviewerLine(row))}</td></tr>`,
-    `<tr><th style="${th}">${escapeHtml("Treasurer / reviewer note")}</th><td style="${tdTop}">${escapeMultiline(row.reviewNote)}</td></tr>`
+  const approvalRows = [
+    rowPair("Decision", '<strong style="color:#047857;">Approved</strong>'),
+    rowPair("Approved on", escapeHtml(decided)),
+    rowPair("Approved by (treasurer / admin)", escapeHtml(reviewerLine(row))),
+    rowPair("Reviewer note", escapeMultiline(row.reviewNote), { multiline: true })
   ].join("");
 
   return `<!DOCTYPE html>
@@ -70,25 +79,177 @@ export function buildApprovedFormHtml(row) {
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="color-scheme" content="light"/>
 <title>ZweckOS — Approved form #${row.id}</title>
 <style>
-  body { font-family: system-ui, Segoe UI, sans-serif; color: #0f172a; margin: 0; padding: 24px; }
-  h1 { font-size: 1.35rem; margin: 0 0 4px; }
-  .sub { color: #64748b; font-size: 0.9rem; margin-bottom: 20px; }
-  .badge { display: inline-block; background: #d1fae5; color: #065f46; padding: 4px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; margin-bottom: 16px; }
-  table { border-collapse: collapse; width: 100%; max-width: 720px; font-size: 0.95rem; }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body {
+    font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: #0f172a;
+    background: #f8fafc;
+    margin: 0;
+    padding: 0;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .sheet {
+    max-width: 800px;
+    margin: 24px auto;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 4px 24px rgba(15, 23, 42, 0.08);
+    overflow: hidden;
+  }
+  .head {
+    background: linear-gradient(135deg, #1e40af 0%, #0d9488 100%);
+    color: #fff;
+    padding: 28px 32px 24px;
+  }
+  .head-eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    opacity: 0.92;
+    margin-bottom: 8px;
+  }
+  .head-title {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 0 0 6px;
+    line-height: 1.25;
+  }
+  .head-sub {
+    font-size: 13px;
+    opacity: 0.9;
+    margin: 0;
+  }
+  .stamp {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 16px;
+    padding: 8px 16px;
+    background: rgba(255,255,255,0.2);
+    border: 2px solid rgba(255,255,255,0.85);
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+  }
+  .stamp svg { flex-shrink: 0; opacity: 0.95; }
+  .body { padding: 28px 32px 32px; }
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #64748b;
+    margin: 0 0 12px;
+    padding-bottom: 6px;
+    border-bottom: 2px solid #e2e8f0;
+  }
+  .section-label + table { margin-top: 0; }
+  table.doc-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0 0 28px;
+  }
+  .footer-note {
+    margin-top: 8px;
+    padding: 14px 16px;
+    background: #f8fafc;
+    border: 1px dashed #cbd5e1;
+    border-radius: 8px;
+    font-size: 11px;
+    color: #64748b;
+    line-height: 1.5;
+  }
+  .footer-note strong { color: #475569; }
+  .sign-off {
+    margin-top: 28px;
+    padding-top: 20px;
+    border-top: 1px solid #e2e8f0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    font-size: 12px;
+    color: #64748b;
+  }
+  .sign-off .line {
+    margin-top: 36px;
+    border-top: 1px solid #94a3b8;
+    padding-top: 6px;
+  }
+  .no-print { }
   @media print {
-    body { padding: 12px; }
-    .no-print { display: none; }
+    @page {
+      size: A4;
+      margin: 14mm 16mm;
+    }
+    body {
+      background: #fff;
+      padding: 0;
+    }
+    .sheet {
+      margin: 0;
+      max-width: none;
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+    }
+    .head {
+      padding: 20px 24px 18px;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .body { padding: 20px 24px 24px; }
+    .no-print { display: none !important; }
+    table.doc-table { font-size: 12px; }
+    .sign-off { page-break-inside: avoid; }
   }
 </style>
 </head>
 <body>
-  <div class="badge">APPROVED</div>
-  <h1>Zweck Co. Ltd — Internal form record</h1>
-  <p class="sub">Kampala · ZweckOS · This document reflects an approved request on file.</p>
-  <table>${rowsHtml}</table>
-  <p class="no-print" style="margin-top:24px;font-size:0.85rem;color:#64748b;">Generated ${new Date().toLocaleString()}</p>
+  <div class="sheet">
+    <header class="head">
+      <div class="head-eyebrow">Zweck Co. Ltd · Kampala</div>
+      <h1 class="head-title">Internal request — approval record</h1>
+      <p class="head-sub">This document certifies that the request below was reviewed and <strong>approved</strong> in ZweckOS.</p>
+      <div class="stamp" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>
+        APPROVED
+      </div>
+    </header>
+    <div class="body">
+      <h2 class="section-label">Request details</h2>
+      <table class="doc-table" role="presentation">${requestRows}</table>
+
+      <h2 class="section-label">Authorization</h2>
+      <table class="doc-table" role="presentation">${approvalRows}</table>
+
+      <div class="footer-note">
+        <strong>Verification.</strong> Reference <strong>#${row.id}</strong> — retain this copy for your records.
+        Electronic record in ZweckOS under <em>Forms</em> remains the system of record.
+      </div>
+
+      <div class="sign-off">
+        <div>
+          <div>Requester acknowledgment (optional)</div>
+          <div class="line">Name &amp; date</div>
+        </div>
+        <div>
+          <div>Approver signature (optional)</div>
+          <div class="line">Name &amp; date</div>
+        </div>
+      </div>
+
+      <p class="no-print" style="margin:20px 0 0;font-size:11px;color:#94a3b8;">Screen preview · Generated ${escapeHtml(generated)} · Print or save as PDF from your browser.</p>
+    </div>
+  </div>
 </body>
 </html>`;
 }
@@ -109,7 +270,7 @@ export function downloadApprovedForm(row) {
 
 export function printApprovedForm(row) {
   const html = buildApprovedFormHtml(row);
-  const w = window.open("", "_blank", "noopener,noreferrer,width=840,height=960");
+  const w = window.open("", "_blank", "noopener,noreferrer,width=880,height=980");
   if (!w) {
     window.alert("Pop-up blocked. Allow pop-ups for this site to print, or use Download.");
     return;
@@ -126,8 +287,8 @@ export function printApprovedForm(row) {
     }
   };
   if (w.document.readyState === "complete") {
-    setTimeout(trigger, 250);
+    setTimeout(trigger, 300);
   } else {
-    w.onload = () => setTimeout(trigger, 250);
+    w.onload = () => setTimeout(trigger, 300);
   }
 }
