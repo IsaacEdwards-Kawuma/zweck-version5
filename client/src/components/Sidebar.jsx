@@ -28,7 +28,7 @@ function NavIcon({ name }) {
     strokeWidth: "1.8",
     strokeLinecap: "round",
     strokeLinejoin: "round",
-    className: "h-4 w-4 shrink-0"
+    className: "h-[1.125rem] w-[1.125rem] shrink-0"
   };
   switch (name) {
     case "dashboard":
@@ -155,100 +155,129 @@ export default function Sidebar({ mobileOpen, onClose, me }) {
         type="button"
         aria-label="Close navigation"
         className={[
-          "fixed inset-0 z-30 bg-slate-900/45 transition-opacity lg:hidden",
-          mobileOpen ? "opacity-100" : "pointer-events-none opacity-0"
+          "fixed inset-0 z-30 bg-slate-950/50 backdrop-blur-[2px] transition-[opacity,backdrop-filter] duration-300 ease-out lg:hidden",
+          mobileOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
         ].join(" ")}
         onClick={onClose}
       />
       <aside
         className={[
-          "fixed inset-y-0 left-0 z-40 flex h-full w-64 flex-col border-r border-brand-100/70 bg-white/80 shadow-lg shadow-brand-900/10 backdrop-blur-md transition-transform duration-300 print:hidden dark:border-slate-700/90 dark:bg-slate-900/85 dark:shadow-black/30",
+          "fixed inset-y-0 left-0 z-40 flex h-full w-[17rem] flex-col border-r border-white/20 bg-white/85 shadow-[4px_0_32px_-8px_rgba(15,23,42,0.18)] backdrop-blur-xl transition-[transform,box-shadow] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] print:hidden dark:border-slate-600/50 dark:bg-slate-950/90 dark:shadow-[4px_0_40px_-6px_rgba(0,0,0,0.45)]",
           mobileOpen ? "translate-x-0" : "-translate-x-full",
-          "lg:static lg:z-auto lg:translate-x-0"
+          "lg:static lg:z-auto lg:w-64 lg:translate-x-0 lg:shadow-[2px_0_24px_-12px_rgba(15,23,42,0.12)] dark:lg:shadow-[2px_0_28px_-8px_rgba(0,0,0,0.35)]"
         ].join(" ")}
       >
-      <div className="bg-gradient-to-br from-brand-600 via-brand-500 to-accent-600 px-4 py-5 text-white shadow-md shadow-brand-900/20">
-        <div className="flex flex-col items-start gap-2.5 text-left">
-          <Link
-            to="/about"
-            onClick={onClose}
-            title="About the company"
-            className="rounded-lg outline-none ring-offset-2 ring-offset-brand-600 transition-transform duration-300 hover:scale-105 focus-visible:ring-2 focus-visible:ring-white"
-          >
-            <img
-              src="/zweck-logo.png"
-              alt="Zweck logo — about the company"
-              className="h-12 w-auto shrink-0 rounded-lg bg-white/95 p-1 shadow-md sm:h-14 lg:h-16 lg:p-1.5"
-            />
-          </Link>
-          <div>
-            <div className="text-lg font-semibold tracking-tight">ZweckOS</div>
-            <div className="mt-0.5 text-xs font-medium text-white/85">Zweck Co. Ltd — Kampala</div>
-          </div>
-        </div>
-      </div>
-      <nav className="flex-1 space-y-0.5 px-2 pb-4 pt-3">
-        {links.map((l) => (
-          <NavLink
-            key={l.to}
-            to={l.to}
-            end={l.to === "/"}
-            onClick={onClose}
-            className={({ isActive }) =>
-              [
-                "group block rounded-lg border-l-[3px] px-3 py-2 text-sm font-medium transition-all duration-200",
-                isActive
-                  ? "border-brand-500 bg-gradient-to-r from-brand-50 to-accent-50 text-brand-800 shadow-sm ring-1 ring-brand-100/80 dark:border-brand-400 dark:from-brand-950/90 dark:to-slate-800/90 dark:text-brand-100 dark:ring-brand-500/20"
-                  : "border-transparent text-slate-700 hover:translate-x-1 hover:border-brand-200 hover:bg-brand-50/60 hover:text-brand-800 hover:shadow-sm dark:text-slate-300 dark:hover:border-brand-500/40 dark:hover:bg-slate-800/90 dark:hover:text-brand-200"
-              ].join(" ")
-            }
-          >
-            <span className="flex items-center gap-2">
-              <span className="transition-transform duration-200 group-hover:scale-110">
-                <NavIcon name={l.icon} />
-              </span>
-              <span>{l.label}</span>
-            </span>
-          </NavLink>
-        ))}
-      </nav>
-      <div className="border-t border-slate-200 px-3 py-3 dark:border-slate-700">
-        <button
-          type="button"
-          className="mb-3 w-full rounded-xl border border-slate-200/90 bg-white/90 px-3 py-2.5 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-200 hover:bg-brand-50/60 hover:shadow dark:border-slate-700 dark:bg-slate-800/80 dark:hover:border-brand-500/40 dark:hover:bg-slate-800"
-          onClick={() => {
-            onClose?.();
-            nav(profileTarget);
-          }}
-          title="Open account settings"
-        >
-          <div className="flex items-center gap-2.5">
-            <DirectorAvatar director={avatarDirector} size="sm" />
-            <div className="min-w-0">
-              <div className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{profileName}</div>
-              <div className="truncate text-xs text-slate-500 dark:text-slate-400">{profileSubtitle}</div>
+        <div className="ui-sidebar-brand ui-sidebar-brand-motion bg-gradient-to-br from-brand-600 via-sky-600 to-accent-600 px-4 py-6 text-white shadow-[0_8px_32px_-8px_rgba(37,99,235,0.45)]">
+          <div className="pointer-events-none absolute -right-12 -top-20 h-44 w-44 rounded-full bg-white/15 blur-3xl motion-reduce:animate-none" aria-hidden />
+          <div className="pointer-events-none absolute -bottom-16 -left-10 h-36 w-36 rounded-full bg-sky-300/20 blur-2xl motion-reduce:animate-none" aria-hidden />
+          <div className="pointer-events-none absolute right-6 top-8 h-16 w-16 rounded-full bg-accent-300/25 blur-xl" aria-hidden />
+          <div className="relative flex flex-col items-start gap-3 text-left">
+            <Link
+              to="/about"
+              onClick={onClose}
+              title="About the company"
+              className="rounded-xl outline-none ring-offset-2 ring-offset-brand-700 transition-transform duration-300 hover:scale-[1.03] focus-visible:ring-2 focus-visible:ring-white motion-reduce:transition-none motion-reduce:hover:scale-100"
+            >
+              <img
+                src="/zweck-logo.png"
+                alt="Zweck logo — about the company"
+                className="h-12 w-auto shrink-0 rounded-xl bg-white/95 p-1.5 shadow-lg ring-2 ring-white/30 sm:h-14 lg:h-16"
+              />
+            </Link>
+            <div>
+              <div className="text-lg font-bold tracking-tight drop-shadow-sm">ZweckOS</div>
+              <div className="mt-1 text-xs font-medium text-white/90">Zweck Co. Ltd — Kampala</div>
             </div>
           </div>
-        </button>
-        <button
-          type="button"
-          className="w-full rounded-lg border border-brand-200/80 bg-white px-3 py-2 text-sm font-medium text-brand-900 transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-50 hover:shadow-sm dark:border-brand-500/40 dark:bg-slate-800 dark:text-brand-200 dark:hover:bg-slate-700"
-          onClick={async () => {
-            try {
-              await logoutApi();
-            } catch {
-              // Best effort: token may already be invalid/expired.
-            }
-            localStorage.removeItem("zweck_token");
-            onClose?.();
-            nav("/");
-          }}
+        </div>
+
+        <nav
+          className="ui-sidebar-nav flex-1 space-y-1 overflow-y-auto overflow-x-hidden px-2.5 pb-3 pt-4"
+          aria-label="Main navigation"
         >
-          Logout
-        </button>
-      </div>
+          {links.map((l) => (
+            <NavLink
+              key={l.to}
+              to={l.to}
+              end={l.to === "/"}
+              onClick={onClose}
+              className={({ isActive }) =>
+                [
+                  "group relative block overflow-hidden rounded-xl border-l-[3px] outline-none transition-all duration-200 focus-visible:ring-2 focus-visible:ring-brand-400/90 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-brand-500/80 dark:focus-visible:ring-offset-slate-950",
+                  isActive
+                    ? "border-brand-500 bg-gradient-to-r from-brand-50 via-white to-sky-50/90 text-brand-900 shadow-md shadow-brand-500/15 ring-1 ring-brand-200/60 dark:border-brand-400 dark:from-brand-950/95 dark:via-slate-900 dark:to-slate-800/95 dark:text-brand-50 dark:shadow-brand-900/40 dark:ring-brand-500/25"
+                    : "border-transparent text-slate-700 hover:border-brand-200/90 hover:bg-white/95 hover:shadow-sm dark:text-slate-300 dark:hover:border-brand-500/40 dark:hover:bg-slate-800/95 dark:hover:text-brand-100"
+                ].join(" ")
+              }
+            >
+              {({ isActive }) => (
+                <span className="flex items-center gap-3 px-3 py-2.5">
+                  <span
+                    className={[
+                      "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all duration-200 motion-reduce:transition-none",
+                      isActive
+                        ? "bg-brand-500/20 text-brand-800 shadow-inner dark:bg-brand-400/25 dark:text-brand-100"
+                        : "bg-slate-100/95 text-slate-500 group-hover:scale-105 group-hover:bg-brand-100/90 group-hover:text-brand-800 dark:bg-slate-800/90 dark:text-slate-400 dark:group-hover:scale-105 dark:group-hover:bg-slate-700 dark:group-hover:text-brand-200"
+                    ].join(" ")}
+                  >
+                    <NavIcon name={l.icon} />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium">{l.label}</span>
+                  {isActive ? (
+                    <span
+                      className="h-2 w-2 shrink-0 rounded-full bg-brand-500 shadow-[0_0_12px_rgba(37,99,235,0.55)] motion-reduce:shadow-none dark:bg-brand-400 dark:shadow-[0_0_12px_rgba(96,165,250,0.45)]"
+                      aria-hidden
+                    />
+                  ) : null}
+                </span>
+              )}
+            </NavLink>
+          ))}
+        </nav>
+
+        <div className="relative border-t border-slate-200/90 bg-gradient-to-b from-slate-50/98 via-white to-white px-3 py-4 dark:border-slate-700/90 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900">
+          <div
+            className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-brand-200/50 to-transparent dark:via-brand-500/25"
+            aria-hidden
+          />
+          <button
+            type="button"
+            className="group/profile mb-3 w-full rounded-2xl border border-slate-200/90 bg-white/95 px-3 py-3 text-left shadow-sm ring-1 ring-slate-100/80 transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-200 hover:bg-gradient-to-br hover:from-brand-50/80 hover:to-white hover:shadow-md hover:ring-brand-200/50 dark:border-slate-700 dark:bg-slate-800/90 dark:ring-slate-700/80 dark:hover:border-brand-500/40 dark:hover:from-slate-800 dark:hover:to-slate-800/95"
+            onClick={() => {
+              onClose?.();
+              nav(profileTarget);
+            }}
+            title="Open account settings"
+          >
+            <div className="flex items-center gap-3">
+              <span className="relative shrink-0 transition-transform duration-200 group-hover/profile:scale-105 motion-reduce:group-hover/profile:scale-100">
+                <DirectorAvatar director={avatarDirector} size="sm" />
+                <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500 dark:border-slate-800" title="Session" aria-hidden />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{profileName}</div>
+                <div className="truncate text-xs text-slate-500 dark:text-slate-400">{profileSubtitle}</div>
+              </div>
+            </div>
+          </button>
+          <button
+            type="button"
+            className="w-full rounded-xl border border-brand-200/90 bg-white px-3 py-2.5 text-sm font-semibold text-brand-900 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-50 hover:shadow-md active:translate-y-0 dark:border-brand-500/45 dark:bg-slate-800 dark:text-brand-200 dark:hover:bg-slate-700"
+            onClick={async () => {
+              try {
+                await logoutApi();
+              } catch {
+                // Best effort: token may already be invalid/expired.
+              }
+              localStorage.removeItem("zweck_token");
+              onClose?.();
+              nav("/");
+            }}
+          >
+            Logout
+          </button>
+        </div>
       </aside>
     </>
   );
 }
-

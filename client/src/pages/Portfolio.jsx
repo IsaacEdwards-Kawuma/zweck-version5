@@ -33,6 +33,20 @@ import {
 } from "recharts";
 import DirectorAvatar from "../components/DirectorAvatar";
 import PrintStatementHeader from "../components/PrintStatementHeader";
+import PageHero, { SectionTitle } from "../components/PageHero";
+import MetricCard from "../components/MetricCard";
+import {
+  IconBank,
+  IconBuilding,
+  IconChartPie,
+  IconPortfolio,
+  IconRadar,
+  IconScale,
+  IconSparkles,
+  IconUsers,
+  IconWallet
+} from "../components/Icons";
+import { useDarkClass } from "../lib/useDarkClass";
 import { useMemo, useState } from "react";
 
 const PIE_COLORS = ["#2563eb", "#0ea5e9", "#22c55e", "#a855f7", "#f59e0b", "#ec4899", "#64748b"];
@@ -64,7 +78,8 @@ function DirectorProfileCard({ d, portfolio: pf, directorsBlock: m, companyInfo 
   return (
     <div
       className={[
-        "ui-surface flex flex-col rounded-xl p-4 transition print:break-inside-avoid print:shadow-none",
+        "ui-surface flex flex-col rounded-xl p-4 transition-all duration-300 print:break-inside-avoid print:shadow-none",
+        "hover:-translate-y-1 hover:shadow-lg hover:ring-2 hover:ring-brand-500/15 dark:hover:ring-brand-400/20",
         d.active ? "print:border-slate-300" : "opacity-75 print:border-slate-300"
       ].join(" ")}
     >
@@ -112,9 +127,9 @@ function DirectorProfileCard({ d, portfolio: pf, directorsBlock: m, companyInfo 
             <span>Share of director equity</span>
             <span className="font-semibold ui-page-heading">{pctFmt01(d.equityShare, 1)}</span>
           </div>
-          <div className="mt-1 h-2 w-full rounded-full bg-slate-100 dark:bg-slate-700/80">
+          <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700/80">
             <div
-              className="h-2 rounded-full bg-brand-600"
+              className="h-2 rounded-full bg-gradient-to-r from-brand-600 to-brand-500 transition-[width] duration-700 ease-out motion-reduce:transition-none"
               style={{ width: `${Math.min(100, Math.round((d.equityShare || 0) * 1000)) / 10}%` }}
             />
           </div>
@@ -124,9 +139,9 @@ function DirectorProfileCard({ d, portfolio: pf, directorsBlock: m, companyInfo 
             <span>Share of contributed capital</span>
             <span className="font-semibold ui-page-heading">{pctFmt01(d.capitalShare, 1)}</span>
           </div>
-          <div className="mt-1 h-2 w-full rounded-full bg-slate-100 dark:bg-slate-700/80">
+          <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700/80">
             <div
-              className="h-2 rounded-full bg-sky-400"
+              className="h-2 rounded-full bg-gradient-to-r from-sky-500 to-sky-400 transition-[width] duration-700 ease-out motion-reduce:transition-none"
               style={{ width: `${Math.min(100, Math.round((d.capitalShare || 0) * 1000)) / 10}%` }}
             />
           </div>
@@ -250,19 +265,16 @@ export default function Portfolio() {
   const stmtDate = new Date().toISOString().slice(0, 10);
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="text-lg font-semibold ui-page-heading">Portfolio</div>
-          <div className="text-sm text-slate-600">
-            Asset balances from transactions; member equity from contributions and side funds. Target
-            ratios below are configurable in code.
-          </div>
-        </div>
+    <div className="ui-animate-in space-y-8">
+      <PageHero
+        icon={IconPortfolio}
+        title="Portfolio"
+        subtitle="Asset balances from transactions; member equity from contributions and side funds. Target ratios below are configurable in code."
+      >
         <div className="flex flex-wrap gap-2 print:hidden">
           <button
             type="button"
-            className="ui-btn-outline font-medium text-slate-800"
+            className="ui-btn-outline font-medium text-slate-800 shadow-sm transition-all hover:-translate-y-0.5"
             onClick={() => window.print()}
           >
             Print page
@@ -271,7 +283,7 @@ export default function Portfolio() {
             <>
               <button
                 type="button"
-                className="ui-btn-outline font-medium text-slate-800"
+                className="ui-btn-outline font-medium text-slate-800 shadow-sm transition-all hover:-translate-y-0.5"
                 onClick={() => {
                   if (!companyInfo) return window.alert("Loading company information for printing…");
                   printGeneralDirectorsStatement(p, directorsBlock, companyInfo);
@@ -281,7 +293,7 @@ export default function Portfolio() {
               </button>
               <button
                 type="button"
-                className="ui-btn-outline font-medium text-slate-800"
+                className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-sm font-medium text-brand-900 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-brand-100 dark:border-brand-500/40 dark:bg-brand-950/50 dark:text-brand-200"
                 onClick={() =>
                   downloadTextFile(`zweck-directors-statement-${stmtDate}.csv`, buildGeneralDirectorsCsv(p, directorsBlock))
                 }
@@ -291,7 +303,7 @@ export default function Portfolio() {
             </>
           ) : null}
         </div>
-      </div>
+      </PageHero>
 
       <PrintStatementHeader
         title="Portfolio statement"
@@ -299,64 +311,74 @@ export default function Portfolio() {
         meta={`Generated ${new Date().toLocaleString()} · EUR · ZweckOS`}
       />
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <AssetCard title="Bank Account" value={bankValue} pct={total ? bankValue / total : 0} />
-        <AssetCard title="Total Assets" value={p.totalAssets} pct={1} />
-        <AssetCard title="Active Projects" value={Math.max(0, p.totalAssets - bankValue)} pct={total ? (p.totalAssets - bankValue) / total : 0} />
+      <div className="ui-stagger grid grid-cols-1 gap-4 md:grid-cols-3">
+        <AssetCard title="Bank Account" value={bankValue} pct={total ? bankValue / total : 0} icon={IconBank} />
+        <AssetCard title="Total Assets" value={p.totalAssets} pct={1} icon={IconBuilding} />
+        <AssetCard
+          title="Active Projects"
+          value={Math.max(0, p.totalAssets - bankValue)}
+          pct={total ? (p.totalAssets - bankValue) / total : 0}
+          icon={IconChartPie}
+        />
       </div>
 
       {directorsBlock && (
         <section className="space-y-4 print:break-inside-avoid">
           <div>
-            <div className="text-base font-semibold ui-page-heading">Director portfolio analysis</div>
-            <div className="text-sm text-slate-600">
+            <SectionTitle icon={IconUsers}>Director portfolio analysis</SectionTitle>
+            <p className="mt-2 text-sm ui-page-muted">
               Equity share = each director&apos;s capital + side fund as a percentage of all directors&apos;
               combined stake. Capital share = share of total contributions only (excludes side fund).
-            </div>
+            </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-            <div className="rounded-xl ui-surface p-4">
-              <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Total director equity</div>
-              <div className="mt-1 text-xl font-semibold ui-page-heading">{eur(directorsBlock.totalEquity)}</div>
-              <div className="mt-1 text-xs text-slate-500">Sum of capital + side fund</div>
-            </div>
-            <div className="rounded-xl ui-surface p-4">
-              <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Contributed capital</div>
-              <div className="mt-1 text-xl font-semibold ui-page-heading">{eur(directorsBlock.totalCapital)}</div>
-              <div className="mt-1 text-xs text-slate-500">CONTRIBUTION transactions only</div>
-            </div>
-            <div className="rounded-xl ui-surface p-4">
-              <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Total side fund</div>
-              <div className="mt-1 text-xl font-semibold ui-page-heading">{eur(directorsBlock.totalSideFund ?? 0)}</div>
-              <div className="mt-1 text-xs text-slate-500">SIDE_FUND transactions only</div>
-            </div>
-            <div className="rounded-xl ui-surface p-4">
-              <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Directors</div>
-              <div className="mt-1 text-xl font-semibold ui-page-heading">{directorsBlock.count}</div>
-              <div className="mt-1 text-xs text-slate-500">{directorsBlock.activeCount} active</div>
-            </div>
-            <div className="rounded-xl ui-surface p-4">
-              <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Total assets</div>
-              <div className="mt-1 text-xl font-semibold ui-page-heading">{eur(p.totalAssets)}</div>
-              <div className="mt-1 text-xs text-slate-500">Bank and project-linked assets</div>
-            </div>
+          <div className="ui-stagger grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+            <MetricCard
+              label="Total director equity"
+              value={eur(directorsBlock.totalEquity)}
+              sub="Sum of capital + side fund"
+              icon={IconScale}
+            />
+            <MetricCard
+              label="Contributed capital"
+              value={eur(directorsBlock.totalCapital)}
+              sub="CONTRIBUTION transactions only"
+              icon={IconBank}
+            />
+            <MetricCard
+              label="Total side fund"
+              value={eur(directorsBlock.totalSideFund ?? 0)}
+              sub="SIDE_FUND transactions only"
+              icon={IconWallet}
+            />
+            <MetricCard
+              label="Directors"
+              value={String(directorsBlock.count)}
+              sub={`${directorsBlock.activeCount} active`}
+              icon={IconUsers}
+            />
+            <MetricCard
+              label="Total assets"
+              value={eur(p.totalAssets)}
+              sub="Bank and project-linked assets"
+              icon={IconBuilding}
+            />
           </div>
 
           {directorsBlock.totalEquity <= 0 ? (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            <div className="ui-animate-pop rounded-xl border border-amber-200/90 bg-amber-50/90 p-4 text-sm text-amber-900 shadow-sm backdrop-blur-sm dark:border-amber-800/50 dark:bg-amber-950/40 dark:text-amber-200">
               No director equity recorded yet. Post contribution or side fund transactions to see per-director
               analysis.
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-              <div className="rounded-2xl ui-surface p-4 print:hidden">
+              <div className="ui-panel-elevated print:hidden">
                 <div className="text-sm font-semibold ui-page-heading">Equity share by director (%)</div>
-                <div className="mt-2 text-xs text-slate-500">Of total director equity pool</div>
+                <div className="mt-2 text-xs ui-page-muted">Of total director equity pool</div>
                 <div className="mt-3" style={{ height: barHeight }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart layout="vertical" data={barData} margin={{ left: 8, right: 16, top: 8, bottom: 8 }}>
-                      <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={gridStroke} />
                       <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
                       <YAxis type="category" dataKey="label" width={44} tick={{ fontSize: 11 }} />
                       <RechartsTooltip
@@ -369,9 +391,9 @@ export default function Portfolio() {
                 </div>
               </div>
 
-              <div className="rounded-2xl ui-surface p-4 print:hidden">
+              <div className="ui-panel-elevated print:hidden">
                 <div className="text-sm font-semibold ui-page-heading">Equity distribution</div>
-                <div className="mt-2 text-xs text-slate-500">Same data as a proportion of the pool</div>
+                <div className="mt-2 text-xs ui-page-muted">Same data as a proportion of the pool</div>
                 <div className="mt-2 h-72">
                   {pieData.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
@@ -408,8 +430,11 @@ export default function Portfolio() {
           )}
 
           <div>
-            <div className="mb-3 text-sm font-semibold ui-page-heading">Director profiles</div>
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div className="mb-3 flex items-center gap-2">
+              <span className="h-6 w-1 rounded-full bg-gradient-to-b from-brand-500 to-sky-500" aria-hidden />
+              <h3 className="text-lg font-semibold ui-page-heading">Director profiles</h3>
+            </div>
+            <div className="ui-stagger grid grid-cols-1 gap-4 lg:grid-cols-2">
               {directorsBlock.list.map((d) => (
                 <DirectorProfileCard
                   key={d.id}
@@ -425,12 +450,17 @@ export default function Portfolio() {
       )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className="rounded-2xl ui-surface p-4 print:hidden">
-          <div className="text-sm font-semibold ui-page-heading">Target vs Actual Allocation</div>
+        <div className="ui-panel-elevated print:hidden">
+          <div className="flex items-center gap-2">
+            <span className="text-brand-600 dark:text-brand-400">
+              <IconRadar className="h-5 w-5" />
+            </span>
+            <div className="text-sm font-semibold ui-page-heading">Target vs actual allocation</div>
+          </div>
           <div className="mt-3 h-64">
             <ResponsiveContainer width="100%" height="100%">
               <RadarChart data={radarData}>
-                <PolarGrid />
+                <PolarGrid stroke={gridStroke} />
                 <PolarAngleAxis dataKey="asset" />
                 <Radar
                   name="Target"
@@ -456,9 +486,14 @@ export default function Portfolio() {
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-2xl ui-surface p-4 print:hidden">
-            <div className="text-sm font-semibold ui-page-heading">Scenario: planned bank reserve</div>
-            <div className="mt-3 text-sm text-slate-600">
+          <div className="ui-panel-elevated print:hidden">
+            <div className="flex items-center gap-2">
+              <span className="text-amber-600 dark:text-amber-400">
+                <IconSparkles className="h-5 w-5" />
+              </span>
+              <div className="text-sm font-semibold ui-page-heading">Scenario: planned bank reserve</div>
+            </div>
+            <div className="mt-3 text-sm ui-page-muted">
               Explore maintaining a reserve from current bank assets. Front-end only; no transaction is posted.
             </div>
             <div className="mt-3 flex items-end gap-2">
@@ -477,7 +512,7 @@ export default function Portfolio() {
               </div>
             </div>
             {scenario && (
-              <div className="mt-3 grid grid-cols-3 gap-3 text-xs">
+              <div className="ui-animate-pop mt-3 grid grid-cols-3 gap-3 text-xs">
                 <div>
                   <div className="text-slate-500">Bank after</div>
                   <div className="font-semibold">{eur(scenario.bank)}</div>
@@ -494,12 +529,17 @@ export default function Portfolio() {
             )}
           </div>
 
-          <div className="rounded-2xl ui-surface p-4 print:hidden">
-            <div className="text-sm font-semibold ui-page-heading">Asset Snapshot</div>
+          <div className="ui-panel-elevated print:hidden">
+            <div className="flex items-center gap-2">
+              <span className="text-sky-600 dark:text-sky-400">
+                <IconChartPie className="h-5 w-5" />
+              </span>
+              <div className="text-sm font-semibold ui-page-heading">Asset snapshot</div>
+            </div>
             <div className="mt-2 h-40">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={trendData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridStroke} />
                   <XAxis dataKey="name" />
                   <YAxis />
                   <RechartsTooltip formatter={(value) => eur(value)} />

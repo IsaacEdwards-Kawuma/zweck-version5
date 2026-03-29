@@ -103,6 +103,28 @@ html.dark ::selection {
   }
 }
 
+/* Sidebar: always define keyframes so animation names resolve (duration still reduced via global a11y rule) */
+@keyframes sidebar-nav-in {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes sidebar-gradient-shift {
+  0%,
+  100% {
+    background-position: 0% 40%;
+  }
+  50% {
+    background-position: 100% 60%;
+  }
+}
+
 /* Shared surfaces & controls — use with rounded-* / padding as needed */
 @layer components {
   .ui-surface {
@@ -232,6 +254,70 @@ html.dark ::selection {
 
   .ui-panel-elevated {
     @apply rounded-2xl border border-slate-200/90 bg-white/90 p-4 shadow-sm backdrop-blur-sm transition-shadow duration-300 hover:shadow-md dark:border-slate-700/90 dark:bg-slate-900/85;
+  }
+
+  /** App sidebar: staggered link entrance (first paint / remount) */
+  .ui-sidebar-nav > a {
+    animation: sidebar-nav-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .ui-sidebar-nav > a:nth-child(1) {
+    animation-delay: 0.02s;
+  }
+  .ui-sidebar-nav > a:nth-child(2) {
+    animation-delay: 0.05s;
+  }
+  .ui-sidebar-nav > a:nth-child(3) {
+    animation-delay: 0.08s;
+  }
+  .ui-sidebar-nav > a:nth-child(4) {
+    animation-delay: 0.11s;
+  }
+  .ui-sidebar-nav > a:nth-child(5) {
+    animation-delay: 0.14s;
+  }
+  .ui-sidebar-nav > a:nth-child(6) {
+    animation-delay: 0.17s;
+  }
+  .ui-sidebar-nav > a:nth-child(7) {
+    animation-delay: 0.2s;
+  }
+  .ui-sidebar-nav > a:nth-child(8) {
+    animation-delay: 0.23s;
+  }
+  .ui-sidebar-nav > a:nth-child(9) {
+    animation-delay: 0.26s;
+  }
+  .ui-sidebar-nav > a:nth-child(10) {
+    animation-delay: 0.29s;
+  }
+  .ui-sidebar-nav > a:nth-child(11) {
+    animation-delay: 0.32s;
+  }
+  .ui-sidebar-nav > a:nth-child(12) {
+    animation-delay: 0.35s;
+  }
+  .ui-sidebar-nav > a:nth-child(13) {
+    animation-delay: 0.38s;
+  }
+  .ui-sidebar-nav > a:nth-child(14) {
+    animation-delay: 0.41s;
+  }
+  .ui-sidebar-nav > a:nth-child(15) {
+    animation-delay: 0.44s;
+  }
+  .ui-sidebar-nav > a:nth-child(16) {
+    animation-delay: 0.47s;
+  }
+
+  .ui-sidebar-brand {
+    @apply relative overflow-hidden;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .ui-sidebar-brand-motion {
+      background-size: 200% 200%;
+      animation: sidebar-gradient-shift 18s ease-in-out infinite;
+    }
   }
 }
 
