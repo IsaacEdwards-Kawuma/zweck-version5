@@ -887,7 +887,7 @@ export default function ChatRoom() {
 
   return (
     <div className="motion-safe:ui-animate-in mx-auto flex w-full max-w-4xl flex-col gap-6 pb-10">
-      <div className="relative overflow-hidden rounded-2xl border border-slate-200/90 bg-white/75 shadow-md ring-1 ring-slate-200/40 dark:border-slate-700/80 dark:bg-slate-900/40 dark:ring-slate-700/50">
+      <div className="relative overflow-visible rounded-2xl border border-slate-200/90 bg-white/75 shadow-md ring-1 ring-slate-200/40 dark:border-slate-700/80 dark:bg-slate-900/40 dark:ring-slate-700/50">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-brand-500 via-sky-400 to-accent-400" aria-hidden />
         <div className="relative flex flex-col gap-5 p-5 pt-6 lg:flex-row lg:items-start lg:justify-between sm:p-6 sm:pt-7">
           <div className="min-w-0 space-y-3">
@@ -977,7 +977,7 @@ export default function ChatRoom() {
               </div>
             ) : null}
           </div>
-          <div className="flex shrink-0 flex-wrap gap-2 lg:justify-end">
+          <div className="relative z-20 flex shrink-0 flex-wrap gap-2 lg:justify-end">
           <button
             type="button"
             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm transition hover:border-brand-300/50 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
@@ -1004,13 +1004,13 @@ export default function ChatRoom() {
               Members
             </button>
           ) : null}
-          <details className="relative">
+          <details className="relative z-30">
             <summary className="ui-btn-outline list-none inline-flex cursor-pointer select-none items-center gap-1 text-xs [&::-webkit-details-marker]:hidden">
               <span aria-hidden>⚙️</span>
               Room actions
             </summary>
             <div
-              className="absolute right-0 z-40 mt-1 flex min-w-[13.5rem] flex-col gap-0.5 rounded-lg border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-600 dark:bg-slate-900"
+              className="absolute right-0 top-full z-[100] mt-1 flex max-h-[min(70vh,26rem)] min-w-[13.5rem] flex-col gap-0.5 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1 shadow-xl ring-1 ring-slate-200/60 dark:border-slate-600 dark:bg-slate-900 dark:ring-slate-600/40"
               onClick={(e) => e.stopPropagation()}
             >
               <button
@@ -1704,7 +1704,7 @@ export default function ChatRoom() {
             </button>
           </div>
         ) : null}
-        <div className="flex flex-wrap items-end gap-3">
+        <div className="flex flex-wrap items-end gap-2 sm:flex-nowrap sm:gap-3">
         <input
           ref={fileInputRef}
           type="file"
@@ -1750,21 +1750,51 @@ export default function ChatRoom() {
         />
         <button
           type="button"
-          className="ui-btn-outline inline-flex shrink-0 items-center gap-1.5"
+          className="inline-flex h-[52px] w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:border-brand-500/50 dark:hover:bg-slate-800 dark:hover:text-brand-200"
           onClick={() => fileInputRef.current?.click()}
+          title="Attach file"
+          aria-label="Attach file"
         >
-          <span aria-hidden>📎</span>
-          Attach
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-5 w-5"
+            aria-hidden
+          >
+            <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.38-8.38a4 4 0 0 1 5.66 5.66l-8.38 8.38a2 2 0 0 1-2.83-2.83l7.07-7.07" />
+          </svg>
         </button>
         <textarea
-          className="ui-input min-h-[52px] flex-1 resize-none transition-shadow"
+          className="ui-input min-h-[52px] min-w-0 flex-1 resize-none transition-shadow"
           placeholder="Write a message… Use **bold**, `code`, and @user@email.com for mentions."
           value={draft}
           onChange={onDraftChange}
         />
-        <button type="submit" className="inline-flex items-center gap-1.5 rounded-lg border border-brand-600 bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:bg-brand-700 hover:shadow-lg active:scale-[0.99] dark:border-brand-500 dark:bg-brand-600 dark:hover:bg-brand-500">
-          <span aria-hidden>➤</span>
-          Send
+        <button
+          type="submit"
+          className="inline-flex h-[52px] w-11 shrink-0 items-center justify-center rounded-xl border border-brand-600 bg-brand-600 text-white shadow-md transition hover:bg-brand-700 hover:shadow-lg active:scale-[0.99] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:border-brand-500 dark:bg-brand-600 dark:hover:bg-brand-500"
+          title="Send message"
+          aria-label="Send message"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-5 w-5"
+            aria-hidden
+          >
+            <path d="m22 2-7 20-4-9-9-4Z" />
+            <path d="M22 2 11 13" />
+          </svg>
         </button>
         </div>
       </form>
