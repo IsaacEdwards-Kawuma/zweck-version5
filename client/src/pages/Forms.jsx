@@ -22,6 +22,10 @@ const KINDS = [
   {
     value: "TRANSACTION_RECEIPT",
     label: "Expense / receipt (treasurer approves → post in ledger)"
+  },
+  {
+    value: "ACKNOWLEDGEMENT",
+    label: "Acknowledgement (formal statement — printable after approval)"
   }
 ];
 
@@ -81,6 +85,8 @@ export default function Forms() {
   const [mineOnly, setMineOnly] = useState(false);
   const [form, setForm] = useState(EMPTY);
   const [decision, setDecision] = useState(null);
+  const receiptFileRef = useRef(null);
+  const [submittingReceipt, setSubmittingReceipt] = useState(false);
 
   const listParams = useMemo(() => {
     const p = {};
@@ -186,7 +192,7 @@ export default function Forms() {
       <PageHero
         icon={IconClipboard}
         title="Internal forms"
-        subtitle="Submit requisitions, general requests, or expense/receipt packages with an attachment. The treasurer (or an admin) approves before you post in the ledger. CEO, secretary, and operational manager can see the full queue; only treasurer or admin can approve."
+        subtitle="Submit requisitions, general requests, expense/receipt packages with a receipt attachment, or a formal acknowledgement. The treasurer or an admin approves; CEO, secretary, and operational manager can see the full queue. After approval, print or download a record for your files."
       />
 
       <section className="rounded-2xl border border-slate-200/90 bg-white/90 p-5 shadow-sm dark:border-slate-700/80 dark:bg-slate-900/60">
