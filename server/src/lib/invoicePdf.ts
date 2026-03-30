@@ -54,7 +54,7 @@ export function buildInvoicePdfBuffer(invoice: InvoicePdfModel): Promise<Buffer>
       info: { Title: invoice.invoiceNumber, Author: "Zweck Co. Ltd" }
     });
 
-    doc.on("data", (c) => chunks.push(c as Buffer));
+    doc.on("data", (c: Buffer) => chunks.push(c));
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
 
