@@ -18,6 +18,10 @@ const Portfolio = lazy(() => import("./pages/Portfolio"));
 const ProjectsLayout = lazy(() => import("./pages/ProjectsLayout"));
 const Projects = lazy(() => import("./pages/Projects"));
 const ProjectDetail = lazy(() => import("./pages/ProjectDetail"));
+const Invoices = lazy(() => import("./pages/Invoices"));
+const InvoiceCreate = lazy(() => import("./pages/InvoiceCreate"));
+const InvoiceDetail = lazy(() => import("./pages/InvoiceDetail"));
+const ClientRegister = lazy(() => import("./pages/ClientRegister"));
 const Reports = lazy(() => import("./pages/Reports"));
 const Meetings = lazy(() => import("./pages/Meetings"));
 const Documents = lazy(() => import("./pages/Documents"));
@@ -65,6 +69,10 @@ export default function App() {
             <Route path="/directors" element={<Directors />} />
             <Route path="/directors/:id" element={<DirectorDetail />} />
             <Route path="/portfolio" element={<Portfolio />} />
+            <Route path="/invoices" element={<Invoices />} />
+            <Route path="/invoices/new" element={<InvoiceCreate />} />
+            <Route path="/invoices/clients" element={<ClientRegister />} />
+            <Route path="/invoices/:id" element={<InvoiceDetail />} />
             <Route path="/projects" element={<ProjectsLayout />}>
               <Route index element={<Projects />} />
             </Route>

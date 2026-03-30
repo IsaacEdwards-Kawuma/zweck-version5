@@ -7,8 +7,9 @@ import TransactionTable from "../components/TransactionTable";
 import DirectorAvatar from "../components/DirectorAvatar";
 import PrintStatementHeader from "../components/PrintStatementHeader";
 import { deleteDirectorAvatar, getDirector, uploadDirectorAvatar } from "../api/directors";
+import { listInvoices } from "../api/invoices";
 import { directorAccount } from "../api/accounts";
-import { eur, eurCompact, fmtDate, formatTxRef } from "../lib/format";
+import { eur, eurCompact, fmtDate, formatMoney, formatTxRef } from "../lib/format";
 import { TX_ACCOUNT_MAP } from "../lib/transactionTypes";
 import { downloadTransactionsCsv } from "../lib/reportsAnalytics";
 import { TX_TYPE_LABELS } from "../lib/dashboardAnalytics";
@@ -33,6 +34,12 @@ export default function DirectorDetail() {
   const qc = useQueryClient();
   const qProfile = useQuery({ queryKey: ["director", id], queryFn: () => getDirector(id) });
   const qTotals = useQuery({ queryKey: ["director_account", id], queryFn: () => directorAccount(id) });
+  const directorIdNum = Number(id);
+  const qLinkedInvoices = useQuery({
+    queryKey: ["invoices", "linkedDirector", directorIdNum],
+    queryFn: () => listInvoices({ linkedDirectorId: directorIdNum }),
+    enabled: Number.isFinite(directorIdNum)
+  });
 
   const txsEarly = useMemo(() => qProfile.data?.transactions ?? [], [qProfile.data]);
   const totalsEarly = useMemo(() => qTotals.data, [qTotals.data]);
@@ -107,7 +114,6 @@ export default function DirectorDetail() {
   const { director, transactions } = qProfile.data;
   const totals = qTotals.data;
 
-  const directorIdNum = Number(id);
   const canManagePhoto =
     me?.role === "ADMIN" ||
     (me?.role === "DIRECTOR" && me?.directorId != null && me.directorId === directorIdNum);
@@ -300,12 +306,72 @@ export default function DirectorDetail() {
         </div>
       </div>
 
+      <div className="rounded-2xl ui-surface p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="text-sm font-semibold text-slate-900">Linked invoices</div>
+            <p className="mt-0.5 text-xs text-slate-500">Invoices with this director linked.</p>
+          </div>
+          {me?.role === "ADMIN" ? (
+            <Link
+              to={`/invoices/new?directorId=${directorIdNum}`}
+              className="text-sm font-medium text-brand-700 hover:underline"
+            >
+              New invoice for director
+            </Link>
+          ) : null}
+        </div>
+        {qLinkedInvoices.isLoading ? <div className="mt-3 text-sm text-slate-500">Loading invoices…</div> : null}
+        {qLinkedInvoices.error ? (
+          <div className="mt-3 text-sm text-rose-600">Could not load linked invoices.</div>
+        ) : null}
+        {!qLinkedInvoices.isLoading && !qLinkedInvoices.error && (qLinkedInvoices.data || []).length === 0 ? (
+          <div className="mt-3 text-sm text-slate-500">No linked invoices yet.</div>
+        ) : null}
+        {(qLinkedInvoices.data || []).length > 0 ? (
+          <div className="mt-3 overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead className="ui-table-head">
+                <tr>
+                  <th className="px-3 py-2">Number</th>
+                  <th className="px-3 py-2">Type</th>
+                  <th className="px-3 py-2">Party</th>
+                  <th className="px-3 py-2">Date</th>
+                  <th className="px-3 py-2">Status</th>
+                  <th className="px-3 py-2 text-right">Total</th>
+                  <th className="px-3 py-2"> </th>
+                </tr>
+              </thead>
+              <tbody className="ui-table-divide">
+                {(qLinkedInvoices.data || []).map((inv) => (
+                  <tr key={inv.id} className="ui-table-row-hover">
+                    <td className="px-3 py-2 font-mono text-xs text-slate-600">{inv.invoiceNumber}</td>
+                    <td className="px-3 py-2">{inv.invoiceType}</td>
+                    <td className="px-3 py-2">{inv.party?.name || "—"}</td>
+                    <td className="px-3 py-2">{fmtDate(inv.invoiceDate)}</td>
+                    <td className="px-3 py-2">
+                      <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">{inv.status}</span>
+                    </td>
+                    <td className="px-3 py-2 text-right font-semibold">{formatMoney(inv.totalAmount, inv.currency)}</td>
+                    <td className="px-3 py-2">
+                      <Link to={`/invoices/${inv.id}`} className="text-xs font-medium text-brand-700 hover:underline">
+                        View
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+      </div>
+
       <div>
         <div className="mb-2 text-sm font-semibold text-slate-900">Contribution history</div>
         <p className="mb-3 text-xs text-slate-500">
           Lists contribution, side fund, and penalty postings for this director (same rules as the API).
         </p>
-        <TransactionTable rows={transactions || []} />
+        <TransactionTable rows={contributionRows} />
       </div>
     </div>
   );

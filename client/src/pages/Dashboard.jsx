@@ -1,12 +1,12 @@
 import { useMemo, useId } from "react";
 import MetricCard from "../components/MetricCard";
 import PageHero, { SectionTitle } from "../components/PageHero";
-import { IconBank, IconBuilding, IconDashboard, IconListNumbers, IconScale, IconWallet } from "../components/Icons";
+import { IconBank, IconBuilding, IconClipboard, IconDashboard, IconListNumbers, IconScale, IconWallet } from "../components/Icons";
 import DirectorAvatar from "../components/DirectorAvatar";
 import Loading from "../components/Loading";
 import ErrorBanner from "../components/ErrorBanner";
 import TransactionTable from "../components/TransactionTable";
-import { eur, eurCompact, pct01 } from "../lib/format";
+import { eur, eurCompact, formatMoney, pct01 } from "../lib/format";
 import {
   monthlyVolumeSeries,
   volumeByType,
@@ -19,7 +19,8 @@ import {
   useDirectorsAll,
   usePortfolio,
   useSummary,
-  useTransactionsList
+  useTransactionsList,
+  useInvoiceMetrics
 } from "../hooks/useDashboard";
 import {
   ResponsiveContainer,
@@ -50,6 +51,7 @@ export default function Dashboard() {
   const qDirs = useDirectorsAll();
   const qPortfolio = usePortfolio();
   const qTx = useTransactionsList();
+  const qInvoiceM = useInvoiceMetrics();
 
   const transactions = useMemo(() => qTx.data ?? [], [qTx.data]);
   const recent = useMemo(() => transactions.slice(0, 7), [transactions]);
@@ -111,6 +113,33 @@ export default function Dashboard() {
         <MetricCard label="Total side fund" value={eur(totalSideFund)} sub="Per director side fund balances" icon={IconWallet} />
         <MetricCard label="Total Assets" value={eur(totalAssets)} sub="Bank and project-linked assets" icon={IconBuilding} />
         <MetricCard label="Transaction Count" value={String(count)} icon={IconListNumbers} />
+      </div>
+
+      <div className="ui-stagger grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <MetricCard
+          label="Sales receivable"
+          value={qInvoiceM.data ? formatMoney(qInvoiceM.data.totalReceivable || 0, "EUR") : qInvoiceM.isError ? "—" : "…"}
+          sub="Outstanding sales (balance due)"
+          icon={IconClipboard}
+        />
+        <MetricCard
+          label="Purchase payable"
+          value={qInvoiceM.data ? formatMoney(qInvoiceM.data.totalPayable || 0, "EUR") : qInvoiceM.isError ? "—" : "…"}
+          sub="Outstanding purchases (balance due)"
+          icon={IconScale}
+        />
+        <MetricCard
+          label="Overdue invoices"
+          value={qInvoiceM.data ? String(qInvoiceM.data.overdueCount ?? 0) : qInvoiceM.isError ? "—" : "…"}
+          sub={
+            qInvoiceM.data
+              ? formatMoney(qInvoiceM.data.overdueValue || 0, "EUR")
+              : qInvoiceM.isError
+                ? "Unavailable"
+                : "Loading…"
+          }
+          icon={IconListNumbers}
+        />
       </div>
 
       <div className="space-y-4">

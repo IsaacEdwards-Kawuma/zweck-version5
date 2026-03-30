@@ -16,6 +16,7 @@ const links = [
   { to: "/accounts", label: "Chart of Accounts", icon: "accounts" },
   { to: "/directors", label: "Directors", icon: "directors" },
   { to: "/portfolio", label: "Portfolio", icon: "portfolio" },
+  { to: "/invoices", label: "Invoices", icon: "invoices" },
   { to: "/projects", label: "Projects", icon: "projects" },
   { to: "/help", label: "Help & guides", icon: "help" },
   { to: "/settings", label: "Settings", icon: "settings" }
@@ -122,6 +123,13 @@ function NavIcon({ name }) {
         <svg {...common}>
           <rect x="3" y="4" width="18" height="14" rx="2" />
           <path d="M8 4v14M3 9h18" />
+        </svg>
+      );
+    case "invoices":
+      return (
+        <svg {...common}>
+          <path d="M7 3h10l2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
+          <path d="M9 9h6M9 13h6M9 17h4" />
         </svg>
       );
     case "help":

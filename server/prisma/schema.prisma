@@ -29,6 +29,7 @@ model Director {
   user         User?
   assignedTasks ProjectTask[]
   ledProjects   Project[]     @relation("ProjectLeader")
+  linkedInvoices Invoice[]   @relation("DirectorLinkedInvoices")
 }
 
 model User {
@@ -64,6 +65,10 @@ model User {
   blocksReceived UserBlock[] @relation("UserBlockedBy")
   internalFormsRequested InternalForm[] @relation("InternalFormRequester")
   internalFormsReviewed  InternalForm[] @relation("InternalFormReviewer")
+
+  invoicesCreated  Invoice[]        @relation("UserCreatedInvoices")
+  paymentsCreated  InvoicePayment[] @relation("UserCreatedInvoicePayments")
+  clientsCreated   Client[]         @relation("UserCreatedClients")
 }
 
 model UserBlock {
@@ -303,6 +308,7 @@ model Project {
   tasks     ProjectTask[]
   mmfEntries MMFEntry[]
   accountingTransactions Transaction[] @relation("ProjectAccountingTransactions")
+  linkedInvoices        Invoice[] @relation("ProjectLinkedInvoices")
 }
 
 model ProjectTask {
@@ -381,6 +387,12 @@ model Transaction {
   originalForThisReversal Transaction? @relation("TxnOriginalToReversal")
 
   reversalReason String? @db.VarChar(500)
+
+  /** Optional: invoice module GL linkage (used for invoice void/reversal + GL entries UI). */
+  invoiceId        Int?
+  invoice          Invoice? @relation("InvoiceGLTransactions", fields: [invoiceId], references: [id], onDelete: SetNull)
+  invoicePaymentId Int?
+  invoicePayment   InvoicePayment? @relation("InvoicePaymentGLTransactions", fields: [invoicePaymentId], references: [id], onDelete: SetNull)
 
   createdBy   Int
   createdAt   DateTime  @default(now())
@@ -605,5 +617,176 @@ model InternalForm {
   @@index([requestedById])
   @@index([kind])
   @@map("internal_forms")
+}
+
+enum PartyType {
+  CLIENT
+  DIRECTOR
+  PROJECT_PARTY
+}
+
+enum InvoiceType {
+  SALES
+  PURCHASE
+  PROFORMA
+  CREDIT_NOTE
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  VOID
+  /** Proforma only: used as a prerequisite for conversion to a Sales Invoice. */
+  APPROVED
+}
+
+enum InvoiceCurrency {
+  UGX
+  USD
+  EUR
+}
+
+enum InvoiceGlStatus {
+  NOT_POSTED
+  POSTED
+}
+
+model Client {
+  id Int @id @default(autoincrement())
+
+  name    String
+  type    PartyType
+  email   String? @db.VarChar(200)
+  phone   String? @db.VarChar(50)
+  address String? @db.VarChar(500)
+
+  currency String @default("EUR") @db.VarChar(3)
+  notes    String?
+
+  isDeleted Boolean @default(false)
+
+  createdBy Int
+  creator   User    @relation("UserCreatedClients", fields: [createdBy], references: [id], onDelete: Restrict)
+  createdAt DateTime @default(now())
+
+  invoices Invoice[] @relation("InvoiceParty")
+
+  @@index([isDeleted, type])
+}
+
+model Invoice {
+  id Int @id @default(autoincrement())
+
+  invoiceNumber String @unique
+  invoiceType   InvoiceType
+  status        InvoiceStatus @default(DRAFT)
+
+  invoiceDate DateTime
+  dueDate     DateTime
+
+  partyId Int
+  party   Client @relation("InvoiceParty", fields: [partyId], references: [id], onDelete: Restrict)
+
+  currency InvoiceCurrency
+
+  subtotal    Float @default(0)
+  taxAmount   Float @default(0)
+  totalAmount Float @default(0)
+
+  amountPaid Float @default(0)
+  balanceDue Float @default(0)
+
+  paymentTerms String
+  notes         String?
+
+  linkedProjectId  Int?
+  linkedProject    Project? @relation("ProjectLinkedInvoices", fields: [linkedProjectId], references: [id], onDelete: SetNull)
+
+  linkedDirectorId Int?
+  linkedDirector   Director? @relation("DirectorLinkedInvoices", fields: [linkedDirectorId], references: [id], onDelete: SetNull)
+
+  documentUrl String? @db.VarChar(500)
+
+  glStatus InvoiceGlStatus @default(NOT_POSTED)
+
+  voidReason String? @db.VarChar(500)
+
+  /** GL posting selections for invoice raising (stored so DRAFT can be SENT later). */
+  glRevenueAccountKey String? @db.VarChar(48)
+  glExpenseAccountKey String? @db.VarChar(48)
+
+  /** Set when this invoice is a reversal (typically VOID) of another invoice. */
+  reversalOfId Int?
+  reversalOf   Invoice? @relation("InvoiceReversals", fields: [reversalOfId], references: [id], onDelete: SetNull)
+
+  /** Set for CREDIT_NOTE invoices (points to the sales invoice being credited). */
+  creditNoteForId Int?
+  creditNoteFor   Invoice? @relation("InvoiceCreditNotes", fields: [creditNoteForId], references: [id], onDelete: SetNull)
+
+  createdBy Int
+  creator   User @relation("UserCreatedInvoices", fields: [createdBy], references: [id], onDelete: Restrict)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /** Soft delete only; do not hard delete invoices. */
+  isDeleted Boolean @default(false)
+
+  reversalInvoices Invoice[] @relation("InvoiceReversals")
+  creditNotesFor   Invoice[] @relation("InvoiceCreditNotes")
+
+  lineItems InvoiceLineItem[]
+  payments   InvoicePayment[]
+
+  glTransactions Transaction[] @relation("InvoiceGLTransactions")
+}
+
+model InvoiceLineItem {
+  id Int @id @default(autoincrement())
+
+  invoiceId Int
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  description String
+  quantity    Float
+  unitPrice   Float
+  taxRate     Float
+
+  taxAmount Float
+  subtotal  Float
+  total     Float
+}
+
+model InvoicePayment {
+  id Int @id @default(autoincrement())
+
+  invoiceId Int
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  paymentDate DateTime
+  amount      Float
+  currency    InvoiceCurrency
+
+  paymentMethod String
+  reference     String?
+  notes         String?
+
+  glStatus InvoiceGlStatus @default(NOT_POSTED)
+
+  createdBy Int
+  creator   User @relation("UserCreatedInvoicePayments", fields: [createdBy], references: [id], onDelete: Restrict)
+  createdAt DateTime @default(now())
+
+  glTransactions Transaction[] @relation("InvoicePaymentGLTransactions")
+}
+
+model InvoiceReferenceSequence {
+  invoiceType InvoiceType
+  yearMonth   String @db.VarChar(7)
+  lastSeq     Int    @default(0)
+
+  @@id([invoiceType, yearMonth])
 }
 

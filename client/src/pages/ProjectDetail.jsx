@@ -13,8 +13,9 @@ import {
   updateTask,
   deleteTask
 } from "../api/projects";
+import { listInvoices } from "../api/invoices";
 import { useDirectorsAll } from "../hooks/useDashboard";
-import { eur, fmtDate } from "../lib/format";
+import { eur, fmtDate, formatMoney } from "../lib/format";
 import {
   PROJECT_KIND,
   PROJECT_STATUS,
@@ -43,6 +44,11 @@ export default function ProjectDetail() {
   const q = useQuery({
     queryKey: ["project", projectId],
     queryFn: () => getProject(projectId),
+    enabled: Number.isFinite(projectId)
+  });
+  const qLinkedInvoices = useQuery({
+    queryKey: ["invoices", "linkedProject", projectId],
+    queryFn: () => listInvoices({ linkedProjectId: projectId }),
     enabled: Number.isFinite(projectId)
   });
   const qDirs = useDirectorsAll();
@@ -544,6 +550,68 @@ export default function ProjectDetail() {
           {p.description}
         </div>
       ) : null}
+
+      <div className="rounded-xl ui-surface p-4 print:hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">Linked invoices</div>
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Invoices with this project linked.</p>
+          </div>
+          {me?.role === "ADMIN" ? (
+            <Link
+              to={`/invoices/new?projectId=${projectId}`}
+              className="text-sm font-medium text-brand-700 hover:underline dark:text-brand-400"
+            >
+              New invoice for project
+            </Link>
+          ) : null}
+        </div>
+        {qLinkedInvoices.isLoading ? <div className="mt-3 text-sm text-slate-500">Loading invoices…</div> : null}
+        {qLinkedInvoices.error ? (
+          <div className="mt-3 text-sm text-rose-600 dark:text-rose-400">Could not load linked invoices.</div>
+        ) : null}
+        {!qLinkedInvoices.isLoading && !qLinkedInvoices.error && (qLinkedInvoices.data || []).length === 0 ? (
+          <div className="mt-3 text-sm text-slate-500">No linked invoices yet.</div>
+        ) : null}
+        {(qLinkedInvoices.data || []).length > 0 ? (
+          <div className="mt-3 overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead className="ui-table-head">
+                <tr>
+                  <th className="px-3 py-2">Number</th>
+                  <th className="px-3 py-2">Type</th>
+                  <th className="px-3 py-2">Party</th>
+                  <th className="px-3 py-2">Date</th>
+                  <th className="px-3 py-2">Status</th>
+                  <th className="px-3 py-2 text-right">Total</th>
+                  <th className="px-3 py-2"> </th>
+                </tr>
+              </thead>
+              <tbody className="ui-table-divide">
+                {(qLinkedInvoices.data || []).map((inv) => (
+                  <tr key={inv.id} className="ui-table-row-hover">
+                    <td className="px-3 py-2 font-mono text-xs text-slate-600 dark:text-slate-400">{inv.invoiceNumber}</td>
+                    <td className="px-3 py-2">{inv.invoiceType}</td>
+                    <td className="px-3 py-2">{inv.party?.name || "—"}</td>
+                    <td className="px-3 py-2">{fmtDate(inv.invoiceDate)}</td>
+                    <td className="px-3 py-2">
+                      <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                        {inv.status}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-right font-semibold">{formatMoney(inv.totalAmount, inv.currency)}</td>
+                    <td className="px-3 py-2">
+                      <Link to={`/invoices/${inv.id}`} className="text-xs font-medium text-brand-700 hover:underline dark:text-brand-400">
+                        View
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+      </div>
 
       <div className="hidden print:block print:space-y-6">
         <PrintStatementHeader

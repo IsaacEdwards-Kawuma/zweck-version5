@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { balances, directorsAll, summary } from "../api/accounts";
+import { invoiceMetrics } from "../api/invoices";
 import { listTransactions, txItems } from "../api/transactions";
 import { portfolio } from "../api/portfolio";
 
@@ -17,6 +18,14 @@ export function useDirectorsAll() {
 
 export function usePortfolio() {
   return useQuery({ queryKey: ["portfolio"], queryFn: portfolio });
+}
+
+export function useInvoiceMetrics() {
+  return useQuery({
+    queryKey: ["invoice_metrics"],
+    queryFn: invoiceMetrics,
+    staleTime: 60_000
+  });
 }
 
 /** Single fetch for dashboard analytics + recent activity (avoids duplicate /transactions calls). */

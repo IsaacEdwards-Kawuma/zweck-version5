@@ -37,6 +37,8 @@ import integrationsRoutes from "./routes/integrations.js";
 import jobsRoutes from "./routes/jobs.js";
 import chatRoutes, { serveChatAttachmentDownload } from "./routes/chat.js";
 import internalFormsRoutes from "./routes/internalForms.js";
+import invoicesRoutes from "./routes/invoices.js";
+import clientsRoutes from "./routes/clients.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const openapiDocument = JSON.parse(readFileSync(join(__dirname, "openapi.json"), "utf8")) as Record<string, unknown>;
@@ -139,6 +141,8 @@ export function createApp(): express.Express {
   app.use("/api/notifications", notificationsRoutes);
   app.use("/api/meetings", meetingsRoutes);
   app.use("/api/documents", documentsRoutes);
+  app.use("/api/invoices", invoicesRoutes);
+  app.use("/api/clients", clientsRoutes);
   app.use("/api/reconciliation", reconciliationRoutes);
   app.use("/api/reports", reportsRoutes);
   app.use("/api/chat", chatRoutes);
