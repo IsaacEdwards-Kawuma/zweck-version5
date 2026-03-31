@@ -82,7 +82,7 @@ export async function downloadPdf(apiPath, filenameBase = "document") {
 export function needsAuthenticatedReceiptPdfBlob(storedUrl) {
   if (!storedUrl) return false;
   const s = String(storedUrl);
-  return /\/director-receipts\/\d+\/pdf/i.test(s);
+  return /\/director-receipts\/[^/]+\/pdf/i.test(s);
 }
 
 export async function openStoredPdfUrl(storedUrl) {
