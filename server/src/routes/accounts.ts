@@ -5,11 +5,7 @@ import { deriveBalances } from "../lib/derive.js";
 import { apiError } from "../lib/http.js";
 import { ACCOUNTS } from "../lib/constants.js";
 import { requireRole } from "../middleware/auth.js";
-import {
-  canViewDirectorContact,
-  canViewDirectorFinancials,
-  powerTierForRole
-} from "../lib/directorVisibility.js";
+import { canViewDirectorContact, canViewDirectorFinancials } from "../lib/directorVisibility.js";
 
 const router = Router();
 
@@ -17,11 +13,7 @@ function viewerFromReq(req: any) {
   return { role: req.user!.role, directorId: req.user!.directorId ?? null };
 }
 
-function requireFinancialLeadership(req: any, res: any, next: any) {
-  const viewer = viewerFromReq(req);
-  if (powerTierForRole(viewer.role) >= 2) return next();
-  return res.status(403).json(apiError("Forbidden"));
-}
+// Power tiers removed. All non-USER roles can access director pages and summaries.
 
 /** Positive "capital" display = negated derived equity line (see `derive.ts` sign convention). */
 function directorCapitalDisplay(balances: Record<string, number>, directorId: number): number {
@@ -113,7 +105,6 @@ router.get("/director/:id", requireRole("DIRECTOR"), async (req, res) => {
 router.get(
   "/directors/all",
   requireRole("DIRECTOR"),
-  requireFinancialLeadership,
   async (req, res) => {
   const directors = await prisma.director.findMany({
     orderBy: { createdAt: "asc" },
@@ -155,7 +146,7 @@ router.get(
   }
 );
 
-router.get("/directors", requireRole("DIRECTOR"), requireFinancialLeadership, async (req, res) => {
+router.get("/directors", requireRole("DIRECTOR"), async (req, res) => {
   const directors = await prisma.director.findMany({
     orderBy: { createdAt: "asc" },
     select: { id: true, name: true, initials: true, email: true, active: true, avatarUrl: true, createdAt: true }

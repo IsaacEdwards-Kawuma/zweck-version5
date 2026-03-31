@@ -2,8 +2,6 @@ import type { Director, Role } from "@prisma/client";
 
 export type Viewer = { role: Role; directorId: number | null };
 
-export type PowerTier = 0 | 1 | 2 | 3;
-
 export type DirectorPublic = Pick<
   Director,
   "id" | "name" | "initials" | "avatarUrl" | "active" | "createdAt"
@@ -19,40 +17,21 @@ export type DirectorPublic = Pick<
   notes?: string | null;
 };
 
-/**
- * Power tiers (higher = more access):
- * - Tier 3: ADMIN, ADMIN_DIRECTOR (full access)
- * - Tier 2: TREASURER, CEO, OPERATIONAL_MANAGER (financial leadership)
- * - Tier 1: DIRECTOR (self-only)
- * - Tier 0: USER (no director access; routes should block before this)
- */
-export function powerTierForRole(role: Role): PowerTier {
-  // Some environments may have stale generated Prisma `Role` types during deploys.
-  // Compare via string to keep runtime behavior correct while avoiding impossible-union TS errors.
-  const r = String(role);
-  if (r === "ADMIN" || r === "ADMIN_DIRECTOR") return 3;
-  if (r === "TREASURER" || r === "CEO" || r === "OPERATIONAL_MANAGER") return 2;
-  if (r === "DIRECTOR") return 1;
-  return 0;
-}
-
 export function canViewDirectorFinancials(viewer: Viewer, directorId: number): boolean {
-  const tier = powerTierForRole(viewer.role);
-  if (tier >= 3) return true;
-  if (tier >= 2) return true;
-  return tier >= 1 && viewer.directorId != null && viewer.directorId === directorId;
+  // Power tiers removed: all non-USER roles are treated the same.
+  // Route guards should block USER before this runs, but keep safe.
+  void directorId;
+  return String(viewer.role) !== "USER";
 }
 
 export function canViewDirectorConfidentialProfile(viewer: Viewer, directorId: number): boolean {
-  const tier = powerTierForRole(viewer.role);
-  if (tier >= 3) return true;
-  if (tier >= 2) return true;
-  return tier >= 1 && viewer.directorId != null && viewer.directorId === directorId;
+  void directorId;
+  return String(viewer.role) !== "USER";
 }
 
 export function canViewDirectorContact(viewer: Viewer, directorId: number): boolean {
-  if (canViewDirectorConfidentialProfile(viewer, directorId)) return true;
-  return powerTierForRole(viewer.role) >= 1;
+  void directorId;
+  return String(viewer.role) !== "USER";
 }
 
 export function toDirectorPublic(d: Director, viewer: Viewer): DirectorPublic {

@@ -4,7 +4,6 @@ import {
   canViewDirectorConfidentialProfile,
   canViewDirectorContact,
   canViewDirectorFinancials,
-  powerTierForRole,
   toDirectorPublic
 } from "../src/lib/directorVisibility.js";
 
@@ -29,16 +28,6 @@ function mkDirector(overrides: Partial<Director> = {}): Director {
 }
 
 describe("directorVisibility", () => {
-  it("assigns expected power tiers", () => {
-    expect(powerTierForRole("ADMIN")).toBe(3);
-    expect(powerTierForRole("ADMIN_DIRECTOR")).toBe(3);
-    expect(powerTierForRole("TREASURER")).toBe(2);
-    expect(powerTierForRole("CEO")).toBe(2);
-    expect(powerTierForRole("OPERATIONAL_MANAGER")).toBe(2);
-    expect(powerTierForRole("DIRECTOR")).toBe(1);
-    expect(powerTierForRole("USER")).toBe(0);
-  });
-
   it("admin roles can view confidential profile + financials", () => {
     const viewer = { role: "ADMIN", directorId: null };
     expect(canViewDirectorConfidentialProfile(viewer, 7)).toBe(true);
@@ -60,14 +49,14 @@ describe("directorVisibility", () => {
     expect(canViewDirectorFinancials(viewer, 7)).toBe(true);
   });
 
-  it("other directors cannot see another director's confidential profile fields", () => {
+  it("other directors can see another director's confidential profile fields", () => {
     const viewer = { role: "DIRECTOR", directorId: 99 };
-    expect(canViewDirectorConfidentialProfile(viewer, 7)).toBe(false);
+    expect(canViewDirectorConfidentialProfile(viewer, 7)).toBe(true);
     expect(canViewDirectorContact(viewer, 7)).toBe(true);
-    expect(canViewDirectorFinancials(viewer, 7)).toBe(false);
+    expect(canViewDirectorFinancials(viewer, 7)).toBe(true);
   });
 
-  it("toDirectorPublic strips confidential fields when not allowed", () => {
+  it("toDirectorPublic includes confidential fields for any non-USER role", () => {
     const d = mkDirector();
     const viewer = { role: "DIRECTOR", directorId: 99 };
     const pub = toDirectorPublic(d, viewer);
@@ -75,9 +64,9 @@ describe("directorVisibility", () => {
     expect(pub.id).toBe(7);
     expect(pub.name).toBe("Jane Doe");
     expect(pub.email).toBe("jane@example.com");
-    expect(pub.idNumber).toBeUndefined();
-    expect(pub.nextOfKinName).toBeUndefined();
-    expect(pub.notes).toBeUndefined();
+    expect(pub.idNumber).toBe("CM123456789");
+    expect(pub.nextOfKinName).toBe("John Doe");
+    expect(pub.notes).toBe("Confidential note");
   });
 });
 

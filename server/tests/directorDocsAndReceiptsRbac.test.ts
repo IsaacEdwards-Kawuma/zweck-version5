@@ -23,7 +23,7 @@ describe("documents + director receipts RBAC", () => {
     mocks.receiptsFindMany.mockReset();
   });
 
-  it("DIRECTOR can list non-internal unlinked docs and own linked docs only", async () => {
+  it("DIRECTOR can list all documents (power tiers removed)", async () => {
     mocks.findFirstUser.mockResolvedValue({
       id: 10,
       email: "director@example.com",
@@ -43,10 +43,10 @@ describe("documents + director receipts RBAC", () => {
     const res = await request(app).get("/api/documents");
     expect(res.status).toBe(200);
     const ids = (res.body || []).map((r: any) => r.id).sort();
-    expect(ids).toEqual([1, 3]);
+    expect(ids).toEqual([1, 2, 3, 4]);
   });
 
-  it("DIRECTOR cannot list receipts for another director", async () => {
+  it("DIRECTOR can list receipts for another director (power tiers removed)", async () => {
     mocks.findFirstUser.mockResolvedValue({
       id: 10,
       email: "director@example.com",
@@ -57,8 +57,8 @@ describe("documents + director receipts RBAC", () => {
     const { createApp } = await import("../src/app.js");
     const app = createApp();
     const res = await request(app).get("/api/director-receipts").query({ directorId: 99 });
-    expect(res.status).toBe(403);
-    expect(mocks.receiptsFindMany).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    expect(mocks.receiptsFindMany).toHaveBeenCalled();
   });
 });
 

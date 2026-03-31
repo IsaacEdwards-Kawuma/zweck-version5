@@ -4,7 +4,6 @@ import { prisma } from "../lib/prisma.js";
 import { apiError } from "../lib/http.js";
 import { requireRole } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
-import { canViewDirectorFinancials, powerTierForRole } from "../lib/directorVisibility.js";
 
 const router = Router();
 const db: any = prisma;
@@ -29,27 +28,11 @@ const docSchema = z.object({
 const updateDocSchema = docSchema.partial();
 
 router.get("/", requireRole("DIRECTOR"), async (req, res) => {
-  // Documents list includes director receipts and other internal records.
-  // Directors can only see:
-  // - docs linked to their own directorId, OR
-  // - docs without directorId that are not marked Internal
-  // Financial leadership (tier >= 2) and admins can see all docs.
-  const viewer = req.user ? { role: req.user.role, directorId: req.user.directorId ?? null } : null;
-
+  // Power tiers removed: all non-USER roles can view the documents register.
   const rows = await db.documentRegister.findMany({
     orderBy: [{ pinned: "desc" }, { updatedAt: "desc" }]
   });
-
-  if (!viewer) return res.json([]); // should not happen if requireAuth is mounted, but keep safe
-  if (powerTierForRole(viewer.role) >= 2) return res.json(rows);
-
-  const out = rows.filter((r: any) => {
-    const did = typeof r.directorId === "number" ? r.directorId : null;
-    if (did != null) return canViewDirectorFinancials(viewer, did);
-    const conf = String(r.confidentiality || "").toLowerCase().trim();
-    return conf !== "internal";
-  });
-  return res.json(out);
+  return res.json(rows);
 });
 
 router.post("/", requireRole("ADMIN"), validateBody(docSchema), async (req, res) => {
