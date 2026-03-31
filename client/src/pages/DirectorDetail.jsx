@@ -160,7 +160,7 @@ export default function DirectorDetail() {
                 {director.active ? "Active" : "Inactive"}
               </span>
             </div>
-            <div className="mt-1 text-sm text-slate-600">{director.email}</div>
+            <div className="mt-1 text-sm text-slate-600">{director.email || "—"}</div>
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
               <span>Director since {fmtDate(director.createdAt)}</span>
             </div>

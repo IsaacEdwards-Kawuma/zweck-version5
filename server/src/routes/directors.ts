@@ -7,6 +7,7 @@ import { apiError } from "../lib/http.js";
 import { writeAudit } from "../lib/audit.js";
 import { deleteDirectorAvatar, saveDirectorAvatar } from "../lib/avatarStorage.js";
 import { requireAdminOrDirectorSelf, requireRole } from "../middleware/auth.js";
+import { canViewDirectorFinancials, toDirectorPublic } from "../lib/directorVisibility.js";
 import { validateBody } from "../middleware/validate.js";
 
 const router = Router();
@@ -17,9 +18,10 @@ function emptyToNull(v: unknown) {
   return t === "" ? null : t;
 }
 
-router.get("/", async (_req, res) => {
+router.get("/", requireRole("DIRECTOR"), async (req, res) => {
   const directors = await prisma.director.findMany({ orderBy: { createdAt: "asc" } });
-  return res.json(directors);
+  const viewer = { role: req.user!.role, directorId: req.user!.directorId ?? null };
+  return res.json(directors.map((d) => toDirectorPublic(d, viewer)));
 });
 
 export const createDirectorSchema = z.object({
@@ -207,19 +209,24 @@ router.delete("/:id/avatar", requireAdminOrDirectorSelf("id"), async (req, res) 
   return res.json(updated);
 });
 
-router.get("/:id", async (req, res) => {
+router.get("/:id", requireRole("DIRECTOR"), async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) return res.status(400).json(apiError("Invalid director id"));
 
   const director = await prisma.director.findUnique({ where: { id } });
   if (!director) return res.status(404).json(apiError("Director not found"));
 
-  const transactions = await prisma.transaction.findMany({
-    where: { directorId: id, type: "CONTRIBUTION" },
-    orderBy: { date: "desc" }
-  });
+  const viewer = { role: req.user!.role, directorId: req.user!.directorId ?? null };
+  const canSeeFinancials = canViewDirectorFinancials(viewer, id);
 
-  return res.json({ director, transactions });
+  const transactions = canSeeFinancials
+    ? await prisma.transaction.findMany({
+        where: { directorId: id, type: "CONTRIBUTION" },
+        orderBy: { date: "desc" }
+      })
+    : [];
+
+  return res.json({ director: toDirectorPublic(director, viewer), transactions });
 });
 
 router.delete("/:id", requireRole("ADMIN"), async (req, res) => {

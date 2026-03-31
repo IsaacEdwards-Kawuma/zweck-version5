@@ -4,8 +4,24 @@ import { prisma } from "../lib/prisma.js";
 import { deriveBalances } from "../lib/derive.js";
 import { apiError } from "../lib/http.js";
 import { ACCOUNTS } from "../lib/constants.js";
+import { requireRole } from "../middleware/auth.js";
+import {
+  canViewDirectorContact,
+  canViewDirectorFinancials,
+  powerTierForRole
+} from "../lib/directorVisibility.js";
 
 const router = Router();
+
+function viewerFromReq(req: any) {
+  return { role: req.user!.role, directorId: req.user!.directorId ?? null };
+}
+
+function requireFinancialLeadership(req: any, res: any, next: any) {
+  const viewer = viewerFromReq(req);
+  if (powerTierForRole(viewer.role) >= 2) return next();
+  return res.status(403).json(apiError("Forbidden"));
+}
 
 /** Positive "capital" display = negated derived equity line (see `derive.ts` sign convention). */
 function directorCapitalDisplay(balances: Record<string, number>, directorId: number): number {
@@ -48,7 +64,7 @@ router.get("/balances", async (_req, res) => {
   return res.json(balances);
 });
 
-router.get("/director/:id", async (req, res) => {
+router.get("/director/:id", requireRole("DIRECTOR"), async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) return res.status(400).json(apiError("Invalid director id"));
 
@@ -57,6 +73,13 @@ router.get("/director/:id", async (req, res) => {
     select: { id: true, name: true, initials: true, email: true, avatarUrl: true }
   });
   if (!director) return res.status(404).json(apiError("Director not found"));
+
+  const viewer = viewerFromReq(req);
+  if (!canViewDirectorFinancials(viewer, id)) return res.status(403).json(apiError("Forbidden"));
+
+  const directorOut = canViewDirectorContact(viewer, id)
+    ? director
+    : { id: director.id, name: director.name, initials: director.initials, avatarUrl: director.avatarUrl };
 
   const allForDerive = await prisma.transaction.findMany({
     select: {
@@ -84,14 +107,24 @@ router.get("/director/:id", async (req, res) => {
     contributionBase += directorCapitalDisplay(b, d.id);
   }
   const equitySharePct = contributionBase > 0 ? Math.round(((capital / contributionBase) * 100) * 100) / 100 : 0;
-  return res.json({ director, capital, sideFund, total: capital + sideFund, equitySharePct });
+  return res.json({ director: directorOut, capital, sideFund, total: capital + sideFund, equitySharePct });
 });
 
-router.get("/directors/all", async (_req, res) => {
+router.get(
+  "/directors/all",
+  requireRole("DIRECTOR"),
+  requireFinancialLeadership,
+  async (req, res) => {
   const directors = await prisma.director.findMany({
     orderBy: { createdAt: "asc" },
     select: { id: true, name: true, initials: true, email: true, active: true, avatarUrl: true, createdAt: true }
   });
+  const viewer = viewerFromReq(req);
+  const directorsOut = directors.map((d) =>
+    canViewDirectorContact(viewer, d.id)
+      ? d
+      : { id: d.id, name: d.name, initials: d.initials, active: d.active, avatarUrl: d.avatarUrl, createdAt: d.createdAt }
+  );
 
   const allForDerive = await prisma.transaction.findMany({
     select: {
@@ -111,7 +144,7 @@ router.get("/directors/all", async (_req, res) => {
   const balances = deriveBalances(allForDerive as any);
   const b = balances as Record<string, number>;
 
-  const outRaw = directors.map((d) => {
+  const outRaw = directorsOut.map((d: any) => {
     const capital = directorCapitalDisplay(b, d.id);
     const sideFund = directorSideFundDisplay(b, d.id);
     return { ...d, capital, sideFund, total: capital + sideFund };
@@ -119,16 +152,20 @@ router.get("/directors/all", async (_req, res) => {
   const out = withEquityShareFromContribution(outRaw);
 
   return res.json(out);
-});
+  }
+);
 
-// Alias used by Vercel deployments where multi-segment `/api/...` proxying can fail.
-// The dashboard calls `/api/accounts/directors` (2 segments after `/api`) instead of
-// `/api/accounts/directors/all` (3 segments after `/api`).
-router.get("/directors", async (_req, res) => {
+router.get("/directors", requireRole("DIRECTOR"), requireFinancialLeadership, async (req, res) => {
   const directors = await prisma.director.findMany({
     orderBy: { createdAt: "asc" },
     select: { id: true, name: true, initials: true, email: true, active: true, avatarUrl: true, createdAt: true }
   });
+  const viewer = viewerFromReq(req);
+  const directorsOut = directors.map((d) =>
+    canViewDirectorContact(viewer, d.id)
+      ? d
+      : { id: d.id, name: d.name, initials: d.initials, active: d.active, avatarUrl: d.avatarUrl, createdAt: d.createdAt }
+  );
 
   const allForDerive = await prisma.transaction.findMany({
     select: {
@@ -148,7 +185,7 @@ router.get("/directors", async (_req, res) => {
   const balances = deriveBalances(allForDerive as any);
   const b = balances as Record<string, number>;
 
-  const outRaw = directors.map((d) => {
+  const outRaw = directorsOut.map((d: any) => {
     const capital = directorCapitalDisplay(b, d.id);
     const sideFund = directorSideFundDisplay(b, d.id);
     return { ...d, capital, sideFund, total: capital + sideFund };
