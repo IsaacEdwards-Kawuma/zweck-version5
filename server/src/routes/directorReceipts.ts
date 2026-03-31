@@ -1,5 +1,3 @@
-import fs from "node:fs";
-import path from "node:path";
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
 import { apiError } from "../lib/http.js";
@@ -8,9 +6,6 @@ import { buildDirectorReceiptPdfBuffer } from "../lib/directorReceiptPdf.js";
 import { canViewDirectorFinancials, toDirectorPublic } from "../lib/directorVisibility.js";
 
 const router = Router();
-
-const uploadRoot = path.join(process.cwd(), "uploads", "director-receipts");
-fs.mkdirSync(uploadRoot, { recursive: true });
 
 router.get("/", requireRole("DIRECTOR"), async (req, res) => {
   const directorId = Number(req.query.directorId);
@@ -42,7 +37,12 @@ router.get("/:id/pdf", requireRole("DIRECTOR"), async (req, res) => {
     where: { id },
     include: {
       director: true,
-      transactionBatch: true
+      transactionBatch: {
+        include: {
+          transactions: { orderBy: { id: "asc" } },
+          lines: { orderBy: { id: "asc" } }
+        }
+      }
     }
   });
   if (!receipt || receipt.deletedAt) return res.status(404).json(apiError("Receipt not found"));
@@ -52,23 +52,6 @@ router.get("/:id/pdf", requireRole("DIRECTOR"), async (req, res) => {
     return res.status(403).json(apiError("Forbidden"));
   }
   const directorPublic = toDirectorPublic(receipt.director, viewer);
-
-  // If we already have a stored URL under /api/uploads, serve the file bytes.
-  if (receipt.pdfUrl && receipt.pdfUrl.startsWith("/api/uploads/")) {
-    const rel = receipt.pdfUrl.replace("/api/uploads/", "");
-    const abs = path.join(process.cwd(), "uploads", rel);
-    if (fs.existsSync(abs)) {
-      const safeName = `director-receipt-${receipt.receiptReference}`.replace(/[^a-zA-Z0-9._-]/g, "_");
-      res.setHeader("Content-Type", "application/pdf");
-      res.setHeader("Content-Disposition", `inline; filename="${safeName}.pdf"`);
-      return fs.createReadStream(abs).pipe(res);
-    }
-  }
-
-  // If stored in S3/R2/etc as a public HTTPS URL, redirect to it.
-  if (receipt.pdfUrl && /^https?:\/\//i.test(receipt.pdfUrl)) {
-    return res.redirect(receipt.pdfUrl);
-  }
 
   const settings = await prisma.appSettings.findUnique({ where: { id: 1 } });
   const companyName = settings?.companyName || "Zweck Co. Ltd";
@@ -84,6 +67,7 @@ router.get("/:id/pdf", requireRole("DIRECTOR"), async (req, res) => {
 
   const buffer = await buildDirectorReceiptPdfBuffer({
     receipt,
+    transactionBatch: receipt.transactionBatch,
     companyName,
     director: {
       id: receipt.director.id,

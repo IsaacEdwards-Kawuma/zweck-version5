@@ -44,7 +44,15 @@ export type DirectorReceiptPdfJobResult = {
 export async function generateDirectorReceiptPdfNow(receiptId: number): Promise<void> {
   const receipt = await prisma.directorReceipt.findUnique({
     where: { id: receiptId },
-    include: { director: true, transactionBatch: true }
+    include: {
+      director: true,
+      transactionBatch: {
+        include: {
+          transactions: { orderBy: { id: "asc" } },
+          lines: { orderBy: { id: "asc" } }
+        }
+      }
+    }
   });
   if (!receipt || receipt.deletedAt) return;
 
@@ -65,6 +73,7 @@ export async function generateDirectorReceiptPdfNow(receiptId: number): Promise<
 
   const buffer = await buildDirectorReceiptPdfBuffer({
     receipt,
+    transactionBatch: receipt.transactionBatch,
     companyName,
     director: {
       id: receipt.director.id,

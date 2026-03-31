@@ -1,4 +1,9 @@
-import type { DirectorReceipt } from "@prisma/client";
+import type {
+  DirectorReceipt,
+  DirectorTransactionBatch,
+  DirectorTransactionLine,
+  Transaction
+} from "@prisma/client";
 import PDFDocument from "pdfkit";
 import { monthYearLabelUtc } from "./directorPosting.js";
 
@@ -31,8 +36,13 @@ function watermark(doc: any, label: string) {
   doc.restore();
 }
 
-type ReceiptModel = {
+export type ReceiptModel = {
   receipt: DirectorReceipt;
+  /** When provided, narrative meta is merged with batch data and ledger rows are printed. */
+  transactionBatch?: DirectorTransactionBatch & {
+    transactions?: Transaction[];
+    lines?: DirectorTransactionLine[];
+  };
   companyName: string;
   director: {
     id: number;
@@ -43,6 +53,117 @@ type ReceiptModel = {
   };
   postedBy: string;
 };
+
+function decToNumber(d: unknown): number {
+  if (d == null) return 0;
+  if (typeof d === "number") return d;
+  if (typeof d === "object" && d !== null && typeof (d as { toNumber?: () => number }).toNumber === "function") {
+    return (d as { toNumber: () => number }).toNumber();
+  }
+  return Number(d);
+}
+
+/** When receipt.meta is sparse, map batch typeKey → meta.kind used by confirmation text. */
+const TYPE_KEY_TO_KIND: Record<string, string> = {
+  CCR: "CONTRIBUTION",
+  FNE: "DIRECTORS_DISCIPLINARY_LEVY",
+  WDR: "DIRECTORS_CAPITAL_DISTRIBUTION",
+  CLN: "COMPANY_LOAN_TO_DIRECTOR",
+  CLR: "DIRECTOR_REPAYMENT_OF_COMPANY_LOAN",
+  FEE: "DIRECTOR_FEE_ALLOWANCE",
+  DLN: "DIRECTOR_LOAN_TO_COMPANY",
+  DLR: "DIRECTOR_LOAN_REPAYMENT"
+};
+
+const TYPE_KEY_TO_RECEIPT_TITLE: Record<string, string> = {
+  CCR: "Monthly Capital Contribution",
+  FNE: "Directors’ Disciplinary Levy",
+  WDR: "Directors’ Capital Distribution",
+  CLN: "Company Loan to Director",
+  CLR: "Director Repayment of Company Loan",
+  FEE: "Director Fee / Allowance",
+  DLN: "Director Loan to Company",
+  DLR: "Director Repayment to Company"
+};
+
+/**
+ * Merge JSON meta on the receipt with batch-level JSON and numeric fallbacks so the PDF always
+ * reflects posted amounts even if receipt.meta was incomplete.
+ */
+export function mergeReceiptMeta(
+  receipt: DirectorReceipt,
+  batch?: DirectorTransactionBatch & { transactions?: Transaction[]; lines?: DirectorTransactionLine[] }
+): Record<string, unknown> {
+  const fromReceipt = (receipt.meta && typeof receipt.meta === "object" ? receipt.meta : {}) as Record<string, unknown>;
+  const fromBatchJson = (batch?.meta && typeof batch.meta === "object" ? batch.meta : {}) as Record<string, unknown>;
+  const batchCurrency = batch?.currency || "EUR";
+  const batchTotal = batch ? decToNumber(batch.totalAmount) : 0;
+  const explicitKind = String(fromReceipt.kind || fromReceipt.txType || "").trim();
+  const kind = explicitKind || TYPE_KEY_TO_KIND[batch?.typeKey || ""] || "";
+
+  return {
+    ...fromBatchJson,
+    ...fromReceipt,
+    receiptType:
+      fromReceipt.receiptType ||
+      fromReceipt.type ||
+      TYPE_KEY_TO_RECEIPT_TITLE[batch?.typeKey || ""] ||
+      "Director Transaction Receipt",
+    kind: kind || fromReceipt.kind,
+    currency: fromReceipt.currency || fromBatchJson.currency || batchCurrency,
+    amount:
+      fromReceipt.amount ??
+      fromReceipt.totalAmount ??
+      fromReceipt.totalReceived ??
+      fromBatchJson.amount ??
+      batchTotal,
+    glReference: fromReceipt.glReference || receipt.receiptReference
+  };
+}
+
+function appendPostingRecord(doc: any, model: ReceiptModel, currency: string) {
+  const batch = model.transactionBatch;
+  if (!batch) return;
+
+  doc.fontSize(11).font("Helvetica-Bold").fillColor("#0f172a").text("Posting record (from ledger)");
+  doc.fontSize(8.5).font("Helvetica").fillColor("#64748b").text(
+    "Figures below are taken from the posted director transaction batch and related transactions in the system.",
+    { lineGap: 2 }
+  );
+  doc.moveDown(0.35);
+  doc.fontSize(9.5).font("Helvetica").fillColor("#334155");
+  doc.text(`Batch type: ${batch.typeKey}    Accounting period: ${model.receipt.periodMonth}`);
+  doc.text(`Batch total: ${fmtMoney(decToNumber(batch.totalAmount), batch.currency || currency)}`);
+  doc.moveDown(0.45);
+
+  const txns = batch.transactions || [];
+  if (txns.length > 0) {
+    doc.fontSize(10).font("Helvetica-Bold").fillColor("#0f172a").text("Transactions");
+    doc.fontSize(8.5).font("Helvetica").fillColor("#334155");
+    for (const t of txns) {
+      const desc = truncate(String(t.description || ""), 88);
+      doc.text(
+        `• ${t.referenceNumber}  ${t.type}  ${fmtMoney(t.amount, t.currency || batch.currency || currency)}  ${desc}`,
+        { lineGap: 1 }
+      );
+    }
+    doc.moveDown(0.45);
+  }
+
+  const lines = batch.lines || [];
+  if (lines.length > 0) {
+    doc.fontSize(10).font("Helvetica-Bold").fillColor("#0f172a").text("GL lines");
+    doc.fontSize(8.5).font("Helvetica").fillColor("#334155");
+    for (const L of lines) {
+      doc.text(
+        `• ${L.side} ${L.accountKey}  ${fmtMoney(decToNumber(L.amount), batch.currency || currency)}  ${truncate(String(L.memo || ""), 78)}`,
+        { lineGap: 1 }
+      );
+    }
+    doc.moveDown(0.45);
+  }
+  doc.moveDown(0.35);
+}
 
 function receiptTypeLabel(meta: any): string {
   return String(meta?.receiptType || meta?.type || "Director Transaction Receipt");
@@ -222,8 +343,8 @@ export function buildDirectorReceiptPdfBuffer(model: ReceiptModel): Promise<Buff
     watermark(doc, "POSTED");
     doc.on("pageAdded", () => watermark(doc, "POSTED"));
 
-    const meta = (model.receipt.meta as any) || {};
-    const currency = String(meta.currency || "EUR");
+    const meta = mergeReceiptMeta(model.receipt, model.transactionBatch) as any;
+    const currency = String(meta.currency || model.transactionBatch?.currency || "EUR");
 
     doc.fontSize(18).font("Helvetica-Bold").fillColor("#0f172a").text(model.companyName, { align: "center" });
     doc.moveDown(0.25);
@@ -249,6 +370,8 @@ export function buildDirectorReceiptPdfBuffer(model: ReceiptModel): Promise<Buff
     doc.text(`Equity account: 3110–3150`);
     doc.text(`Side fund account: 3200`);
     doc.moveDown(0.8);
+
+    appendPostingRecord(doc, model, currency);
 
     doc.fontSize(11).font("Helvetica-Bold").fillColor("#0f172a").text("Confirmation");
     doc.fontSize(9.5).font("Helvetica").fillColor("#334155").text(confirmationMessage(meta, model.receipt), {
