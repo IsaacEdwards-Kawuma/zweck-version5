@@ -199,48 +199,81 @@ CREATE INDEX IF NOT EXISTS "CompanyLoanToDirectorRepayment_loanId_idx"
   ON "CompanyLoanToDirectorRepayment" ("loanId");
 
 -- 6) Link FKs (safe-add)
-ALTER TABLE "DirectorTransactionBatch"
-  ADD CONSTRAINT IF NOT EXISTS "DirectorTransactionBatch_directorId_fkey"
-  FOREIGN KEY ("directorId") REFERENCES "Director"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'DirectorTransactionBatch_directorId_fkey') THEN
+    ALTER TABLE "DirectorTransactionBatch"
+      ADD CONSTRAINT "DirectorTransactionBatch_directorId_fkey"
+      FOREIGN KEY ("directorId") REFERENCES "Director"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
 
-ALTER TABLE "DirectorReceipt"
-  ADD CONSTRAINT IF NOT EXISTS "DirectorReceipt_directorId_fkey"
-  FOREIGN KEY ("directorId") REFERENCES "Director"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "DirectorReceipt"
-  ADD CONSTRAINT IF NOT EXISTS "DirectorReceipt_transactionBatchId_fkey"
-  FOREIGN KEY ("transactionBatchId") REFERENCES "DirectorTransactionBatch"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'DirectorReceipt_directorId_fkey') THEN
+    ALTER TABLE "DirectorReceipt"
+      ADD CONSTRAINT "DirectorReceipt_directorId_fkey"
+      FOREIGN KEY ("directorId") REFERENCES "Director"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
 
-ALTER TABLE "DirectorTransactionLine"
-  ADD CONSTRAINT IF NOT EXISTS "DirectorTransactionLine_batchId_fkey"
-  FOREIGN KEY ("batchId") REFERENCES "DirectorTransactionBatch"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'DirectorReceipt_transactionBatchId_fkey') THEN
+    ALTER TABLE "DirectorReceipt"
+      ADD CONSTRAINT "DirectorReceipt_transactionBatchId_fkey"
+      FOREIGN KEY ("transactionBatchId") REFERENCES "DirectorTransactionBatch"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
 
-ALTER TABLE "DirectorCapitalDistribution"
-  ADD CONSTRAINT IF NOT EXISTS "DirectorCapitalDistribution_directorId_fkey"
-  FOREIGN KEY ("directorId") REFERENCES "Director"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'DirectorTransactionLine_batchId_fkey') THEN
+    ALTER TABLE "DirectorTransactionLine"
+      ADD CONSTRAINT "DirectorTransactionLine_batchId_fkey"
+      FOREIGN KEY ("batchId") REFERENCES "DirectorTransactionBatch"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
 
-ALTER TABLE "DirectorCapitalReinstatement"
-  ADD CONSTRAINT IF NOT EXISTS "DirectorCapitalReinstatement_directorId_fkey"
-  FOREIGN KEY ("directorId") REFERENCES "Director"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "DirectorCapitalReinstatement"
-  ADD CONSTRAINT IF NOT EXISTS "DirectorCapitalReinstatement_distributionId_fkey"
-  FOREIGN KEY ("distributionId") REFERENCES "DirectorCapitalDistribution"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'DirectorCapitalDistribution_directorId_fkey') THEN
+    ALTER TABLE "DirectorCapitalDistribution"
+      ADD CONSTRAINT "DirectorCapitalDistribution_directorId_fkey"
+      FOREIGN KEY ("directorId") REFERENCES "Director"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
 
-ALTER TABLE "CompanyLoanToDirector"
-  ADD CONSTRAINT IF NOT EXISTS "CompanyLoanToDirector_directorId_fkey"
-  FOREIGN KEY ("directorId") REFERENCES "Director"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'DirectorCapitalReinstatement_directorId_fkey') THEN
+    ALTER TABLE "DirectorCapitalReinstatement"
+      ADD CONSTRAINT "DirectorCapitalReinstatement_directorId_fkey"
+      FOREIGN KEY ("directorId") REFERENCES "Director"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
 
-ALTER TABLE "CompanyLoanToDirectorRepayment"
-  ADD CONSTRAINT IF NOT EXISTS "CompanyLoanToDirectorRepayment_directorId_fkey"
-  FOREIGN KEY ("directorId") REFERENCES "Director"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "CompanyLoanToDirectorRepayment"
-  ADD CONSTRAINT IF NOT EXISTS "CompanyLoanToDirectorRepayment_loanId_fkey"
-  FOREIGN KEY ("loanId") REFERENCES "CompanyLoanToDirector"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'DirectorCapitalReinstatement_distributionId_fkey') THEN
+    ALTER TABLE "DirectorCapitalReinstatement"
+      ADD CONSTRAINT "DirectorCapitalReinstatement_distributionId_fkey"
+      FOREIGN KEY ("distributionId") REFERENCES "DirectorCapitalDistribution"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'CompanyLoanToDirector_directorId_fkey') THEN
+    ALTER TABLE "CompanyLoanToDirector"
+      ADD CONSTRAINT "CompanyLoanToDirector_directorId_fkey"
+      FOREIGN KEY ("directorId") REFERENCES "Director"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'CompanyLoanToDirectorRepayment_directorId_fkey') THEN
+    ALTER TABLE "CompanyLoanToDirectorRepayment"
+      ADD CONSTRAINT "CompanyLoanToDirectorRepayment_directorId_fkey"
+      FOREIGN KEY ("directorId") REFERENCES "Director"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'CompanyLoanToDirectorRepayment_loanId_fkey') THEN
+    ALTER TABLE "CompanyLoanToDirectorRepayment"
+      ADD CONSTRAINT "CompanyLoanToDirectorRepayment_loanId_fkey"
+      FOREIGN KEY ("loanId") REFERENCES "CompanyLoanToDirector"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END
+$$;
 
 -- 7) Transaction: add batch FK
 ALTER TABLE "Transaction" ADD COLUMN IF NOT EXISTS "directorTransactionBatchId" INTEGER;
-ALTER TABLE "Transaction"
-  ADD CONSTRAINT IF NOT EXISTS "Transaction_directorTransactionBatchId_fkey"
-  FOREIGN KEY ("directorTransactionBatchId") REFERENCES "DirectorTransactionBatch"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Transaction_directorTransactionBatchId_fkey') THEN
+    ALTER TABLE "Transaction"
+      ADD CONSTRAINT "Transaction_directorTransactionBatchId_fkey"
+      FOREIGN KEY ("directorTransactionBatchId") REFERENCES "DirectorTransactionBatch"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END
+$$;
 CREATE INDEX IF NOT EXISTS "Transaction_directorTransactionBatchId_idx"
   ON "Transaction" ("directorTransactionBatchId");
 
