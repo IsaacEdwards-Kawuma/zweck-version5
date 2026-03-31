@@ -7,7 +7,18 @@ import PageHero from "../components/PageHero";
 import { IconSettings } from "../components/Icons";
 import ThemeSettings from "../components/ThemeSettings";
 import { getHealth, getSettings, updateNotificationPreferences, updateOrgSettings } from "../api/settings";
-import { listUsers, updateUserRole, listLoginEvents, listMyLoginEvents } from "../api/users";
+import {
+  listUsers,
+  updateUserRole,
+  listLoginEvents,
+  listMyLoginEvents,
+  deactivateUser,
+  reactivateUser,
+  blockUser,
+  unblockUser,
+  deleteUserSoft,
+  restoreUser
+} from "../api/users";
 import { listPresence } from "../api/presence";
 import { pingIntegration } from "../api/integrations";
 import { fmtDate } from "../lib/format";
@@ -185,6 +196,34 @@ export default function Settings() {
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["users"] });
       setCopyMsg("User role updated.");
+      setTimeout(() => setCopyMsg(""), 2500);
+    }
+  });
+  const mUserLifecycle = useMutation({
+    mutationFn: async ({ action, id, reason }) => {
+      switch (action) {
+        case "deactivate":
+          return deactivateUser(id);
+        case "reactivate":
+          return reactivateUser(id);
+        case "block":
+          return blockUser(id, reason);
+        case "unblock":
+          return unblockUser(id);
+        case "delete":
+          return deleteUserSoft(id);
+        case "restore":
+          return restoreUser(id);
+        default:
+          throw new Error("Unknown action");
+      }
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["users"] }),
+        qc.invalidateQueries({ queryKey: ["presence", "admin"] })
+      ]);
+      setCopyMsg("User account updated.");
       setTimeout(() => setCopyMsg(""), 2500);
     }
   });
@@ -969,7 +1008,7 @@ export default function Settings() {
             User role management
           </h2>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-            Admins can change roles for other users. Your own role cannot be changed here.
+            Admins can change roles, deactivate accounts, block sign-in, or remove accounts (soft delete). You cannot change your own role or restrict your own account here. The last active administrator cannot be deactivated, blocked, or removed.
           </p>
 
           {qUsers.isLoading ? (
@@ -984,22 +1023,55 @@ export default function Settings() {
                 <thead className="bg-slate-50 dark:bg-slate-800/70">
                   <tr>
                     <th className="px-4 py-2">Email</th>
+                    <th className="px-4 py-2">Account</th>
                     <th className="px-4 py-2">Current role</th>
                     <th className="px-4 py-2">Set role</th>
+                    <th className="px-4 py-2">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                   {(qUsers.data || []).map((u) => {
                     const isSelf = u.id === session.userId;
+                    const removed = Boolean(u.deletedAt);
+                    const blocked = Boolean(u.adminBlockedAt);
+                    const inactive = !u.isActive;
+                    const canRole = !removed && !mUserLifecycle.isPending;
                     return (
                       <tr key={u.id} className="text-slate-800 dark:text-slate-200">
-                        <td className="px-4 py-2">{u.email}</td>
+                        <td className="px-4 py-2 font-mono text-xs">{u.email}</td>
+                        <td className="px-4 py-2 align-top">
+                          <div className="flex flex-wrap gap-1">
+                            {removed ? (
+                              <span className="rounded bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-800 dark:bg-slate-700 dark:text-slate-200">
+                                Removed
+                              </span>
+                            ) : null}
+                            {blocked ? (
+                              <span className="rounded bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-900 dark:bg-rose-950/60 dark:text-rose-200">
+                                Blocked
+                              </span>
+                            ) : null}
+                            {!removed && inactive ? (
+                              <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900 dark:bg-amber-950/50 dark:text-amber-200">
+                                Inactive
+                              </span>
+                            ) : null}
+                            {!removed && u.isActive && !blocked ? (
+                              <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200">
+                                Active
+                              </span>
+                            ) : null}
+                          </div>
+                          {u.adminBlockedReason ? (
+                            <div className="mt-1 max-w-xs text-xs text-slate-600 dark:text-slate-400">{u.adminBlockedReason}</div>
+                          ) : null}
+                        </td>
                         <td className="px-4 py-2">{u.role}</td>
                         <td className="px-4 py-2">
                           <select
                             className="ui-input max-w-[180px]"
                             value={u.role}
-                            disabled={isSelf || mRole.isPending}
+                            disabled={isSelf || !canRole || mRole.isPending}
                             onChange={(e) => {
                               const nextRole = e.target.value;
                               if (nextRole === u.role) return;
@@ -1018,6 +1090,95 @@ export default function Settings() {
                             <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">You</div>
                           ) : null}
                         </td>
+                        <td className="px-4 py-2 align-top">
+                          <div className="flex max-w-[min(32rem,92vw)] flex-wrap gap-1.5">
+                            {!isSelf && removed ? (
+                              <button
+                                type="button"
+                                className="ui-btn-outline-xs"
+                                disabled={mUserLifecycle.isPending}
+                                onClick={() => {
+                                  if (window.confirm(`Restore account ${u.email}? This clears block state and reactivates sign-in.`)) {
+                                    mUserLifecycle.mutate({ action: "restore", id: u.id });
+                                  }
+                                }}
+                              >
+                                Restore
+                              </button>
+                            ) : null}
+                            {!isSelf && !removed && u.isActive && !blocked ? (
+                              <button
+                                type="button"
+                                className="ui-btn-outline-xs"
+                                disabled={mUserLifecycle.isPending}
+                                onClick={() => {
+                                  if (window.confirm(`Deactivate ${u.email}? They will not be able to sign in until reactivated.`)) {
+                                    mUserLifecycle.mutate({ action: "deactivate", id: u.id });
+                                  }
+                                }}
+                              >
+                                Deactivate
+                              </button>
+                            ) : null}
+                            {!isSelf && !removed && inactive && !blocked ? (
+                              <button
+                                type="button"
+                                className="ui-btn-outline-xs"
+                                disabled={mUserLifecycle.isPending}
+                                onClick={() => mUserLifecycle.mutate({ action: "reactivate", id: u.id })}
+                              >
+                                Reactivate
+                              </button>
+                            ) : null}
+                            {!isSelf && !removed && !blocked ? (
+                              <button
+                                type="button"
+                                className="ui-btn-outline-xs text-rose-800 dark:text-rose-200"
+                                disabled={mUserLifecycle.isPending}
+                                onClick={() => {
+                                  const raw = window.prompt("Block reason (optional, shown to admins):", "");
+                                  if (raw === null) return;
+                                  if (!window.confirm(`Block sign-in for ${u.email}?`)) return;
+                                  mUserLifecycle.mutate({
+                                    action: "block",
+                                    id: u.id,
+                                    reason: raw.trim() || null
+                                  });
+                                }}
+                              >
+                                Block
+                              </button>
+                            ) : null}
+                            {!isSelf && !removed && blocked ? (
+                              <button
+                                type="button"
+                                className="ui-btn-outline-xs"
+                                disabled={mUserLifecycle.isPending}
+                                onClick={() => mUserLifecycle.mutate({ action: "unblock", id: u.id })}
+                              >
+                                Unblock
+                              </button>
+                            ) : null}
+                            {!isSelf && !removed ? (
+                              <button
+                                type="button"
+                                className="ui-btn-outline-xs text-rose-800 dark:text-rose-200"
+                                disabled={mUserLifecycle.isPending}
+                                onClick={() => {
+                                  if (
+                                    window.confirm(
+                                      `Remove ${u.email} from the system? The account is soft-deleted and cannot sign in. You can restore it later.`
+                                    )
+                                  ) {
+                                    mUserLifecycle.mutate({ action: "delete", id: u.id });
+                                  }
+                                }}
+                              >
+                                Remove
+                              </button>
+                            ) : null}
+                          </div>
+                        </td>
                       </tr>
                     );
                   })}
@@ -1029,6 +1190,11 @@ export default function Settings() {
           {mRole.error ? (
             <div className="mt-3">
               <ErrorBanner error={mRole.error} />
+            </div>
+          ) : null}
+          {mUserLifecycle.error ? (
+            <div className="mt-3">
+              <ErrorBanner error={mUserLifecycle.error} />
             </div>
           ) : null}
         </section>

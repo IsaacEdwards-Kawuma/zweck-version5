@@ -25,3 +25,33 @@ export async function listMyLoginEvents(limit = 50) {
   return data;
 }
 
+export async function deactivateUser(id) {
+  const { data } = await api.post(`/users/${id}/deactivate`);
+  return data;
+}
+
+export async function reactivateUser(id) {
+  const { data } = await api.post(`/users/${id}/reactivate`);
+  return data;
+}
+
+export async function blockUser(id, reason) {
+  const { data } = await api.post(`/users/${id}/block`, { reason: reason || null });
+  return data;
+}
+
+export async function unblockUser(id) {
+  const { data } = await api.post(`/users/${id}/unblock`);
+  return data;
+}
+
+export async function deleteUserSoft(id) {
+  const { data } = await api.delete(`/users/${id}`);
+  return data;
+}
+
+export async function restoreUser(id) {
+  const { data } = await api.post(`/users/${id}/restore`);
+  return data;
+}
+

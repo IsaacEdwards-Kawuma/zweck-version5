@@ -63,9 +63,20 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
       const payload = jwt.verify(token, getSecret()) as AuthUser;
       const dbUser = await prisma.user.findUnique({
         where: { id: payload.id },
-        select: { id: true, email: true, role: true, directorId: true }
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          directorId: true,
+          deletedAt: true,
+          isActive: true,
+          adminBlockedAt: true
+        }
       });
       if (!dbUser) return res.status(401).json(apiError("Unauthorized"));
+      if (dbUser.deletedAt || !dbUser.isActive || dbUser.adminBlockedAt) {
+        return res.status(401).json(apiError("Session no longer valid"));
+      }
       req.user = {
         id: dbUser.id,
         email: dbUser.email,

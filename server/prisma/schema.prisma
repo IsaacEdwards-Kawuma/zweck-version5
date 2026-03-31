@@ -54,6 +54,13 @@ model User {
   inAppChatMentionsOnly Boolean @default(false)
   /** Set when the user finishes (or skips) the first-run onboarding; null means show onboarding. */
   onboardingCompletedAt DateTime?
+  /** When false, the user cannot sign in (admin deactivation). */
+  isActive   Boolean   @default(true)
+  /** Soft-delete: account removed from normal use; cannot sign in. */
+  deletedAt  DateTime?
+  /** Platform block by admin; cannot sign in until unblocked. */
+  adminBlockedAt DateTime?
+  adminBlockedReason String? @db.VarChar(500)
   createdAt  DateTime  @default(now())
 
   notifications Notification[]

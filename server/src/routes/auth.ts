@@ -10,6 +10,7 @@ import { apiError } from "../lib/http.js";
 import { getPublicAppUrl } from "../lib/publicAppUrl.js";
 import { logger } from "../lib/logger.js";
 import { isAuthDisabled, requireAuth, type AuthUser } from "../middleware/auth.js";
+import { loginDeniedMessage } from "../lib/userLifecycle.js";
 import { validateBody } from "../middleware/validate.js";
 import { notifyUser } from "../services/inAppNotifications.js";
 
@@ -94,6 +95,21 @@ router.post(
         }
       });
       return res.status(401).json(apiError("Invalid email or password"));
+    }
+
+    const denied = loginDeniedMessage(user);
+    if (denied) {
+      const ipFail = requestIp(req);
+      const uaFail = req.headers["user-agent"] || null;
+      await prisma.loginEvent.create({
+        data: {
+          userId: user.id,
+          success: false,
+          ip: ipFail,
+          userAgent: typeof uaFail === "string" ? uaFail : null
+        }
+      });
+      return res.status(403).json(apiError(denied));
     }
 
     const ip = requestIp(req);
@@ -325,6 +341,9 @@ router.get("/me", requireAuth, async (req, res) => {
       createdAt: true,
       lastLoginAt: true,
       onboardingCompletedAt: true,
+      deletedAt: true,
+      isActive: true,
+      adminBlockedAt: true,
       director: {
         select: {
           id: true,
@@ -335,7 +354,12 @@ router.get("/me", requireAuth, async (req, res) => {
       }
     }
   });
-  if (user) return res.json(user);
+  if (user) {
+    const denied = loginDeniedMessage(user);
+    if (denied) return res.status(403).json(apiError(denied));
+    const { deletedAt: _d, isActive: _a, adminBlockedAt: _b, ...rest } = user;
+    return res.json(rest);
+  }
   if (isAuthDisabled() && req.user) {
     return res.json({
       id: req.user.id,

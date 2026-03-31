@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma.js";
 import { apiError } from "../lib/http.js";
 import { requireRole } from "../middleware/auth.js";
 import { presenceOfflineThresholdMs } from "../lib/presenceConstants.js";
+import { loginDeniedMessage } from "../lib/userLifecycle.js";
 
 const router = Router();
 
@@ -15,9 +16,17 @@ router.post("/heartbeat", async (req: Request, res: Response) => {
   const now = new Date();
   const user = await prisma.user.findUnique({
     where: { id: req.user.id },
-    select: { lastHeartbeatAt: true, presenceSessionStartedAt: true }
+    select: {
+      lastHeartbeatAt: true,
+      presenceSessionStartedAt: true,
+      deletedAt: true,
+      isActive: true,
+      adminBlockedAt: true
+    }
   });
   if (!user) return res.status(404).json(apiError("User not found"));
+  const denied = loginDeniedMessage(user);
+  if (denied) return res.status(403).json(apiError(denied));
 
   const gapMs = user.lastHeartbeatAt ? now.getTime() - user.lastHeartbeatAt.getTime() : Number.POSITIVE_INFINITY;
   const threshold = presenceOfflineThresholdMs();
@@ -38,6 +47,7 @@ router.post("/heartbeat", async (req: Request, res: Response) => {
 router.get("/", requireRole("ADMIN"), async (_req: Request, res: Response) => {
   const threshold = presenceOfflineThresholdMs();
   const users = await prisma.user.findMany({
+    where: { deletedAt: null },
     orderBy: { email: "asc" },
     select: {
       id: true,

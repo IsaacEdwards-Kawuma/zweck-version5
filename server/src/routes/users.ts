@@ -6,11 +6,36 @@ import { apiError } from "../lib/http.js";
 import { requireRole } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 import { notifyUser } from "../services/inAppNotifications.js";
+import { writeAudit } from "../lib/audit.js";
+import { countAbleAdmins } from "../lib/userLifecycle.js";
 
 const router = Router();
 const updateRoleBody = z.object({
   role: z.enum(["ADMIN", "USER", "DIRECTOR", "TREASURER", "SECRETARY", "OPERATIONAL_MANAGER", "CEO"])
 });
+
+const blockUserBody = z.object({
+  reason: z.string().max(500).optional().nullable()
+});
+
+function parseUserIdParam(req: Request): number | null {
+  const id = Number(req.params.id);
+  return Number.isFinite(id) ? id : null;
+}
+
+async function assertNotLastAbleAdmin(targetId: number): Promise<void> {
+  const target = await prisma.user.findUnique({
+    where: { id: targetId },
+    select: { role: true, deletedAt: true, isActive: true, adminBlockedAt: true }
+  });
+  if (!target || target.role !== "ADMIN") return;
+  const able = !target.deletedAt && target.isActive && !target.adminBlockedAt;
+  if (!able) return;
+  const n = await countAbleAdmins();
+  if (n <= 1) {
+    throw new Error("LAST_ADMIN");
+  }
+}
 
 function parseLimit(raw: unknown, fallback: number) {
   if (raw == null || raw === "") return fallback;
@@ -128,12 +153,170 @@ router.get("/", requireRole("ADMIN"), async (_req: Request, res: Response) => {
       role: true,
       directorId: true,
       createdAt: true,
+      isActive: true,
+      deletedAt: true,
+      adminBlockedAt: true,
+      adminBlockedReason: true,
       director: {
         select: { id: true, name: true, initials: true, avatarUrl: true }
       }
     }
   });
   return res.json(users);
+});
+
+router.post("/:id/deactivate", requireRole("ADMIN"), async (req: Request, res: Response) => {
+  const id = parseUserIdParam(req);
+  if (id == null) return res.status(400).json(apiError("Invalid id"));
+  if (!req.user) return res.status(401).json(apiError("Unauthorized"));
+  if (req.user.id === id) return res.status(400).json(apiError("You cannot deactivate your own account"));
+  const target = await prisma.user.findUnique({ where: { id } });
+  if (!target) return res.status(404).json(apiError("User not found"));
+  if (target.deletedAt) return res.status(400).json(apiError("User is already removed"));
+  try {
+    await assertNotLastAbleAdmin(id);
+  } catch (e) {
+    if (e instanceof Error && e.message === "LAST_ADMIN") {
+      return res.status(400).json(apiError("Cannot deactivate the last administrator"));
+    }
+    throw e;
+  }
+  await prisma.user.update({ where: { id }, data: { isActive: false } });
+  await writeAudit(req, {
+    action: "USER_DEACTIVATE",
+    entityType: "User",
+    entityId: id,
+    before: { email: target.email, isActive: target.isActive },
+    after: { isActive: false }
+  });
+  return res.json({ ok: true });
+});
+
+router.post("/:id/reactivate", requireRole("ADMIN"), async (req: Request, res: Response) => {
+  const id = parseUserIdParam(req);
+  if (id == null) return res.status(400).json(apiError("Invalid id"));
+  if (!req.user) return res.status(401).json(apiError("Unauthorized"));
+  const target = await prisma.user.findUnique({ where: { id } });
+  if (!target) return res.status(404).json(apiError("User not found"));
+  if (target.deletedAt) return res.status(400).json(apiError("Use restore for removed accounts"));
+  await prisma.user.update({ where: { id }, data: { isActive: true } });
+  await writeAudit(req, {
+    action: "USER_REACTIVATE",
+    entityType: "User",
+    entityId: id,
+    before: { email: target.email, isActive: target.isActive },
+    after: { isActive: true }
+  });
+  return res.json({ ok: true });
+});
+
+router.post("/:id/block", requireRole("ADMIN"), validateBody(blockUserBody), async (req: Request, res: Response) => {
+  const id = parseUserIdParam(req);
+  if (id == null) return res.status(400).json(apiError("Invalid id"));
+  if (!req.user) return res.status(401).json(apiError("Unauthorized"));
+  if (req.user.id === id) return res.status(400).json(apiError("You cannot block your own account"));
+  const target = await prisma.user.findUnique({ where: { id } });
+  if (!target) return res.status(404).json(apiError("User not found"));
+  if (target.deletedAt) return res.status(400).json(apiError("User is already removed"));
+  try {
+    await assertNotLastAbleAdmin(id);
+  } catch (e) {
+    if (e instanceof Error && e.message === "LAST_ADMIN") {
+      return res.status(400).json(apiError("Cannot block the last administrator"));
+    }
+    throw e;
+  }
+  const reason = (req.body as z.infer<typeof blockUserBody>).reason?.trim() || null;
+  const now = new Date();
+  await prisma.user.update({
+    where: { id },
+    data: { adminBlockedAt: now, adminBlockedReason: reason }
+  });
+  await writeAudit(req, {
+    action: "USER_BLOCK",
+    entityType: "User",
+    entityId: id,
+    before: { email: target.email, adminBlockedAt: target.adminBlockedAt },
+    after: { adminBlockedAt: now.toISOString(), adminBlockedReason: reason }
+  });
+  return res.json({ ok: true });
+});
+
+router.post("/:id/unblock", requireRole("ADMIN"), async (req: Request, res: Response) => {
+  const id = parseUserIdParam(req);
+  if (id == null) return res.status(400).json(apiError("Invalid id"));
+  if (!req.user) return res.status(401).json(apiError("Unauthorized"));
+  const target = await prisma.user.findUnique({ where: { id } });
+  if (!target) return res.status(404).json(apiError("User not found"));
+  await prisma.user.update({
+    where: { id },
+    data: { adminBlockedAt: null, adminBlockedReason: null }
+  });
+  await writeAudit(req, {
+    action: "USER_UNBLOCK",
+    entityType: "User",
+    entityId: id,
+    before: { email: target.email, adminBlockedAt: target.adminBlockedAt },
+    after: { adminBlockedAt: null }
+  });
+  return res.json({ ok: true });
+});
+
+router.delete("/:id", requireRole("ADMIN"), async (req: Request, res: Response) => {
+  const id = parseUserIdParam(req);
+  if (id == null) return res.status(400).json(apiError("Invalid id"));
+  if (!req.user) return res.status(401).json(apiError("Unauthorized"));
+  if (req.user.id === id) return res.status(400).json(apiError("You cannot remove your own account"));
+  const target = await prisma.user.findUnique({ where: { id } });
+  if (!target) return res.status(404).json(apiError("User not found"));
+  if (target.deletedAt) return res.status(400).json(apiError("User is already removed"));
+  try {
+    await assertNotLastAbleAdmin(id);
+  } catch (e) {
+    if (e instanceof Error && e.message === "LAST_ADMIN") {
+      return res.status(400).json(apiError("Cannot remove the last administrator"));
+    }
+    throw e;
+  }
+  const now = new Date();
+  await prisma.user.update({
+    where: { id },
+    data: { deletedAt: now, isActive: false }
+  });
+  await writeAudit(req, {
+    action: "USER_SOFT_DELETE",
+    entityType: "User",
+    entityId: id,
+    before: { email: target.email, deletedAt: null },
+    after: { deletedAt: now.toISOString() }
+  });
+  return res.json({ ok: true });
+});
+
+router.post("/:id/restore", requireRole("ADMIN"), async (req: Request, res: Response) => {
+  const id = parseUserIdParam(req);
+  if (id == null) return res.status(400).json(apiError("Invalid id"));
+  if (!req.user) return res.status(401).json(apiError("Unauthorized"));
+  const target = await prisma.user.findUnique({ where: { id } });
+  if (!target) return res.status(404).json(apiError("User not found"));
+  if (!target.deletedAt) return res.status(400).json(apiError("User is not removed"));
+  await prisma.user.update({
+    where: { id },
+    data: {
+      deletedAt: null,
+      isActive: true,
+      adminBlockedAt: null,
+      adminBlockedReason: null
+    }
+  });
+  await writeAudit(req, {
+    action: "USER_RESTORE",
+    entityType: "User",
+    entityId: id,
+    before: { email: target.email, deletedAt: target.deletedAt },
+    after: { deletedAt: null, isActive: true }
+  });
+  return res.json({ ok: true });
 });
 
 router.get("/:id", requireRole("ADMIN"), async (req: Request, res: Response) => {
@@ -147,6 +330,10 @@ router.get("/:id", requireRole("ADMIN"), async (req: Request, res: Response) => 
       role: true,
       directorId: true,
       createdAt: true,
+      isActive: true,
+      deletedAt: true,
+      adminBlockedAt: true,
+      adminBlockedReason: true,
       director: { select: { id: true, name: true, initials: true, avatarUrl: true } }
     }
   });
