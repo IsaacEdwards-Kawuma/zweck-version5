@@ -13,7 +13,7 @@ function viewerFromReq(req: any) {
   return { role: req.user!.role, directorId: req.user!.directorId ?? null };
 }
 
-// Power tiers removed. All non-USER roles can access director pages and summaries.
+// All authenticated roles (including USER) may access director pages and summaries.
 
 /** Positive "capital" display = negated derived equity line (see `derive.ts` sign convention). */
 function directorCapitalDisplay(balances: Record<string, number>, directorId: number): number {

@@ -5,5 +5,5 @@ export function hasAdminPrivileges(role) {
 
 /** Director-level access (portfolio, board, director self-service). */
 export function hasDirectorPrivileges(role) {
-  return role && role !== "USER";
+  return Boolean(role);
 }

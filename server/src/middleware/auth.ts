@@ -95,7 +95,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 
 /**
  * Route guard: `requireRole("ADMIN")` allows ADMIN and ADMIN_DIRECTOR;
- * `requireRole("DIRECTOR")` allows DIRECTOR and ADMIN_DIRECTOR; other roles must match exactly.
+ * `requireRole("DIRECTOR")` allows any authenticated role (USER, DIRECTOR, ADMIN, etc.).
  */
 export function requireRole(role: AuthUser["role"]) {
   return (req: Request, res: Response, next: NextFunction) => {

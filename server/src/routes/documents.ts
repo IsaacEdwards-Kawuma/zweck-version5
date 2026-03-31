@@ -28,7 +28,7 @@ const docSchema = z.object({
 const updateDocSchema = docSchema.partial();
 
 router.get("/", requireRole("DIRECTOR"), async (req, res) => {
-  // Power tiers removed: all non-USER roles can view the documents register.
+  // All authenticated roles (including USER) may list the documents register.
   const rows = await db.documentRegister.findMany({
     orderBy: [{ pinned: "desc" }, { updatedAt: "desc" }]
   });

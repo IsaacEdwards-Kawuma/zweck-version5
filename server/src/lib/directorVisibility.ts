@@ -18,20 +18,21 @@ export type DirectorPublic = Pick<
 };
 
 export function canViewDirectorFinancials(viewer: Viewer, directorId: number): boolean {
-  // Power tiers removed: all non-USER roles are treated the same.
-  // Route guards should block USER before this runs, but keep safe.
+  void viewer;
   void directorId;
-  return String(viewer.role) !== "USER";
+  return true;
 }
 
 export function canViewDirectorConfidentialProfile(viewer: Viewer, directorId: number): boolean {
+  void viewer;
   void directorId;
-  return String(viewer.role) !== "USER";
+  return true;
 }
 
 export function canViewDirectorContact(viewer: Viewer, directorId: number): boolean {
+  void viewer;
   void directorId;
-  return String(viewer.role) !== "USER";
+  return true;
 }
 
 export function toDirectorPublic(d: Director, viewer: Viewer): DirectorPublic {

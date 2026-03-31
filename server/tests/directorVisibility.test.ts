@@ -56,17 +56,25 @@ describe("directorVisibility", () => {
     expect(canViewDirectorFinancials(viewer, 7)).toBe(true);
   });
 
-  it("toDirectorPublic includes confidential fields for any non-USER role", () => {
-    const d = mkDirector();
-    const viewer = { role: "DIRECTOR", directorId: 99 };
-    const pub = toDirectorPublic(d, viewer);
+  it("USER role can view contact, confidential profile, and financials", () => {
+    const viewer = { role: "USER", directorId: null };
+    expect(canViewDirectorConfidentialProfile(viewer, 7)).toBe(true);
+    expect(canViewDirectorContact(viewer, 7)).toBe(true);
+    expect(canViewDirectorFinancials(viewer, 7)).toBe(true);
+  });
 
-    expect(pub.id).toBe(7);
-    expect(pub.name).toBe("Jane Doe");
-    expect(pub.email).toBe("jane@example.com");
-    expect(pub.idNumber).toBe("CM123456789");
-    expect(pub.nextOfKinName).toBe("John Doe");
-    expect(pub.notes).toBe("Confidential note");
+  it("toDirectorPublic includes confidential fields for authenticated viewers including USER", () => {
+    const d = mkDirector();
+    const viewerDirector = { role: "DIRECTOR", directorId: 99 };
+    const pubDirector = toDirectorPublic(d, viewerDirector);
+    expect(pubDirector.email).toBe("jane@example.com");
+    expect(pubDirector.idNumber).toBe("CM123456789");
+
+    const viewerUser = { role: "USER", directorId: null };
+    const pubUser = toDirectorPublic(d, viewerUser);
+    expect(pubUser.email).toBe("jane@example.com");
+    expect(pubUser.idNumber).toBe("CM123456789");
+    expect(pubUser.notes).toBe("Confidential note");
   });
 });
 
