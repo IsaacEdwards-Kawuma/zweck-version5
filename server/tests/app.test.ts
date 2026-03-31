@@ -121,4 +121,32 @@ describe("createApp", () => {
     expect(res.body).toHaveProperty("skipped");
     expect(Array.isArray(res.body.errors)).toBe(true);
   });
+
+  it("POST /api/jobs/monthly-statement-reminders returns 503 when CRON_SECRET is empty", async () => {
+    vi.stubEnv("CRON_SECRET", "");
+    const app = createApp();
+    const res = await request(app).post("/api/jobs/monthly-statement-reminders");
+    expect(res.status).toBe(503);
+    expect(res.body.message).toMatch(/CRON_SECRET/i);
+  });
+
+  it("POST /api/jobs/monthly-statement-reminders returns 401 when secret is wrong", async () => {
+    vi.stubEnv("CRON_SECRET", "correct-cron-secret");
+    const app = createApp();
+    const res = await request(app).post("/api/jobs/monthly-statement-reminders").set("X-Cron-Secret", "wrong");
+    expect(res.status).toBe(401);
+  });
+
+  it("POST /api/jobs/monthly-statement-reminders accepts Authorization Bearer for secret", async () => {
+    vi.stubEnv("CRON_SECRET", "correct-cron-secret");
+    const app = createApp();
+    const res = await request(app)
+      .post("/api/jobs/monthly-statement-reminders")
+      .set("Authorization", "Bearer correct-cron-secret");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("skipped");
+    expect(res.body).toHaveProperty("yearMonth");
+    expect(res.body).toHaveProperty("sent");
+    expect(Array.isArray(res.body.errors)).toBe(true);
+  });
 });

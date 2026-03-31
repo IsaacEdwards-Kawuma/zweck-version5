@@ -52,7 +52,10 @@ describe("login stamp", () => {
       email: "user@example.com",
       password: "hashed",
       role: "USER",
-      directorId: null
+      directorId: null,
+      isActive: true,
+      deletedAt: null,
+      adminBlockedAt: null
     });
     compareMock.mockResolvedValue(true);
     signMock.mockReturnValue("token-123");
@@ -91,7 +94,10 @@ describe("login stamp", () => {
       email: "user@example.com",
       password: "hashed",
       role: "USER",
-      directorId: null
+      directorId: null,
+      isActive: true,
+      deletedAt: null,
+      adminBlockedAt: null
     });
     compareMock.mockResolvedValue(false);
 

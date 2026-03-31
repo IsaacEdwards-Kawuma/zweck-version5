@@ -54,7 +54,10 @@ describe("requireAuth role refresh", () => {
       id: 7,
       email: "new@example.com",
       role: "ADMIN",
-      directorId: 4
+      directorId: 4,
+      deletedAt: null,
+      isActive: true,
+      adminBlockedAt: null
     });
 
     requireAuth(req, res, next);

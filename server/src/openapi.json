@@ -531,6 +531,37 @@
         }
       }
     },
+    "/jobs/monthly-statement-reminders": {
+      "post": {
+        "tags": ["jobs"],
+        "summary": "Monthly statement reminder (scheduler)",
+        "description": "Call daily from a cron job. On the first calendar day of each month (UTC), sends one in-app notification per active ADMIN and DIRECTOR user pointing to Reports. No-ops on other days or if this month was already processed. Requires `CRON_SECRET` in `X-Cron-Secret` or `Authorization: Bearer`.",
+        "security": [{ "cronSecret": [] }],
+        "responses": {
+          "200": {
+            "description": "Job result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "skipped": { "type": "boolean" },
+                    "reason": { "type": "string" },
+                    "yearMonth": { "type": "string" },
+                    "recipientCount": { "type": "integer" },
+                    "sent": { "type": "integer" },
+                    "errors": { "type": "array", "items": { "type": "string" } }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Missing or wrong secret" },
+          "503": { "description": "`CRON_SECRET` not configured on server" },
+          "500": { "description": "Job failed" }
+        }
+      }
+    },
     "/search": {
       "get": {
         "tags": ["search"],

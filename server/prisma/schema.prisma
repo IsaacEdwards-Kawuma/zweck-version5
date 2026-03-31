@@ -111,6 +111,13 @@ model Notification {
   @@index([userId, readAt])
 }
 
+/** One row per calendar month (UTC, YYYY-MM) after the monthly statement reminder job ran on the 1st. */
+model MonthlyStatementReminderSent {
+  id        Int      @id @default(autoincrement())
+  yearMonth String   @unique @db.VarChar(7)
+  createdAt DateTime @default(now())
+}
+
 // -----------------------------
 // Chat (v1)
 // -----------------------------

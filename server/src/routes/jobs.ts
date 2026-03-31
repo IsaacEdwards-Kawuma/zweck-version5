@@ -2,6 +2,7 @@ import { Router } from "express";
 import { apiError } from "../lib/http.js";
 import { runMeetingReminderJob } from "../lib/meetingReminderJob.js";
 import { runInvoiceOverdueJob } from "../lib/invoiceOverdueJob.js";
+import { runMonthlyStatementReminderJob } from "../lib/monthlyStatementReminderJob.js";
 
 const router = Router();
 
@@ -40,6 +41,17 @@ router.post("/invoices/flag-overdue", async (req, res) => {
   if (!(await requireCronSecret(req, res))) return;
   try {
     const result = await runInvoiceOverdueJob();
+    return res.json(result);
+  } catch (e) {
+    return res.status(500).json(apiError(e instanceof Error ? e.message : "Job failed"));
+  }
+});
+
+/** First day of each month (UTC): in-app reminder to directors and admins about Reports / monthly statements. */
+router.post("/monthly-statement-reminders", async (req, res) => {
+  if (!(await requireCronSecret(req, res))) return;
+  try {
+    const result = await runMonthlyStatementReminderJob();
     return res.json(result);
   } catch (e) {
     return res.status(500).json(apiError(e instanceof Error ? e.message : "Job failed"));

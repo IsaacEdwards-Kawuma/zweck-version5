@@ -899,7 +899,7 @@ export default function Settings() {
           <StatusDot ok={monitoring.sentryServer} label="Sentry (server)" />
           <StatusDot ok={clientSentry} label="Sentry (browser build)" />
           <StatusDot ok={monitoring.smtpConfigured} label="SMTP (password reset &amp; reminders)" />
-          <StatusDot ok={monitoring.cronSecretConfigured} label="CRON_SECRET (meeting reminder job)" />
+          <StatusDot ok={monitoring.cronSecretConfigured} label="CRON_SECRET (scheduled jobs: meeting reminders, monthly statements)" />
           <StatusDot ok={monitoring.publicAppUrlConfigured} label="Public app URL for reset links" />
           <div className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
             <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-sky-500 shadow-sm shadow-sky-500/30" aria-hidden />
