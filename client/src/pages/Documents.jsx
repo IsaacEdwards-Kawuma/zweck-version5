@@ -5,6 +5,12 @@ import Loading from "../components/Loading";
 import ErrorBanner from "../components/ErrorBanner";
 import { createDocument, deleteDocument, listDocuments, updateDocument } from "../api/documents";
 import { hasAdminPrivileges } from "../lib/roles";
+import {
+  downloadStoredPdfUrl,
+  needsAuthenticatedReceiptPdfBlob,
+  openStoredPdfUrl,
+  printStoredPdfUrl
+} from "../lib/openPdf";
 
 const CATEGORIES = ["Governance", "Legal", "Finance", "Director Transaction Receipt", "HR", "Operations", "Other"];
 const STATUS = ["ACTIVE", "UNDER_REVIEW", "ARCHIVED"];
@@ -389,9 +395,43 @@ export default function Documents() {
                   <td className="px-3 py-2">
                     <div className="flex flex-wrap gap-2">
                       {r.url ? (
-                        <a className="ui-btn-outline-xs" href={r.url} target="_blank" rel="noreferrer">
-                          Open
-                        </a>
+                        needsAuthenticatedReceiptPdfBlob(r.url) || r.category === "Director Transaction Receipt" ? (
+                          <>
+                            <button
+                              type="button"
+                              className="ui-btn-outline-xs"
+                              onClick={() =>
+                                void openStoredPdfUrl(r.url).catch((e) => alert(pdfErrorMessage(e)))
+                              }
+                            >
+                              Open
+                            </button>
+                            <button
+                              type="button"
+                              className="ui-btn-outline-xs"
+                              onClick={() =>
+                                void printStoredPdfUrl(r.url).catch((e) => alert(pdfErrorMessage(e)))
+                              }
+                            >
+                              Print
+                            </button>
+                            <button
+                              type="button"
+                              className="ui-btn-outline-xs"
+                              onClick={() =>
+                                void downloadStoredPdfUrl(r.url, r.reference || r.title || "receipt").catch((e) =>
+                                  alert(pdfErrorMessage(e))
+                                )
+                              }
+                            >
+                              Download
+                            </button>
+                          </>
+                        ) : (
+                          <a className="ui-btn-outline-xs" href={r.url} target="_blank" rel="noreferrer">
+                            Open
+                          </a>
+                        )
                       ) : null}
                       <button type="button" className="ui-btn-outline-xs" onClick={() => onEdit(r)} disabled={!isAdmin}>
                         Edit

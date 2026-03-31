@@ -15,6 +15,7 @@ import { TX_ACCOUNT_MAP } from "../lib/transactionTypes";
 import { downloadTransactionsCsv } from "../lib/reportsAnalytics";
 import { hasAdminPrivileges, hasDirectorPrivileges } from "../lib/roles";
 import { TX_TYPE_LABELS } from "../lib/dashboardAnalytics";
+import { downloadPdf, openPdfInNewTab, printPdfInNewTab } from "../lib/openPdf";
 import {
   ResponsiveContainer,
   PieChart,
@@ -147,26 +148,8 @@ export default function DirectorDetail() {
     downloadTransactionsCsv(rows, `director-${director.id}-${director.initials}-transactions.csv`);
   }
 
-  function receiptPdfUrl(id) {
-    return `/api/director-receipts/${id}/pdf`;
-  }
-
-  function openAndPrintReceiptPdf(id) {
-    const url = receiptPdfUrl(id);
-    const w = window.open(url, "_blank", "noopener,noreferrer");
-    if (!w) return;
-    // PDF viewer load events vary by browser; try a few times.
-    let tries = 0;
-    const timer = window.setInterval(() => {
-      tries += 1;
-      try {
-        w.focus();
-        w.print();
-        window.clearInterval(timer);
-      } catch {
-        if (tries >= 10) window.clearInterval(timer);
-      }
-    }, 400);
+  function receiptApiPath(id) {
+    return `/director-receipts/${id}/pdf`;
   }
 
   return (
@@ -454,25 +437,37 @@ export default function DirectorDetail() {
                     <td className="px-3 py-2 font-mono text-xs text-slate-700">{r.receiptReference}</td>
                     <td className="px-3 py-2">
                       <div className="flex flex-wrap items-center gap-3">
-                        <a
-                          className="text-sm font-medium text-brand-700 hover:underline"
-                          href={receiptPdfUrl(r.id)}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          View
-                        </a>
-                        <a
-                          className="text-sm font-medium text-brand-700 hover:underline"
-                          href={receiptPdfUrl(r.id)}
-                          download
-                        >
-                          Download
-                        </a>
                         <button
                           type="button"
                           className="text-sm font-medium text-brand-700 hover:underline"
-                          onClick={() => openAndPrintReceiptPdf(r.id)}
+                          onClick={() =>
+                            void openPdfInNewTab(receiptApiPath(r.id)).catch((e) =>
+                              alert(e instanceof Error ? e.message : "Could not open PDF")
+                            )
+                          }
+                        >
+                          View
+                        </button>
+                        <button
+                          type="button"
+                          className="text-sm font-medium text-brand-700 hover:underline"
+                          onClick={() =>
+                            void downloadPdf(
+                              receiptApiPath(r.id),
+                              `director-receipt-${r.receiptReference || r.id}`
+                            ).catch((e) => alert(e instanceof Error ? e.message : "Could not download PDF"))
+                          }
+                        >
+                          Download
+                        </button>
+                        <button
+                          type="button"
+                          className="text-sm font-medium text-brand-700 hover:underline"
+                          onClick={() =>
+                            void printPdfInNewTab(receiptApiPath(r.id)).catch((e) =>
+                              alert(e instanceof Error ? e.message : "Could not print PDF")
+                            )
+                          }
                         >
                           Print
                         </button>
