@@ -96,6 +96,33 @@ If deployment fails with `P3009`/`P3018`, use:
 
 - **[PRISMA_MIGRATION_RECOVERY.md](./PRISMA_MIGRATION_RECOVERY.md)**
 
+## 4b. Cron jobs (Render/Neon production)
+
+The API exposes cron-only endpoints under `POST /api/jobs/*` and secures them with `CRON_SECRET`.
+
+### Required env
+
+- `CRON_SECRET`: strong random string
+
+### Endpoints to schedule
+
+- `POST /api/jobs/meeting-reminders` (suggested: daily)
+- `POST /api/jobs/invoices/flag-overdue` (suggested: daily)
+- `POST /api/jobs/monthly-statement-reminders` (suggested: monthly, 1st day UTC)
+- `POST /api/jobs/director-receipts/generate-pdfs` (suggested: every 5-15 minutes)
+
+### How to call
+
+Provide either:
+
+- Header `X-Cron-Secret: <CRON_SECRET>`, or
+- Header `Authorization: Bearer <CRON_SECRET>`
+
+### Scheduler options
+
+- **Render Cron Jobs**: recommended if available on your plan.
+- If you cannot use Render shell/cron (free plan), use an external scheduler (e.g. GitHub Actions, cron-job.org, UptimeRobot) that can call HTTPS endpoints with headers.
+
 ## 5. Local `.env` parity
 
 **`server/.env`**

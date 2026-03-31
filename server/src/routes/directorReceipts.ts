@@ -65,6 +65,11 @@ router.get("/:id/pdf", requireRole("DIRECTOR"), async (req, res) => {
     }
   }
 
+  // If stored in S3/R2/etc as a public HTTPS URL, redirect to it.
+  if (receipt.pdfUrl && /^https?:\/\//i.test(receipt.pdfUrl)) {
+    return res.redirect(receipt.pdfUrl);
+  }
+
   const settings = await prisma.appSettings.findUnique({ where: { id: 1 } });
   const companyName = settings?.companyName || "Zweck Co. Ltd";
 

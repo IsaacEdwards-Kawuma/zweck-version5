@@ -28,6 +28,25 @@ WHERE "migration_name" = 'REPLACE_WITH_MIGRATION_NAME'
 
 Run this for one failing migration at a time.
 
+### If the migration is marked FAILED (P3009) and you want Prisma to retry it
+
+If the migration file in Git was fixed and you want the next deploy to re-run it, mark it as rolled back instead:
+
+```sql
+UPDATE "_prisma_migrations"
+SET "rolled_back_at" = NOW()
+WHERE "migration_name" = 'REPLACE_WITH_MIGRATION_NAME'
+  AND "rolled_back_at" IS NULL;
+```
+
+Notes:
+- Use **rolled back** when you want Prisma to attempt applying the migration again.
+- Use **finished_at** when schema objects already exist and you just need Prisma to stop treating it as failed.
+
+### No Render shell? (Free Render plan)
+
+You can do all recovery steps via **Neon SQL Editor** + **Render manual redeploy**. You do not need SSH/shell access on Render.
+
 ## 3) Redeploy Render API
 
 - Render → API service → **Manual Deploy**

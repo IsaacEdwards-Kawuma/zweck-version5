@@ -1,3 +1,5 @@
+import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { prisma } from "./prisma.js";
@@ -7,6 +9,30 @@ import { toDirectorPublic } from "./directorVisibility.js";
 
 const receiptUploadRoot = path.join(process.cwd(), "uploads", "director-receipts");
 fs.mkdirSync(receiptUploadRoot, { recursive: true });
+
+function buildS3Client(): S3Client | null {
+  const bucket = process.env.S3_BUCKET?.trim();
+  const accessKeyId = process.env.AWS_ACCESS_KEY_ID?.trim() || process.env.S3_ACCESS_KEY_ID?.trim();
+  const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY?.trim() || process.env.S3_SECRET_ACCESS_KEY?.trim();
+  const region = process.env.AWS_REGION?.trim() || process.env.S3_REGION?.trim() || "us-east-1";
+  const endpoint = process.env.S3_ENDPOINT?.trim();
+  if (!bucket || !accessKeyId || !secretAccessKey) return null;
+  return new S3Client({
+    region,
+    endpoint: endpoint || undefined,
+    credentials: { accessKeyId, secretAccessKey },
+    forcePathStyle: Boolean(endpoint)
+  });
+}
+
+function isS3ReceiptStorageConfigured(): boolean {
+  return Boolean(
+    process.env.S3_BUCKET?.trim() &&
+      (process.env.AWS_ACCESS_KEY_ID || process.env.S3_ACCESS_KEY_ID) &&
+      (process.env.AWS_SECRET_ACCESS_KEY || process.env.S3_SECRET_ACCESS_KEY) &&
+      process.env.S3_PUBLIC_BASE_URL?.trim()
+  );
+}
 
 export type DirectorReceiptPdfJobResult = {
   picked: number;
@@ -50,11 +76,33 @@ export async function generateDirectorReceiptPdfNow(receiptId: number): Promise<
     postedBy
   });
 
-  const safeFile = `director-receipt-${receipt.receiptReference}`.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const filename = `${safeFile}.pdf`;
-  const abs = path.join(receiptUploadRoot, filename);
-  fs.writeFileSync(abs, buffer);
-  const publicUrl = `/api/uploads/director-receipts/${filename}`;
+  const safeBase = `director-receipt-${receipt.receiptReference}`.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const filename = `${safeBase}.pdf`;
+
+  let publicUrl = `/api/uploads/director-receipts/${filename}`;
+  if (isS3ReceiptStorageConfigured()) {
+    const client = buildS3Client();
+    const bucket = process.env.S3_BUCKET!.trim();
+    const publicBase = process.env.S3_PUBLIC_BASE_URL!.trim().replace(/\/$/, "");
+    if (client) {
+      const key = `director-receipts/${safeBase}-${crypto.randomBytes(8).toString("hex")}.pdf`;
+      await client.send(
+        new PutObjectCommand({
+          Bucket: bucket,
+          Key: key,
+          Body: buffer,
+          ContentType: "application/pdf"
+        })
+      );
+      publicUrl = `${publicBase}/${key}`;
+    } else {
+      const abs = path.join(receiptUploadRoot, filename);
+      fs.writeFileSync(abs, buffer);
+    }
+  } else {
+    const abs = path.join(receiptUploadRoot, filename);
+    fs.writeFileSync(abs, buffer);
+  }
 
   await prisma.directorReceipt.update({
     where: { id: receipt.id },

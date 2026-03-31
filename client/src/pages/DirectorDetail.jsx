@@ -120,6 +120,13 @@ export default function DirectorDetail() {
 
   const { director, transactions } = qProfile.data;
   const totals = qTotals.data;
+  const hasAnyConfidential =
+    Boolean(director?.idNumber) ||
+    Boolean(director?.occupation) ||
+    Boolean(director?.address) ||
+    Boolean(director?.nextOfKinName) ||
+    Boolean(director?.nextOfKinPhone) ||
+    Boolean(director?.notes);
 
   const canManagePhoto =
     hasAdminPrivileges(me?.role) ||
@@ -246,30 +253,45 @@ export default function DirectorDetail() {
             <div className="mt-1 text-slate-800">{director.phone || "—"}</div>
           </div>
           <div>
-            <div className="text-xs uppercase tracking-wide text-slate-500">ID / NIN</div>
-            <div className="mt-1 text-slate-800">{director.idNumber || "—"}</div>
-          </div>
-          <div>
-            <div className="text-xs uppercase tracking-wide text-slate-500">Occupation</div>
-            <div className="mt-1 text-slate-800">{director.occupation || "—"}</div>
-          </div>
-          <div>
-            <div className="text-xs uppercase tracking-wide text-slate-500">Address</div>
-            <div className="mt-1 text-slate-800">{director.address || "—"}</div>
-          </div>
-          <div>
-            <div className="text-xs uppercase tracking-wide text-slate-500">Next of kin</div>
-            <div className="mt-1 text-slate-800">{director.nextOfKinName || "—"}</div>
-          </div>
-          <div>
-            <div className="text-xs uppercase tracking-wide text-slate-500">Next of kin phone</div>
-            <div className="mt-1 text-slate-800">{director.nextOfKinPhone || "—"}</div>
+            <div className="text-xs uppercase tracking-wide text-slate-500">Email</div>
+            <div className="mt-1 text-slate-800">{director.email || "—"}</div>
           </div>
         </div>
-        <div className="mt-4">
-          <div className="text-xs uppercase tracking-wide text-slate-500">Notes</div>
-          <div className="mt-1 whitespace-pre-wrap text-sm text-slate-800">{director.notes || "—"}</div>
-        </div>
+
+        {hasAnyConfidential ? (
+          <>
+            <div className="mt-4 grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
+              <div>
+                <div className="text-xs uppercase tracking-wide text-slate-500">ID / NIN</div>
+                <div className="mt-1 text-slate-800">{director.idNumber || "—"}</div>
+              </div>
+              <div>
+                <div className="text-xs uppercase tracking-wide text-slate-500">Occupation</div>
+                <div className="mt-1 text-slate-800">{director.occupation || "—"}</div>
+              </div>
+              <div>
+                <div className="text-xs uppercase tracking-wide text-slate-500">Address</div>
+                <div className="mt-1 text-slate-800">{director.address || "—"}</div>
+              </div>
+              <div>
+                <div className="text-xs uppercase tracking-wide text-slate-500">Next of kin</div>
+                <div className="mt-1 text-slate-800">{director.nextOfKinName || "—"}</div>
+              </div>
+              <div>
+                <div className="text-xs uppercase tracking-wide text-slate-500">Next of kin phone</div>
+                <div className="mt-1 text-slate-800">{director.nextOfKinPhone || "—"}</div>
+              </div>
+            </div>
+            <div className="mt-4">
+              <div className="text-xs uppercase tracking-wide text-slate-500">Notes</div>
+              <div className="mt-1 whitespace-pre-wrap text-sm text-slate-800">{director.notes || "—"}</div>
+            </div>
+          </>
+        ) : (
+          <div className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:bg-slate-800/40 dark:text-slate-300">
+            Confidential profile details are hidden for your role.
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

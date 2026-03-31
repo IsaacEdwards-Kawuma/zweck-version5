@@ -7,5 +7,7 @@ export function hasAdminPrivileges(role: Role): boolean {
 
 /** Director-level access (portfolio, board workflows, director self-service). */
 export function hasDirectorPrivileges(role: Role): boolean {
-  return role === "DIRECTOR" || role === "ADMIN_DIRECTOR";
+  // All non-USER roles should be able to access dashboard/reports/director pages.
+  // ADMIN is handled elsewhere too, but include it here for consistency.
+  return role !== "USER";
 }
