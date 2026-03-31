@@ -147,6 +147,28 @@ export default function DirectorDetail() {
     downloadTransactionsCsv(rows, `director-${director.id}-${director.initials}-transactions.csv`);
   }
 
+  function receiptPdfUrl(id) {
+    return `/api/director-receipts/${id}/pdf`;
+  }
+
+  function openAndPrintReceiptPdf(id) {
+    const url = receiptPdfUrl(id);
+    const w = window.open(url, "_blank", "noopener,noreferrer");
+    if (!w) return;
+    // PDF viewer load events vary by browser; try a few times.
+    let tries = 0;
+    const timer = window.setInterval(() => {
+      tries += 1;
+      try {
+        w.focus();
+        w.print();
+        window.clearInterval(timer);
+      } catch {
+        if (tries >= 10) window.clearInterval(timer);
+      }
+    }, 400);
+  }
+
   return (
     <div className="space-y-6">
       <PrintStatementHeader
@@ -431,14 +453,30 @@ export default function DirectorDetail() {
                     <td className="px-3 py-2">{fmtDate(r.transactionDate)}</td>
                     <td className="px-3 py-2 font-mono text-xs text-slate-700">{r.receiptReference}</td>
                     <td className="px-3 py-2">
-                      <a
-                        className="text-sm font-medium text-brand-700 hover:underline"
-                        href={`/api/director-receipts/${r.id}/pdf`}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        View / print
-                      </a>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <a
+                          className="text-sm font-medium text-brand-700 hover:underline"
+                          href={receiptPdfUrl(r.id)}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          View
+                        </a>
+                        <a
+                          className="text-sm font-medium text-brand-700 hover:underline"
+                          href={receiptPdfUrl(r.id)}
+                          download
+                        >
+                          Download
+                        </a>
+                        <button
+                          type="button"
+                          className="text-sm font-medium text-brand-700 hover:underline"
+                          onClick={() => openAndPrintReceiptPdf(r.id)}
+                        >
+                          Print
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
