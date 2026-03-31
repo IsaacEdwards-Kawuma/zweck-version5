@@ -1,5 +1,5 @@
 -- DropIndex
-DROP INDEX "ChatRoom_createdById_idx";
+DROP INDEX IF EXISTS "ChatRoom_createdById_idx";
 
 -- CreateTable
 CREATE TABLE "AppSettings" (

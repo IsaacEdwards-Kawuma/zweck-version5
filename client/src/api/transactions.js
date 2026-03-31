@@ -43,6 +43,16 @@ export async function getTransaction(id) {
   return data;
 }
 
+export async function listDirectorDistributions(directorId) {
+  const { data } = await api.get("/transactions/director-distributions", { params: { directorId } });
+  return data;
+}
+
+export async function listDirectorLoans(directorId) {
+  const { data } = await api.get("/transactions/director-loans", { params: { directorId } });
+  return data;
+}
+
 export async function deleteTransaction(id) {
   const { data } = await api.delete(`/transactions/${id}`);
   return data;

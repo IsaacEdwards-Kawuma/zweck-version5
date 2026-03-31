@@ -10,85 +10,112 @@ datasource db {
 }
 
 model Director {
-  id          Int       @id @default(autoincrement())
-  name        String
-  initials    String    @db.VarChar(3)
-  email       String    @unique
-  phone       String?
-  idNumber    String?
-  occupation  String?
-  address     String?
+  id             Int      @id @default(autoincrement())
+  name           String
+  initials       String   @db.VarChar(3)
+  email          String   @unique
+  phone          String?
+  idNumber       String?
+  occupation     String?
+  address        String?
   nextOfKinName  String?
   nextOfKinPhone String?
-  notes       String?
-  avatarUrl   String?
-  active      Boolean   @default(true)
-  createdAt   DateTime  @default(now())
+  notes          String?
+  avatarUrl      String?
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
 
-  transactions Transaction[]
-  user         User?
-  assignedTasks ProjectTask[]
-  ledProjects   Project[]     @relation("ProjectLeader")
-  linkedInvoices Invoice[]   @relation("DirectorLinkedInvoices")
+  transactions   Transaction[]
+  user           User?
+  assignedTasks  ProjectTask[]
+  ledProjects    Project[]     @relation("ProjectLeader")
+  linkedInvoices Invoice[]     @relation("DirectorLinkedInvoices")
+
+  capitalDistributions       DirectorCapitalDistribution[]
+  capitalReinstatements      DirectorCapitalReinstatement[]
+  companyLoans               CompanyLoanToDirector[]
+  companyLoanRepayments      CompanyLoanToDirectorRepayment[]
+  directorTransactionBatches DirectorTransactionBatch[]
+  directorReceipts           DirectorReceipt[]
 }
 
 model User {
-  id         Int       @id @default(autoincrement())
-  email      String    @unique
-  password   String
-  role       Role      @default(USER)
-  directorId Int?      @unique
-  director   Director? @relation(fields: [directorId], references: [id])
-  lastLoginAt DateTime?
-  /** Last app heartbeat while the user has a session (used for online/offline presence). */
-  lastHeartbeatAt DateTime?
-  /** Start of the current “online” session (reset after offline gap). */
+  id                       Int       @id @default(autoincrement())
+  email                    String    @unique
+  password                 String
+  role                     Role      @default(USER)
+  directorId               Int?      @unique
+  director                 Director? @relation(fields: [directorId], references: [id])
+  lastLoginAt              DateTime?
+  /**
+   * Last app heartbeat while the user has a session (used for online/offline presence).
+   */
+  lastHeartbeatAt          DateTime?
+  /**
+   * Start of the current “online” session (reset after offline gap).
+   */
   presenceSessionStartedAt DateTime?
-  /** When true, user may receive meeting reminder emails (admins, directors, and meeting creator). */
-  emailMeetingReminders Boolean @default(true)
-  /** When true, user receives in-app notifications for meeting reminders (same audience rules as email). */
-  inAppMeetingReminders Boolean @default(true)
-  /** When true, user receives in-app notifications for new chat messages (bell/inbox). */
-  inAppChatMessages Boolean @default(true)
-  /** When true, chat bell notifications are created only when the user is @mentioned (applies after per-room prefs). */
-  inAppChatMentionsOnly Boolean @default(false)
-  /** Set when the user finishes (or skips) the first-run onboarding; null means show onboarding. */
-  onboardingCompletedAt DateTime?
-  /** When false, the user cannot sign in (admin deactivation). */
-  isActive   Boolean   @default(true)
-  /** Soft-delete: account removed from normal use; cannot sign in. */
-  deletedAt  DateTime?
-  /** Platform block by admin; cannot sign in until unblocked. */
-  adminBlockedAt DateTime?
-  adminBlockedReason String? @db.VarChar(500)
-  createdAt  DateTime  @default(now())
+  /**
+   * When true, user may receive meeting reminder emails (admins, directors, and meeting creator).
+   */
+  emailMeetingReminders    Boolean   @default(true)
+  /**
+   * When true, user receives in-app notifications for meeting reminders (same audience rules as email).
+   */
+  inAppMeetingReminders    Boolean   @default(true)
+  /**
+   * When true, user receives in-app notifications for new chat messages (bell/inbox).
+   */
+  inAppChatMessages        Boolean   @default(true)
+  /**
+   * When true, chat bell notifications are created only when the user is @mentioned (applies after per-room prefs).
+   */
+  inAppChatMentionsOnly    Boolean   @default(false)
+  /**
+   * Set when the user finishes (or skips) the first-run onboarding; null means show onboarding.
+   */
+  onboardingCompletedAt    DateTime?
+  /**
+   * When false, the user cannot sign in (admin deactivation).
+   */
+  isActive                 Boolean   @default(true)
+  /**
+   * Soft-delete: account removed from normal use; cannot sign in.
+   */
+  deletedAt                DateTime?
+  /**
+   * Platform block by admin; cannot sign in until unblocked.
+   */
+  adminBlockedAt           DateTime?
+  adminBlockedReason       String?   @db.VarChar(500)
+  createdAt                DateTime  @default(now())
 
-  notifications Notification[]
-  chatRoomMembers ChatRoomMember[]
-  chatRoomsCreated ChatRoom[] @relation("ChatRoomCreator")
-  chatMessageReactions ChatMessageReaction[]
-  projectsCreated Project[]     @relation("ProjectCreator")
-  tasksCreated    ProjectTask[] @relation("TaskCreator")
-  chatMessages    ChatMessage[]
-  passwordResetTokens PasswordResetToken[]
-  loginEvents LoginEvent[]
-  blocksCreated UserBlock[] @relation("UserBlocks")
-  blocksReceived UserBlock[] @relation("UserBlockedBy")
-  internalFormsRequested InternalForm[] @relation("InternalFormRequester")
-  internalFormsReviewed  InternalForm[] @relation("InternalFormReviewer")
+  notifications          Notification[]
+  chatRoomMembers        ChatRoomMember[]
+  chatRoomsCreated       ChatRoom[]            @relation("ChatRoomCreator")
+  chatMessageReactions   ChatMessageReaction[]
+  projectsCreated        Project[]             @relation("ProjectCreator")
+  tasksCreated           ProjectTask[]         @relation("TaskCreator")
+  chatMessages           ChatMessage[]
+  passwordResetTokens    PasswordResetToken[]
+  loginEvents            LoginEvent[]
+  blocksCreated          UserBlock[]           @relation("UserBlocks")
+  blocksReceived         UserBlock[]           @relation("UserBlockedBy")
+  internalFormsRequested InternalForm[]        @relation("InternalFormRequester")
+  internalFormsReviewed  InternalForm[]        @relation("InternalFormReviewer")
 
-  invoicesCreated  Invoice[]        @relation("UserCreatedInvoices")
-  paymentsCreated  InvoicePayment[] @relation("UserCreatedInvoicePayments")
-  clientsCreated   Client[]         @relation("UserCreatedClients")
+  invoicesCreated Invoice[]        @relation("UserCreatedInvoices")
+  paymentsCreated InvoicePayment[] @relation("UserCreatedInvoicePayments")
+  clientsCreated  Client[]         @relation("UserCreatedClients")
 }
 
 model UserBlock {
-  id         Int      @id @default(autoincrement())
-  blockerId  Int
-  blocker    User     @relation("UserBlocks", fields: [blockerId], references: [id], onDelete: Cascade)
-  blockedId  Int
-  blocked    User     @relation("UserBlockedBy", fields: [blockedId], references: [id], onDelete: Cascade)
-  createdAt  DateTime @default(now())
+  id        Int      @id @default(autoincrement())
+  blockerId Int
+  blocker   User     @relation("UserBlocks", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockedId Int
+  blocked   User     @relation("UserBlockedBy", fields: [blockedId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
 
   @@unique([blockerId, blockedId])
   @@index([blockerId])
@@ -111,7 +138,9 @@ model Notification {
   @@index([userId, readAt])
 }
 
-/** One row per calendar month (UTC, YYYY-MM) after the monthly statement reminder job ran on the 1st. */
+/**
+ * One row per calendar month (UTC, YYYY-MM) after the monthly statement reminder job ran on the 1st.
+ */
 model MonthlyStatementReminderSent {
   id        Int      @id @default(autoincrement())
   yearMonth String   @unique @db.VarChar(7)
@@ -123,13 +152,13 @@ model MonthlyStatementReminderSent {
 // -----------------------------
 
 model ChatRoom {
-  id        Int      @id @default(autoincrement())
-  roomKey   String   @unique @db.VarChar(80)
-  kind      String   @db.VarChar(16) // "MEETING" | "PROJECT"
-  title     String?
+  id      Int     @id @default(autoincrement())
+  roomKey String  @unique @db.VarChar(80)
+  kind    String  @db.VarChar(16) // "MEETING" | "PROJECT"
+  title   String?
 
   createdById Int?
-  creator     User?  @relation("ChatRoomCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  creator     User? @relation("ChatRoomCreator", fields: [createdById], references: [id], onDelete: SetNull)
 
   meetingId Int?
   meeting   Meeting? @relation("MeetingChatRooms", fields: [meetingId], references: [id], onDelete: Cascade)
@@ -139,12 +168,16 @@ model ChatRoom {
 
   createdAt DateTime @default(now())
 
-  pinnedMessageId Int? @unique
+  pinnedMessageId Int?         @unique
   pinnedMessage   ChatMessage? @relation("RoomPinnedMessage", fields: [pinnedMessageId], references: [id], onDelete: SetNull)
 
-  /** Minimum seconds between messages from the same user (GROUP/DM/MEETING/PROJECT). Null = off. */
+  /**
+   * Minimum seconds between messages from the same user (GROUP/DM/MEETING/PROJECT). Null = off.
+   */
   slowModeSeconds Int?
-  /** GROUP only: only admins and room creator may post. */
+  /**
+   * GROUP only: only admins and room creator may post.
+   */
   adminOnlyPost   Boolean @default(false)
 
   members  ChatRoomMember[]
@@ -154,21 +187,29 @@ model ChatRoom {
 }
 
 model ChatRoomMember {
-  id          Int      @id @default(autoincrement())
-  roomId      Int
-  room        ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  userId      Int
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  lastReadAt  DateTime?
-  /** Hide room from main list until unarchived. */
-  archivedAt  DateTime?
-  /** Messages at or before this time are hidden for this member (clear chat for me). */
-  clearedBeforeAt DateTime?
-  /** When set and in the future, suppress chat notifications for this room. */
-  mutedUntil      DateTime?
-  /** ALL | MENTIONS | NONE — when not muted. */
-  notifyPreference String @default("ALL") @db.VarChar(16)
-  createdAt   DateTime @default(now())
+  id               Int       @id @default(autoincrement())
+  roomId           Int
+  room             ChatRoom  @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  userId           Int
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastReadAt       DateTime?
+  /**
+   * Hide room from main list until unarchived.
+   */
+  archivedAt       DateTime?
+  /**
+   * Messages at or before this time are hidden for this member (clear chat for me).
+   */
+  clearedBeforeAt  DateTime?
+  /**
+   * When set and in the future, suppress chat notifications for this room.
+   */
+  mutedUntil       DateTime?
+  /**
+   * ALL | MENTIONS | NONE — when not muted.
+   */
+  notifyPreference String    @default("ALL") @db.VarChar(16)
+  createdAt        DateTime  @default(now())
 
   @@unique([roomId, userId])
   @@index([userId, lastReadAt])
@@ -176,31 +217,33 @@ model ChatRoomMember {
 }
 
 model ChatMessage {
-  id        Int       @id @default(autoincrement())
-  roomId    Int
-  room      ChatRoom  @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  senderId  Int
-  sender    User      @relation(fields: [senderId], references: [id], onDelete: Cascade)
-  body      String
-  editedAt  DateTime?
-  deletedAt DateTime?
-  attachmentUrl   String?
-  attachmentKind  String?  @db.VarChar(16)
-  attachmentName  String?  @db.VarChar(255)
-  attachmentSize  Int?
-  createdAt DateTime  @default(now())
+  id             Int       @id @default(autoincrement())
+  roomId         Int
+  room           ChatRoom  @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  senderId       Int
+  sender         User      @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  body           String
+  editedAt       DateTime?
+  deletedAt      DateTime?
+  attachmentUrl  String?
+  attachmentKind String?   @db.VarChar(16)
+  attachmentName String?   @db.VarChar(255)
+  attachmentSize Int?
+  createdAt      DateTime  @default(now())
 
   replyToId Int?
-  replyTo   ChatMessage? @relation("MessageReply", fields: [replyToId], references: [id], onDelete: SetNull)
+  replyTo   ChatMessage?  @relation("MessageReply", fields: [replyToId], references: [id], onDelete: SetNull)
   replies   ChatMessage[] @relation("MessageReply")
 
-  /** Null = main timeline; set to root message id for messages inside a thread. */
-  threadRootId Int?
-  threadRoot   ChatMessage? @relation("ThreadMessages", fields: [threadRootId], references: [id], onDelete: SetNull)
+  /**
+   * Null = main timeline; set to root message id for messages inside a thread.
+   */
+  threadRootId   Int?
+  threadRoot     ChatMessage?  @relation("ThreadMessages", fields: [threadRootId], references: [id], onDelete: SetNull)
   threadChildren ChatMessage[] @relation("ThreadMessages")
 
   forwardedFromId Int?
-  forwardedFrom   ChatMessage? @relation("ForwardedMessages", fields: [forwardedFromId], references: [id], onDelete: SetNull)
+  forwardedFrom   ChatMessage?  @relation("ForwardedMessages", fields: [forwardedFromId], references: [id], onDelete: SetNull)
   forwardedCopies ChatMessage[] @relation("ForwardedMessages")
 
   mentionedUserIds Int[] @default([])
@@ -229,13 +272,13 @@ model ChatMessageReaction {
 }
 
 model LoginEvent {
-  id        Int      @id @default(autoincrement())
+  id        Int       @id @default(autoincrement())
   userId    Int
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  success   Boolean  @default(true)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  success   Boolean   @default(true)
   ip        String?
   userAgent String?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
   logoutAt  DateTime?
 
   @@index([userId, createdAt])
@@ -252,7 +295,9 @@ model PasswordResetToken {
   @@index([userId])
 }
 
-/** Singleton row `id = 1`: editable About page copy (admin-managed). */
+/**
+ * Singleton row `id = 1`: editable About page copy (admin-managed).
+ */
 model AboutPage {
   id        Int      @id
   payload   Json
@@ -263,7 +308,9 @@ enum Role {
   ADMIN
   USER
   DIRECTOR
-  /** Full admin access plus director-level access (link a director profile via `directorId`). */
+  /**
+   * Full admin access plus director-level access (link a director profile via `directorId`).
+   */
   ADMIN_DIRECTOR
   TREASURER
   SECRETARY
@@ -301,34 +348,34 @@ enum ProjectKind {
 }
 
 model Project {
-  id          Int             @id @default(autoincrement())
-  code        String          @unique @db.VarChar(40)
-  name        String
-  description String?
-  status      ProjectStatus   @default(PLANNING)
-  priority    ProjectPriority @default(MEDIUM)
-  projectKind ProjectKind     @default(GENERAL)
-  startDate   DateTime?
-  endDate     DateTime?
-  budget      Float?
-  budgetSpent Float?
-  budgetCurrency String         @default("EUR")
+  id               Int             @id @default(autoincrement())
+  code             String          @unique @db.VarChar(40)
+  name             String
+  description      String?
+  status           ProjectStatus   @default(PLANNING)
+  priority         ProjectPriority @default(MEDIUM)
+  projectKind      ProjectKind     @default(GENERAL)
+  startDate        DateTime?
+  endDate          DateTime?
+  budget           Float?
+  budgetSpent      Float?
+  budgetCurrency   String          @default("EUR")
   leaderDirectorId Int?
-  leaderDirector   Director?   @relation("ProjectLeader", fields: [leaderDirectorId], references: [id])
-  contactName   String?
-  contactEmail  String?
-  contactPhone  String?
-  createdById Int
-  creator     User            @relation("ProjectCreator", fields: [createdById], references: [id])
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  leaderDirector   Director?       @relation("ProjectLeader", fields: [leaderDirectorId], references: [id])
+  contactName      String?
+  contactEmail     String?
+  contactPhone     String?
+  createdById      Int
+  creator          User            @relation("ProjectCreator", fields: [createdById], references: [id])
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
 
   chatRooms ChatRoom[] @relation("ProjectChatRooms")
 
-  tasks     ProjectTask[]
-  mmfEntries MMFEntry[]
+  tasks                  ProjectTask[]
+  mmfEntries             MMFEntry[]
   accountingTransactions Transaction[] @relation("ProjectAccountingTransactions")
-  linkedInvoices        Invoice[] @relation("ProjectLinkedInvoices")
+  linkedInvoices         Invoice[]     @relation("ProjectLinkedInvoices")
 }
 
 model ProjectTask {
@@ -364,9 +411,25 @@ enum TransactionPostingStatus {
   REVERSED
 }
 
+enum DirectorEntryLineSide {
+  DEBIT
+  CREDIT
+}
+
 model ReferenceSequence {
   yearMonth String @id @db.VarChar(7)
   lastSeq   Int    @default(0)
+}
+
+/**
+ * Sequential per type per calendar month (UTC) for director receipt references (ZWK-XXX-YYYY-MM-XXXX).
+ */
+model DirectorReferenceSequence {
+  yearMonth String @db.VarChar(7)
+  typeKey   String @db.VarChar(8)
+  lastSeq   Int    @default(0)
+
+  @@id([yearMonth, typeKey])
 }
 
 model Transaction {
@@ -374,52 +437,67 @@ model Transaction {
   type        TxType
   date        DateTime
   amount      Float
-  /** ISO 4217 code; amounts are stored in this currency (single-currency books per posting). */
+  /**
+   * ISO 4217 code; amounts are stored in this currency (single-currency books per posting).
+   */
   currency    String    @default("EUR") @db.VarChar(3)
   description String?
   directorId  Int?
   director    Director? @relation(fields: [directorId], references: [id])
 
-  referenceNumber     String   @unique @db.VarChar(48)
-  externalReference   String?  @db.VarChar(200)
-  documentUrl         String?  @db.VarChar(500)
-  documentStatus      DocumentStatus @default(MISSING)
-  postingStatus       TransactionPostingStatus @default(POSTED)
+  referenceNumber   String                   @unique @db.VarChar(48)
+  externalReference String?                  @db.VarChar(200)
+  documentUrl       String?                  @db.VarChar(500)
+  documentStatus    DocumentStatus           @default(MISSING)
+  postingStatus     TransactionPostingStatus @default(POSTED)
 
-  expensePaymentMode  String?  @db.VarChar(24)
-  projectId           Int?
-  project               Project? @relation("ProjectAccountingTransactions", fields: [projectId], references: [id], onDelete: SetNull)
-  transferFromAccountKey String? @db.VarChar(40)
-  transferToAccountKey   String? @db.VarChar(40)
+  expensePaymentMode     String?  @db.VarChar(24)
+  projectId              Int?
+  project                Project? @relation("ProjectAccountingTransactions", fields: [projectId], references: [id], onDelete: SetNull)
+  transferFromAccountKey String?  @db.VarChar(40)
+  transferToAccountKey   String?  @db.VarChar(40)
 
-  /** When set, these GL keys are used for posting instead of TX_ACCOUNT_MAP automation. */
-  manualDebitAccountKey   String? @db.VarChar(48)
-  manualCreditAccountKey  String? @db.VarChar(48)
+  /**
+   * When set, these GL keys are used for posting instead of TX_ACCOUNT_MAP automation.
+   */
+  manualDebitAccountKey  String? @db.VarChar(48)
+  manualCreditAccountKey String? @db.VarChar(48)
 
-  /** Set on a reversal row: points to the original transaction being reversed. */
-  reversalOfId          Int?
-  originalTransaction   Transaction? @relation("TxnReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
-  reversalEntries       Transaction[] @relation("TxnReversal")
+  /**
+   * Set on a reversal row: points to the original transaction being reversed.
+   */
+  reversalOfId        Int?
+  originalTransaction Transaction?  @relation("TxnReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  reversalEntries     Transaction[] @relation("TxnReversal")
 
-  /** Set on the original after reversal: FK to the reversing transaction row. */
-  reversedByTransactionId Int? @unique
+  /**
+   * Set on the original after reversal: FK to the reversing transaction row.
+   */
+  reversedByTransactionId Int?         @unique
   reversalRow             Transaction? @relation("TxnOriginalToReversal", fields: [reversedByTransactionId], references: [id], onDelete: Restrict)
   originalForThisReversal Transaction? @relation("TxnOriginalToReversal")
 
   reversalReason String? @db.VarChar(500)
 
-  /** Optional: invoice module GL linkage (used for invoice void/reversal + GL entries UI). */
+  /**
+   * Optional: invoice module GL linkage (used for invoice void/reversal + GL entries UI).
+   */
   invoiceId        Int?
-  invoice          Invoice? @relation("InvoiceGLTransactions", fields: [invoiceId], references: [id], onDelete: SetNull)
+  invoice          Invoice?        @relation("InvoiceGLTransactions", fields: [invoiceId], references: [id], onDelete: SetNull)
   invoicePaymentId Int?
   invoicePayment   InvoicePayment? @relation("InvoicePaymentGLTransactions", fields: [invoicePaymentId], references: [id], onDelete: SetNull)
 
-  createdBy   Int
-  createdAt   DateTime  @default(now())
+  createdBy Int
+  createdAt DateTime @default(now())
+
+  directorTransactionBatchId Int?
+  directorTransactionBatch   DirectorTransactionBatch? @relation(fields: [directorTransactionBatchId], references: [id], onDelete: SetNull)
 }
 
 enum TxType {
   CONTRIBUTION
+  CONTRIBUTION_ARREARS
+  SUPPLEMENTARY_CAPITAL_CONTRIBUTION
   SIDE_FUND
   MMF_DEPLOY
   MMF_RETURN
@@ -431,6 +509,8 @@ enum TxType {
   LOAN_IN
   OTHER_OUT
   CAPITAL_WITHDRAWAL
+  DIRECTORS_CAPITAL_DISTRIBUTION
+  CAPITAL_REINSTATEMENT
   INVESTMENT_RETURN
   PROJECT_REVENUE
   INTEREST_INCOME
@@ -447,8 +527,11 @@ enum TxType {
   UTILITIES
   INSURANCE
   MEALS_ENTERTAINMENT
+  DIRECTORS_DISCIPLINARY_LEVY
   DIRECTOR_LOAN_TO_COMPANY
   DIRECTOR_LOAN_REPAYMENT
+  COMPANY_LOAN_TO_DIRECTOR
+  DIRECTOR_REPAYMENT_OF_COMPANY_LOAN
   LOAN_REPAYMENT_EXTERNAL
   WITHHOLDING_TAX
   VAT_PAYABLE
@@ -460,6 +543,169 @@ enum TxType {
   DIRECTOR_FEE_ALLOWANCE
   INTER_ACCOUNT_TRANSFER
   RETAINED_EARNINGS_TRANSFER
+}
+
+enum DirectorCapitalDistributionStatus {
+  OPEN
+  PARTIALLY_REINSTATED
+  FULLY_REINSTATED
+}
+
+model DirectorCapitalDistribution {
+  id                   Int                               @id @default(autoincrement())
+  directorId           Int
+  director             Director                          @relation(fields: [directorId], references: [id], onDelete: Cascade)
+  distributionDate     DateTime
+  totalAmount          Decimal                           @db.Decimal(18, 2)
+  currency             String                            @default("EUR") @db.VarChar(3)
+  outstandingBalance   Decimal                           @db.Decimal(18, 2)
+  status               DirectorCapitalDistributionStatus @default(OPEN)
+  transactionBatchId   Int?
+  primaryTransactionId Int?
+  createdBy            Int
+  createdAt            DateTime                          @default(now())
+  updatedAt            DateTime                          @updatedAt
+
+  reinstatements DirectorCapitalReinstatement[]
+
+  @@index([directorId, distributionDate])
+  @@index([status])
+}
+
+model DirectorCapitalReinstatement {
+  id                   Int                         @id @default(autoincrement())
+  directorId           Int
+  director             Director                    @relation(fields: [directorId], references: [id], onDelete: Cascade)
+  distributionId       Int
+  distribution         DirectorCapitalDistribution @relation(fields: [distributionId], references: [id], onDelete: Cascade)
+  date                 DateTime
+  amount               Decimal                     @db.Decimal(18, 2)
+  currency             String                      @default("EUR") @db.VarChar(3)
+  transactionBatchId   Int?
+  primaryTransactionId Int?
+  createdBy            Int
+  createdAt            DateTime                    @default(now())
+
+  @@index([directorId, date])
+  @@index([distributionId])
+}
+
+enum CompanyLoanToDirectorStatus {
+  OPEN
+  PARTIALLY_REPAID
+  FULLY_REPAID
+}
+
+model CompanyLoanToDirector {
+  id                   Int                         @id @default(autoincrement())
+  directorId           Int
+  director             Director                    @relation(fields: [directorId], references: [id], onDelete: Cascade)
+  loanDate             DateTime
+  principalAmount      Decimal                     @db.Decimal(18, 2)
+  currency             String                      @default("EUR") @db.VarChar(3)
+  repaymentTerms       String                      @db.VarChar(800)
+  reason               String?                     @db.VarChar(1200)
+  outstandingBalance   Decimal                     @db.Decimal(18, 2)
+  totalInterestPaid    Decimal                     @default(0) @db.Decimal(18, 2)
+  status               CompanyLoanToDirectorStatus @default(OPEN)
+  transactionBatchId   Int?
+  primaryTransactionId Int?
+  createdBy            Int
+  createdAt            DateTime                    @default(now())
+  updatedAt            DateTime                    @updatedAt
+
+  repayments CompanyLoanToDirectorRepayment[]
+
+  @@index([directorId, loanDate])
+  @@index([status])
+}
+
+model CompanyLoanToDirectorRepayment {
+  id                   Int                   @id @default(autoincrement())
+  directorId           Int
+  director             Director              @relation(fields: [directorId], references: [id], onDelete: Cascade)
+  loanId               Int
+  loan                 CompanyLoanToDirector @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  date                 DateTime
+  totalReceived        Decimal               @db.Decimal(18, 2)
+  principalPaid        Decimal               @db.Decimal(18, 2)
+  interestPaid         Decimal               @db.Decimal(18, 2)
+  currency             String                @default("EUR") @db.VarChar(3)
+  transactionBatchId   Int?
+  primaryTransactionId Int?
+  createdBy            Int
+  createdAt            DateTime              @default(now())
+
+  @@index([directorId, date])
+  @@index([loanId])
+}
+
+model DirectorTransactionBatch {
+  id               Int      @id @default(autoincrement())
+  directorId       Int
+  director         Director @relation(fields: [directorId], references: [id], onDelete: Cascade)
+  typeKey          String   @db.VarChar(32)
+  receiptReference String   @unique @db.VarChar(48)
+  periodMonth      String   @db.VarChar(7)
+  transactionDate  DateTime
+  totalAmount      Decimal  @db.Decimal(18, 2)
+  currency         String   @default("EUR") @db.VarChar(3)
+  meta             Json?
+  createdBy        Int
+  createdAt        DateTime @default(now())
+
+  transactions Transaction[]
+  lines        DirectorTransactionLine[]
+  receipts     DirectorReceipt[]
+
+  @@index([directorId, transactionDate])
+  @@index([typeKey, periodMonth])
+}
+
+model DirectorTransactionLine {
+  id         Int                      @id @default(autoincrement())
+  batchId    Int
+  batch      DirectorTransactionBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  side       DirectorEntryLineSide
+  accountKey String                   @db.VarChar(64)
+  directorId Int?
+  amount     Decimal                  @db.Decimal(18, 2)
+  memo       String?                  @db.VarChar(500)
+  createdAt  DateTime                 @default(now())
+
+  @@index([batchId])
+  @@index([accountKey])
+  @@index([directorId])
+}
+
+enum DirectorReceiptPdfStatus {
+  PENDING
+  READY
+  FAILED
+}
+
+model DirectorReceipt {
+  id                   Int                      @id @default(autoincrement())
+  directorId           Int
+  director             Director                 @relation(fields: [directorId], references: [id], onDelete: Cascade)
+  transactionBatchId   Int
+  transactionBatch     DirectorTransactionBatch @relation(fields: [transactionBatchId], references: [id], onDelete: Cascade)
+  primaryTransactionId Int?
+  receiptReference     String                   @unique @db.VarChar(48)
+  periodMonth          String                   @db.VarChar(7)
+  transactionDate      DateTime
+  meta                 Json?
+  pdfUrl               String?                  @db.VarChar(500)
+  pdfStatus            DirectorReceiptPdfStatus @default(PENDING)
+  pdfAttempts          Int                      @default(0)
+  pdfLastError         String?                  @db.VarChar(2000)
+  deletedAt            DateTime?
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+
+  @@index([directorId, transactionDate])
+  @@index([transactionBatchId])
+  @@index([deletedAt])
 }
 
 model MMFEntry {
@@ -503,41 +749,47 @@ model AuditLog {
   @@index([userId, createdAt])
 }
 
-/** Singleton row `id = 1`: company / reporting defaults (admin-editable). */
+/**
+ * Singleton row `id = 1`: company / reporting defaults (admin-editable).
+ */
 model AppSettings {
   id                   Int      @id @default(1)
   companyName          String   @default("Zweck Tukula Co. Ltd") @db.VarChar(200)
   baseCurrency         String   @default("EUR") @db.VarChar(3)
-  /** Month the fiscal year starts (1–12). */
+  /**
+   * Month the fiscal year starts (1–12).
+   */
   fiscalYearStartMonth Int      @default(1)
-  /** Default width in days for report date pickers (hint only; UI may ignore). */
+  /**
+   * Default width in days for report date pickers (hint only; UI may ignore).
+   */
   defaultReportDays    Int      @default(90)
   updatedAt            DateTime @updatedAt
 }
 
 model Meeting {
-  id               Int      @id @default(autoincrement())
-  title            String
-  date             String
-  time             String?
-  location         String?
-  chairperson      String?
-  attendees        String?
-  attendanceCount  Int?
+  id                Int      @id @default(autoincrement())
+  title             String
+  date              String
+  time              String?
+  location          String?
+  chairperson       String?
+  attendees         String?
+  attendanceCount   Int?
   expectedAttendees Int?
-  meetingType      String?  @default("Board")
-  priority         String?  @default("Medium")
-  recurrence       String?  @default("NONE")
-  reminderDays     Int?
-  agenda           String?
-  actionItems      String?
-  notes            String?
-  nextMeetingDate  String?
-  status           String   @default("SCHEDULED")
-  createdById      Int?
-  updatedById      Int?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  meetingType       String?  @default("Board")
+  priority          String?  @default("Medium")
+  recurrence        String?  @default("NONE")
+  reminderDays      Int?
+  agenda            String?
+  actionItems       String?
+  notes             String?
+  nextMeetingDate   String?
+  status            String   @default("SCHEDULED")
+  createdById       Int?
+  updatedById       Int?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   reminderSent MeetingReminderSent?
 
@@ -547,7 +799,9 @@ model Meeting {
   @@index([status])
 }
 
-/** One row per meeting after the reminder email has been sent (idempotent). */
+/**
+ * One row per meeting after the reminder email has been sent (idempotent).
+ */
 model MeetingReminderSent {
   id        Int      @id @default(autoincrement())
   meetingId Int      @unique
@@ -556,51 +810,63 @@ model MeetingReminderSent {
 }
 
 model DocumentRegister {
-  id              Int      @id @default(autoincrement())
-  title           String
-  category        String   @default("Governance")
-  reference       String?
-  owner           String?
-  confidentiality String   @default("Internal")
-  status          String   @default("ACTIVE")
-  version         String?  @default("1.0")
-  tags            String?
-  effectiveDate   String?
-  reviewDate      String?
-  expiryDate      String?
-  pinned          Boolean  @default(false)
-  url             String?
-  notes           String?
-  createdById     Int?
-  updatedById     Int?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@index([status])
-  @@index([category])
-}
-
-model ReconciliationNote {
   id               Int      @id @default(autoincrement())
-  periodFrom       String
-  statementDate    String
+  title            String
+  category         String   @default("Governance")
+  reference        String?
+  owner            String?
+  confidentiality  String   @default("Internal")
+  status           String   @default("ACTIVE")
+  version          String?  @default("1.0")
+  tags             String?
+  effectiveDate    String?
+  reviewDate       String?
+  expiryDate       String?
+  pinned           Boolean  @default(false)
+  url              String?
   notes            String?
-  clearedMap       Json?
+  directorId       Int?
+  transactionId    Int?
+  receiptReference String?  @db.VarChar(48)
   createdById      Int?
   updatedById      Int?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
+  @@index([status])
+  @@index([category])
+  @@index([directorId])
+  @@index([transactionId])
+  @@index([receiptReference])
+}
+
+model ReconciliationNote {
+  id            Int      @id @default(autoincrement())
+  periodFrom    String
+  statementDate String
+  notes         String?
+  clearedMap    Json?
+  createdById   Int?
+  updatedById   Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
   @@unique([periodFrom, statementDate])
 }
 
-/** Purchase / payment requisitions and other internal requests (treasurer approval). */
+/**
+ * Purchase / payment requisitions and other internal requests (treasurer approval).
+ */
 enum InternalFormKind {
   REQUISITION
   GENERAL_REQUEST
-  /** Expense / reimbursement: attach receipt PDF or image for treasurer to approve before posting in ledger. */
+  /**
+   * Expense / reimbursement: attach receipt PDF or image for treasurer to approve before posting in ledger.
+   */
   TRANSACTION_RECEIPT
-  /** Formal acknowledgement (policy, receipt, training); requires details; approver files a printable record. */
+  /**
+   * Formal acknowledgement (policy, receipt, training); requires details; approver files a printable record.
+   */
   ACKNOWLEDGEMENT
 }
 
@@ -620,7 +886,9 @@ model InternalForm {
   currency        String?            @db.VarChar(3)
   purpose         String?            @db.VarChar(500)
   vendor          String?            @db.VarChar(200)
-  /** Uploaded receipt (PDF/image) for TRANSACTION_RECEIPT; public URL path under /api/uploads/internal-forms/ */
+  /**
+   * Uploaded receipt (PDF/image) for TRANSACTION_RECEIPT; public URL path under /api/uploads/internal-forms/
+   */
   receiptUrl      String?            @map("receipt_url") @db.VarChar(500)
   receiptFileName String?            @map("receipt_file_name") @db.VarChar(255)
   status          InternalFormStatus @default(PENDING)
@@ -659,7 +927,9 @@ enum InvoiceStatus {
   PAID
   OVERDUE
   VOID
-  /** Proforma only: used as a prerequisite for conversion to a Sales Invoice. */
+  /**
+   * Proforma only: used as a prerequisite for conversion to a Sales Invoice.
+   */
   APPROVED
 }
 
@@ -679,17 +949,17 @@ model Client {
 
   name    String
   type    PartyType
-  email   String? @db.VarChar(200)
-  phone   String? @db.VarChar(50)
-  address String? @db.VarChar(500)
+  email   String?   @db.VarChar(200)
+  phone   String?   @db.VarChar(50)
+  address String?   @db.VarChar(500)
 
-  currency String @default("EUR") @db.VarChar(3)
+  currency String  @default("EUR") @db.VarChar(3)
   notes    String?
 
   isDeleted Boolean @default(false)
 
   createdBy Int
-  creator   User    @relation("UserCreatedClients", fields: [createdBy], references: [id], onDelete: Restrict)
+  creator   User     @relation("UserCreatedClients", fields: [createdBy], references: [id], onDelete: Restrict)
   createdAt DateTime @default(now())
 
   invoices Invoice[] @relation("InvoiceParty")
@@ -700,7 +970,7 @@ model Client {
 model Invoice {
   id Int @id @default(autoincrement())
 
-  invoiceNumber String @unique
+  invoiceNumber String        @unique
   invoiceType   InvoiceType
   status        InvoiceStatus @default(DRAFT)
 
@@ -720,10 +990,10 @@ model Invoice {
   balanceDue Float @default(0)
 
   paymentTerms String
-  notes         String?
+  notes        String?
 
-  linkedProjectId  Int?
-  linkedProject    Project? @relation("ProjectLinkedInvoices", fields: [linkedProjectId], references: [id], onDelete: SetNull)
+  linkedProjectId Int?
+  linkedProject   Project? @relation("ProjectLinkedInvoices", fields: [linkedProjectId], references: [id], onDelete: SetNull)
 
   linkedDirectorId Int?
   linkedDirector   Director? @relation("DirectorLinkedInvoices", fields: [linkedDirectorId], references: [id], onDelete: SetNull)
@@ -734,31 +1004,39 @@ model Invoice {
 
   voidReason String? @db.VarChar(500)
 
-  /** GL posting selections for invoice raising (stored so DRAFT can be SENT later). */
+  /**
+   * GL posting selections for invoice raising (stored so DRAFT can be SENT later).
+   */
   glRevenueAccountKey String? @db.VarChar(48)
   glExpenseAccountKey String? @db.VarChar(48)
 
-  /** Set when this invoice is a reversal (typically VOID) of another invoice. */
+  /**
+   * Set when this invoice is a reversal (typically VOID) of another invoice.
+   */
   reversalOfId Int?
   reversalOf   Invoice? @relation("InvoiceReversals", fields: [reversalOfId], references: [id], onDelete: SetNull)
 
-  /** Set for CREDIT_NOTE invoices (points to the sales invoice being credited). */
+  /**
+   * Set for CREDIT_NOTE invoices (points to the sales invoice being credited).
+   */
   creditNoteForId Int?
   creditNoteFor   Invoice? @relation("InvoiceCreditNotes", fields: [creditNoteForId], references: [id], onDelete: SetNull)
 
   createdBy Int
-  creator   User @relation("UserCreatedInvoices", fields: [createdBy], references: [id], onDelete: Restrict)
+  creator   User     @relation("UserCreatedInvoices", fields: [createdBy], references: [id], onDelete: Restrict)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  /** Soft delete only; do not hard delete invoices. */
+  /**
+   * Soft delete only; do not hard delete invoices.
+   */
   isDeleted Boolean @default(false)
 
   reversalInvoices Invoice[] @relation("InvoiceReversals")
   creditNotesFor   Invoice[] @relation("InvoiceCreditNotes")
 
   lineItems InvoiceLineItem[]
-  payments   InvoicePayment[]
+  payments  InvoicePayment[]
 
   glTransactions Transaction[] @relation("InvoiceGLTransactions")
 }
@@ -796,7 +1074,7 @@ model InvoicePayment {
   glStatus InvoiceGlStatus @default(NOT_POSTED)
 
   createdBy Int
-  creator   User @relation("UserCreatedInvoicePayments", fields: [createdBy], references: [id], onDelete: Restrict)
+  creator   User     @relation("UserCreatedInvoicePayments", fields: [createdBy], references: [id], onDelete: Restrict)
   createdAt DateTime @default(now())
 
   glTransactions Transaction[] @relation("InvoicePaymentGLTransactions")
@@ -804,9 +1082,8 @@ model InvoicePayment {
 
 model InvoiceReferenceSequence {
   invoiceType InvoiceType
-  yearMonth   String @db.VarChar(7)
-  lastSeq     Int    @default(0)
+  yearMonth   String      @db.VarChar(7)
+  lastSeq     Int         @default(0)
 
   @@id([invoiceType, yearMonth])
 }
-

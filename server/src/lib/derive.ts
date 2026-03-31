@@ -30,6 +30,10 @@ function directorCapitalKey(directorId: number): string {
   return `director_capital_${directorId}`;
 }
 
+function directorTaggedKey(base: string, directorId: number): string {
+  return `${base}_${directorId}`;
+}
+
 function resolveBankKey(account: AccountKey, currency: string | null | undefined): AccountKey {
   if (account === "bank") return bankKeyForCurrency(currency);
   return account;
@@ -38,6 +42,15 @@ function resolveBankKey(account: AccountKey, currency: string | null | undefined
 function resolveCapitalKey(tx: TxForDerive): string {
   if (!tx.directorId) return "capital";
   return directorCapitalKey(tx.directorId);
+}
+
+function resolveDirectorTaggedKey(tx: TxForDerive, baseKey: string): string {
+  if (!tx.directorId) return baseKey;
+  if (baseKey === "director_loans_receivable") return directorTaggedKey("director_loans_receivable", tx.directorId);
+  if (baseKey === "directors_capital_distributions_clearing") {
+    return directorTaggedKey("director_capital_distributions_clearing", tx.directorId);
+  }
+  return baseKey;
 }
 
 function applyPair(
@@ -114,6 +127,21 @@ export function applyTransactionToBalances(balances: Record<string, number>, tx:
     if (map.credit === "side_fund") credit = sfKey;
   }
 
+  if (map.debit === "director_loans_receivable" || map.credit === "director_loans_receivable") {
+    const k = resolveDirectorTaggedKey(tx, "director_loans_receivable");
+    if (map.debit === "director_loans_receivable") debit = k;
+    if (map.credit === "director_loans_receivable") credit = k;
+  }
+
+  if (
+    map.debit === "directors_capital_distributions_clearing" ||
+    map.credit === "directors_capital_distributions_clearing"
+  ) {
+    const k = resolveDirectorTaggedKey(tx, "directors_capital_distributions_clearing");
+    if (map.debit === "directors_capital_distributions_clearing") debit = k;
+    if (map.credit === "directors_capital_distributions_clearing") credit = k;
+  }
+
   const bankResolved = resolveBankKey("bank", tx.currency);
   if (credit === bankResolved && isExpenseTxType(tx.type) && tx.expensePaymentMode === "ACCOUNTS_PAYABLE") {
     credit = "accounts_payable";
@@ -130,16 +158,52 @@ export function deriveBalances(transactions: TxForDerive[]): Balances {
   return balances;
 }
 
+export function applyDirectorEntryLinesToBalances(
+  balances: Record<string, number>,
+  entry: { currency?: string | null; directorId?: number | null },
+  lines: { side: "DEBIT" | "CREDIT"; accountKey: string; amount: number; directorId?: number | null }[]
+) {
+  const currency = entry.currency && entry.currency.length ? entry.currency : "EUR";
+  for (const l of lines) {
+    const amt = Number(l.amount || 0);
+    if (amt <= 0) continue;
+    const side = l.side;
+    const dirId = l.directorId ?? entry.directorId ?? null;
+
+    const k = (() => {
+      if (l.accountKey === "bank") return bankKeyForCurrency(currency);
+      if (l.accountKey === "capital") return dirId ? `director_capital_${dirId}` : "capital";
+      if (l.accountKey === "side_fund") return dirId ? `director_side_fund_${dirId}` : "side_fund";
+      if (l.accountKey === "director_loans_receivable") {
+        return dirId ? `director_loans_receivable_${dirId}` : "director_loans_receivable";
+      }
+      if (l.accountKey === "directors_capital_distributions_clearing") {
+        return dirId ? `director_capital_distributions_clearing_${dirId}` : "directors_capital_distributions_clearing";
+      }
+      return l.accountKey;
+    })();
+
+    if (side === "DEBIT") balances[k] = (balances[k] || 0) + amt;
+    else balances[k] = (balances[k] || 0) - amt;
+  }
+}
+
 export function sumGroup(balances: Balances, group: (typeof ACCOUNTS)[AccountKey]["group"]): number {
   let total = 0;
   for (const [k, meta] of Object.entries(ACCOUNTS) as [AccountKey, (typeof ACCOUNTS)[AccountKey]][]) {
     if (meta.group !== group) continue;
     total += Number(balances[k] || 0);
   }
+  if (group === "Assets") {
+    for (const [k, v] of Object.entries(balances)) {
+      if (/^director_loans_receivable_\d+$/.test(k)) total += Number(v) || 0;
+    }
+  }
   if (group === "Equity") {
     for (const [k, v] of Object.entries(balances)) {
       if (/^director_capital_\d+$/.test(k)) total += Number(v) || 0;
       if (/^director_side_fund_\d+$/.test(k)) total += Number(v) || 0;
+      if (/^director_capital_distributions_clearing_\d+$/.test(k)) total += Number(v) || 0;
     }
   }
   return total;

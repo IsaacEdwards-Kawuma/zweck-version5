@@ -13,7 +13,9 @@ import {
   txItems,
   getPreviewReference,
   uploadTransactionDocument,
-  reverseTransaction
+  reverseTransaction,
+  listDirectorDistributions
+  ,listDirectorLoans
 } from "../api/transactions";
 import { listDirectors } from "../api/directors";
 import { listProjects } from "../api/projects";
@@ -76,6 +78,15 @@ export default function PostTransaction() {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [description, setDescription] = useState("");
   const [externalReference, setExternalReference] = useState("");
+  const [arrearsFromMonth, setArrearsFromMonth] = useState("");
+  const [arrearsToMonth, setArrearsToMonth] = useState("");
+  const [reason, setReason] = useState("");
+  const [distributionId, setDistributionId] = useState("");
+  const [loanDate, setLoanDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [repaymentTerms, setRepaymentTerms] = useState("");
+  const [loanId, setLoanId] = useState("");
+  const [principalAmount, setPrincipalAmount] = useState("");
+  const [interestAmount, setInterestAmount] = useState("");
   const [paymentAp, setPaymentAp] = useState(false);
   const [projectId, setProjectId] = useState("");
   const [transferFrom, setTransferFrom] = useState("");
@@ -97,6 +108,23 @@ export default function PostTransaction() {
   const needsProject = needsProjectForType(type);
   const showExpensePayment = postingBucket === "EXPENSE" && isExpenseBucketType(type);
   const showTransfer = type === "INTER_ACCOUNT_TRANSFER";
+  const showArrearsRange = type === "CONTRIBUTION_ARREARS";
+  const showReason = type === "DIRECTORS_DISCIPLINARY_LEVY";
+  const showDistributionPicker = type === "CAPITAL_REINSTATEMENT";
+  const showCompanyLoan = type === "COMPANY_LOAN_TO_DIRECTOR";
+  const showLoanRepayment = type === "DIRECTOR_REPAYMENT_OF_COMPANY_LOAN";
+
+  const qDists = useQuery({
+    queryKey: ["director_distributions", directorId],
+    queryFn: async () => listDirectorDistributions(Number(directorId)),
+    enabled: showDistributionPicker && Boolean(directorId)
+  });
+
+  const qLoans = useQuery({
+    queryKey: ["director_loans", directorId],
+    queryFn: async () => listDirectorLoans(Number(directorId)),
+    enabled: showLoanRepayment && Boolean(directorId)
+  });
 
   const typeGroupsFiltered = useMemo(() => filterTxTypeGroupsForBucket(postingBucket), [postingBucket]);
 
@@ -163,6 +191,15 @@ export default function PostTransaction() {
       setAmount("");
       setDescription("");
       setExternalReference("");
+      setArrearsFromMonth("");
+      setArrearsToMonth("");
+      setReason("");
+      setDistributionId("");
+      setLoanDate(new Date().toISOString().slice(0, 10));
+      setRepaymentTerms("");
+      setLoanId("");
+      setPrincipalAmount("");
+      setInterestAmount("");
       setDocumentUrl("");
       setProjectId("");
       setTransferFrom("");
@@ -246,6 +283,11 @@ export default function PostTransaction() {
     }
     if (parsed.value <= 0) return "Amount must be greater than zero.";
     if (needsDirector && !directorId) return "Select director for this transaction type.";
+    if (showArrearsRange && (!arrearsFromMonth || !arrearsToMonth)) return "Select arrears month range (From / To).";
+    if (showReason && !reason.trim()) return "Reason is required for disciplinary levy.";
+    if (showDistributionPicker && !distributionId) return "Select distribution to reinstate.";
+    if (showCompanyLoan && (!loanDate || !repaymentTerms.trim())) return "Loan date and repayment terms are required.";
+    if (showLoanRepayment && (!loanId || !principalAmount.trim())) return "Select loan and enter principal amount.";
     if (needsProject && !projectId) return "Select a project.";
     if (showTransfer && !useManualAccounts && (!transferFrom || !transferTo)) return "Select source and destination accounts.";
     if (showTransfer && !useManualAccounts && transferFrom === transferTo) return "Source and destination must differ.";
@@ -259,6 +301,19 @@ export default function PostTransaction() {
     currency,
     needsDirector,
     directorId,
+    showArrearsRange,
+    arrearsFromMonth,
+    arrearsToMonth,
+    showReason,
+    reason,
+    showDistributionPicker,
+    distributionId,
+    showCompanyLoan,
+    loanDate,
+    repaymentTerms,
+    showLoanRepayment,
+    loanId,
+    principalAmount,
     needsProject,
     projectId,
     showTransfer,
@@ -292,6 +347,27 @@ export default function PostTransaction() {
       transferFromAccountKey: showTransfer ? transferFrom : undefined,
       transferToAccountKey: showTransfer ? transferTo : undefined
     };
+    if (showArrearsRange) {
+      base.arrearsFromMonth = arrearsFromMonth || undefined;
+      base.arrearsToMonth = arrearsToMonth || undefined;
+    }
+    if (showReason) {
+      base.reason = reason.trim() || undefined;
+    }
+    if (showDistributionPicker) {
+      base.distributionId = distributionId ? Number(distributionId) : undefined;
+    }
+    if (showCompanyLoan) {
+      base.loanDate = new Date(`${loanDate}T12:00:00.000Z`).toISOString();
+      base.repaymentTerms = repaymentTerms.trim() || undefined;
+      if (reason.trim()) base.reason = reason.trim();
+    }
+    if (showLoanRepayment) {
+      base.loanId = loanId ? Number(loanId) : undefined;
+      base.principalAmount = principalAmount ? Number(principalAmount) : undefined;
+      if (interestAmount.trim()) base.interestAmount = Number(interestAmount);
+      if (reason.trim()) base.reason = reason.trim();
+    }
     if (showExpensePayment) {
       base.expensePaymentMode = paymentAp ? "ACCOUNTS_PAYABLE" : "PAID";
     }
@@ -567,6 +643,158 @@ export default function PostTransaction() {
               </div>
               {qDirs.error ? <div className="mt-1 text-xs text-rose-700">Failed to load directors.</div> : null}
             </div>
+          ) : null}
+
+          {showArrearsRange ? (
+            <>
+              <div>
+                <label className="text-xs font-medium text-slate-700">From Month</label>
+                <input
+                  className="mt-1 w-full rounded-lg border-slate-300"
+                  value={arrearsFromMonth}
+                  onChange={(e) => setArrearsFromMonth(e.target.value)}
+                  placeholder="YYYY-MM"
+                  inputMode="numeric"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-700">To Month</label>
+                <input
+                  className="mt-1 w-full rounded-lg border-slate-300"
+                  value={arrearsToMonth}
+                  onChange={(e) => setArrearsToMonth(e.target.value)}
+                  placeholder="YYYY-MM"
+                  inputMode="numeric"
+                />
+              </div>
+            </>
+          ) : null}
+
+          {showReason ? (
+            <div className="md:col-span-2">
+              <label className="text-xs font-medium text-slate-700">Reason (required)</label>
+              <input
+                className="mt-1 w-full rounded-lg border-slate-300"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                maxLength={500}
+                placeholder="Describe the disciplinary reason"
+              />
+            </div>
+          ) : null}
+
+          {showDistributionPicker ? (
+            <div className="md:col-span-2">
+              <label className="text-xs font-medium text-slate-700">Distribution to reinstate</label>
+              <select
+                className="mt-1 w-full rounded-lg border-slate-300"
+                value={distributionId}
+                onChange={(e) => setDistributionId(e.target.value)}
+                required
+                disabled={qDists.isLoading || qDists.error}
+              >
+                <option value="">{qDists.isLoading ? "Loading distributions..." : "Select distribution..."}</option>
+                {(qDists.data || []).map((d) => (
+                  <option key={d.id} value={d.id}>
+                    #{d.id} · {String(d.distributionDate).slice(0, 10)} · Outstanding {Number(d.outstandingBalance || 0)} {d.currency}
+                  </option>
+                ))}
+              </select>
+              {qDists.error ? <div className="mt-1 text-xs text-rose-700">Failed to load distributions.</div> : null}
+              {(qDists.data || []).length === 0 && !qDists.isLoading && !qDists.error ? (
+                <div className="mt-1 text-xs text-slate-500">No open distributions for this director.</div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {showCompanyLoan ? (
+            <>
+              <div>
+                <label className="text-xs font-medium text-slate-700">Loan date</label>
+                <input
+                  type="date"
+                  className="mt-1 w-full rounded-lg border-slate-300"
+                  value={loanDate}
+                  onChange={(e) => setLoanDate(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-700">Repayment terms (required)</label>
+                <input
+                  className="mt-1 w-full rounded-lg border-slate-300"
+                  value={repaymentTerms}
+                  onChange={(e) => setRepaymentTerms(e.target.value)}
+                  maxLength={800}
+                  placeholder="e.g. 6 months, monthly instalments, due by..."
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="text-xs font-medium text-slate-700">Reason (optional)</label>
+                <input
+                  className="mt-1 w-full rounded-lg border-slate-300"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  maxLength={500}
+                  placeholder="Reason for the loan"
+                />
+              </div>
+            </>
+          ) : null}
+
+          {showLoanRepayment ? (
+            <>
+              <div className="md:col-span-2">
+                <label className="text-xs font-medium text-slate-700">Loan</label>
+                <select
+                  className="mt-1 w-full rounded-lg border-slate-300"
+                  value={loanId}
+                  onChange={(e) => setLoanId(e.target.value)}
+                  required
+                  disabled={qLoans.isLoading || qLoans.error}
+                >
+                  <option value="">{qLoans.isLoading ? "Loading loans..." : "Select loan..."}</option>
+                  {(qLoans.data || []).map((l) => (
+                    <option key={l.id} value={l.id}>
+                      #{l.id} · {String(l.loanDate).slice(0, 10)} · Outstanding {Number(l.outstandingBalance || 0)} {l.currency}
+                    </option>
+                  ))}
+                </select>
+                {qLoans.error ? <div className="mt-1 text-xs text-rose-700">Failed to load loans.</div> : null}
+                {(qLoans.data || []).length === 0 && !qLoans.isLoading && !qLoans.error ? (
+                  <div className="mt-1 text-xs text-slate-500">No open loans for this director.</div>
+                ) : null}
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-700">Principal amount</label>
+                <input
+                  className="mt-1 w-full rounded-lg border-slate-300"
+                  value={principalAmount}
+                  onChange={(e) => setPrincipalAmount(e.target.value)}
+                  placeholder="e.g. 100"
+                  inputMode="decimal"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-700">Interest amount (optional)</label>
+                <input
+                  className="mt-1 w-full rounded-lg border-slate-300"
+                  value={interestAmount}
+                  onChange={(e) => setInterestAmount(e.target.value)}
+                  placeholder="Auto = total - principal"
+                  inputMode="decimal"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="text-xs font-medium text-slate-700">Reason / note (optional)</label>
+                <input
+                  className="mt-1 w-full rounded-lg border-slate-300"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  maxLength={500}
+                  placeholder="Optional note"
+                />
+              </div>
+            </>
           ) : null}
 
           {needsProject ? (

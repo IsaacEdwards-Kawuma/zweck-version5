@@ -3,6 +3,7 @@ import { apiError } from "../lib/http.js";
 import { runMeetingReminderJob } from "../lib/meetingReminderJob.js";
 import { runInvoiceOverdueJob } from "../lib/invoiceOverdueJob.js";
 import { runMonthlyStatementReminderJob } from "../lib/monthlyStatementReminderJob.js";
+import { runDirectorReceiptPdfRetryJob } from "../lib/directorReceiptPdfJob.js";
 
 const router = Router();
 
@@ -52,6 +53,16 @@ router.post("/monthly-statement-reminders", async (req, res) => {
   if (!(await requireCronSecret(req, res))) return;
   try {
     const result = await runMonthlyStatementReminderJob();
+    return res.json(result);
+  } catch (e) {
+    return res.status(500).json(apiError(e instanceof Error ? e.message : "Job failed"));
+  }
+});
+
+router.post("/director-receipts/generate-pdfs", async (req, res) => {
+  if (!(await requireCronSecret(req, res))) return;
+  try {
+    const result = await runDirectorReceiptPdfRetryJob();
     return res.json(result);
   } catch (e) {
     return res.status(500).json(apiError(e instanceof Error ? e.message : "Job failed"));

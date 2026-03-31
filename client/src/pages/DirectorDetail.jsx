@@ -9,6 +9,7 @@ import PrintStatementHeader from "../components/PrintStatementHeader";
 import { deleteDirectorAvatar, getDirector, uploadDirectorAvatar } from "../api/directors";
 import { listInvoices } from "../api/invoices";
 import { directorAccount } from "../api/accounts";
+import { listDirectorReceipts } from "../api/directorReceipts";
 import { eur, eurCompact, fmtDate, formatMoney, formatTxRef } from "../lib/format";
 import { TX_ACCOUNT_MAP } from "../lib/transactionTypes";
 import { downloadTransactionsCsv } from "../lib/reportsAnalytics";
@@ -36,6 +37,11 @@ export default function DirectorDetail() {
   const qProfile = useQuery({ queryKey: ["director", id], queryFn: () => getDirector(id) });
   const qTotals = useQuery({ queryKey: ["director_account", id], queryFn: () => directorAccount(id) });
   const directorIdNum = Number(id);
+  const qReceipts = useQuery({
+    queryKey: ["director_receipts", directorIdNum],
+    queryFn: () => listDirectorReceipts(directorIdNum),
+    enabled: Number.isFinite(directorIdNum)
+  });
   const qLinkedInvoices = useQuery({
     queryKey: ["invoices", "linkedDirector", directorIdNum],
     queryFn: () => listInvoices({ linkedDirectorId: directorIdNum }),
@@ -373,6 +379,51 @@ export default function DirectorDetail() {
           Lists contribution, side fund, and penalty postings for this director (same rules as the API).
         </p>
         <TransactionTable rows={contributionRows} />
+      </div>
+
+      <div className="rounded-2xl ui-surface p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="text-sm font-semibold text-slate-900">Transaction receipts</div>
+            <p className="mt-0.5 text-xs text-slate-500">Printable / downloadable director transaction receipts.</p>
+          </div>
+        </div>
+        {qReceipts.isLoading ? <div className="mt-3 text-sm text-slate-500">Loading receipts…</div> : null}
+        {qReceipts.error ? <div className="mt-3 text-sm text-rose-600">Could not load receipts.</div> : null}
+        {!qReceipts.isLoading && !qReceipts.error && (qReceipts.data || []).length === 0 ? (
+          <div className="mt-3 text-sm text-slate-500">No receipts yet.</div>
+        ) : null}
+        {(qReceipts.data || []).length > 0 ? (
+          <div className="mt-3 overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead className="ui-table-head">
+                <tr>
+                  <th className="px-3 py-2">Date</th>
+                  <th className="px-3 py-2">Reference</th>
+                  <th className="px-3 py-2">PDF</th>
+                </tr>
+              </thead>
+              <tbody className="ui-table-divide">
+                {(qReceipts.data || []).map((r) => (
+                  <tr key={r.id} className="ui-table-row-hover">
+                    <td className="px-3 py-2">{fmtDate(r.transactionDate)}</td>
+                    <td className="px-3 py-2 font-mono text-xs text-slate-700">{r.receiptReference}</td>
+                    <td className="px-3 py-2">
+                      <a
+                        className="text-sm font-medium text-brand-700 hover:underline"
+                        href={`/api/director-receipts/${r.id}/pdf`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        View / print
+                      </a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
       </div>
     </div>
   );

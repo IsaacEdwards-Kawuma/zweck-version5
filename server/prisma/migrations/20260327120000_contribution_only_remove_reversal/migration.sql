@@ -1,5 +1,17 @@
 -- Remove reversing entries first (same type as original), then all non-contribution rows.
-DELETE FROM "Transaction" WHERE "reversalOfId" IS NOT NULL;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'Transaction'
+      AND column_name = 'reversalOfId'
+  ) THEN
+    EXECUTE 'DELETE FROM "Transaction" WHERE "reversalOfId" IS NOT NULL';
+  END IF;
+END
+$$;
 DELETE FROM "Transaction" WHERE type::text <> 'CONTRIBUTION';
 
 ALTER TABLE "Transaction" DROP CONSTRAINT IF EXISTS "Transaction_reversalOfId_fkey";

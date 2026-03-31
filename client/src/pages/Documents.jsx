@@ -6,7 +6,7 @@ import ErrorBanner from "../components/ErrorBanner";
 import { createDocument, deleteDocument, listDocuments, updateDocument } from "../api/documents";
 import { hasAdminPrivileges } from "../lib/roles";
 
-const CATEGORIES = ["Governance", "Legal", "Finance", "HR", "Operations", "Other"];
+const CATEGORIES = ["Governance", "Legal", "Finance", "Director Transaction Receipt", "HR", "Operations", "Other"];
 const STATUS = ["ACTIVE", "UNDER_REVIEW", "ARCHIVED"];
 
 const EMPTY_FORM = {

@@ -7,6 +7,8 @@ export const TX_TYPE_GROUPS = [
     label: "Capital & Equity",
     options: [
       { value: "CONTRIBUTION", label: "Director Capital Contribution" },
+      { value: "CONTRIBUTION_ARREARS", label: "Contribution in Arrears" },
+      { value: "SUPPLEMENTARY_CAPITAL_CONTRIBUTION", label: "Supplementary Capital Contribution" },
       { value: "CAPITAL_WITHDRAWAL", label: "Capital Withdrawal / Distribution" },
       { value: "SIDE_FUND", label: "Side fund contributions" },
       { value: "RETAINED_EARNINGS_TRANSFER", label: "Retained earnings → director capital (split)" }
@@ -59,6 +61,9 @@ export const TX_TYPE_GROUPS = [
     options: [
       { value: "DIRECTOR_LOAN_TO_COMPANY", label: "Director Loan to Company" },
       { value: "DIRECTOR_LOAN_REPAYMENT", label: "Director Loan Repayment" },
+      { value: "DIRECTORS_DISCIPLINARY_LEVY", label: "Directors’ Disciplinary Levy (fine)" },
+      { value: "COMPANY_LOAN_TO_DIRECTOR", label: "Company Loan to Director" },
+      { value: "DIRECTOR_REPAYMENT_OF_COMPANY_LOAN", label: "Director Repayment of Company Loan" },
       { value: "LOAN_IN", label: "Loan Received (External)" },
       { value: "LOAN_REPAYMENT_EXTERNAL", label: "Loan Repayment (External)" }
     ]
@@ -94,6 +99,8 @@ export function labelForTxType(type) {
 /** Preview + director requirement ΓÇö must match server `TX_ACCOUNT_MAP`. */
 export const TX_ACCOUNT_MAP = {
   CONTRIBUTION: { debit: "bank", credit: "capital", needsDirector: true },
+  CONTRIBUTION_ARREARS: { debit: "bank", credit: "capital", needsDirector: true },
+  SUPPLEMENTARY_CAPITAL_CONTRIBUTION: { debit: "bank", credit: "capital", needsDirector: true },
   CAPITAL_WITHDRAWAL: { debit: "capital", credit: "bank", needsDirector: true },
   SIDE_FUND: { debit: "bank", credit: "side_fund", needsDirector: true },
   MMF_DEPLOY: { debit: "mmf", credit: "bank", needsDirector: false },
@@ -126,6 +133,9 @@ export const TX_ACCOUNT_MAP = {
   MEALS_ENTERTAINMENT: { debit: "exp_meals", credit: "bank", needsDirector: false },
   DIRECTOR_LOAN_TO_COMPANY: { debit: "bank", credit: "director_loan_to_company", needsDirector: true },
   DIRECTOR_LOAN_REPAYMENT: { debit: "director_loan_to_company", credit: "bank", needsDirector: true },
+  DIRECTORS_DISCIPLINARY_LEVY: { debit: "capital", credit: "income_other_4290", needsDirector: true },
+  COMPANY_LOAN_TO_DIRECTOR: { debit: "director_loans_receivable", credit: "side_fund", needsDirector: true },
+  DIRECTOR_REPAYMENT_OF_COMPANY_LOAN: { debit: "bank", credit: "side_fund", needsDirector: true },
   LOAN_REPAYMENT_EXTERNAL: { debit: "loan_liability", credit: "bank", needsDirector: false },
   WITHHOLDING_TAX: { debit: "tax_wht", credit: "bank", needsDirector: false },
   VAT_PAYABLE: { debit: "tax_vat", credit: "bank", needsDirector: false },
@@ -141,6 +151,8 @@ export const ALL_TX_TYPE_VALUES = Object.keys(TX_ACCOUNT_MAP);
 /** Posting bucket per type (Income / Expense / Other). */
 export const TX_POSTING_CATEGORY = {
   CONTRIBUTION: "OTHER",
+  CONTRIBUTION_ARREARS: "OTHER",
+  SUPPLEMENTARY_CAPITAL_CONTRIBUTION: "OTHER",
   CAPITAL_WITHDRAWAL: "OTHER",
   SIDE_FUND: "OTHER",
   MMF_DEPLOY: "OTHER",
@@ -173,6 +185,9 @@ export const TX_POSTING_CATEGORY = {
   MEALS_ENTERTAINMENT: "EXPENSE",
   DIRECTOR_LOAN_TO_COMPANY: "OTHER",
   DIRECTOR_LOAN_REPAYMENT: "OTHER",
+  DIRECTORS_DISCIPLINARY_LEVY: "OTHER",
+  COMPANY_LOAN_TO_DIRECTOR: "OTHER",
+  DIRECTOR_REPAYMENT_OF_COMPANY_LOAN: "OTHER",
   LOAN_REPAYMENT_EXTERNAL: "OTHER",
   WITHHOLDING_TAX: "EXPENSE",
   VAT_PAYABLE: "EXPENSE",
@@ -212,6 +227,7 @@ export const INTER_ACCOUNT_TRANSFER_OPTIONS = [
   { value: "ypa", label: "1520 YPA Goats Project" },
   { value: "accounts_receivable", label: "1300 Accounts Receivable" },
   { value: "loan_receivable", label: "1400 Loans Extended" },
+  { value: "director_loans_receivable", label: "1410 Director Loans Receivable" },
   { value: "capex", label: "1600 Fixed Assets" },
   { value: "other_assets", label: "1700 Other Assets" },
   { value: "accounts_payable", label: "2100 Accounts Payable" },
@@ -221,6 +237,7 @@ export const INTER_ACCOUNT_TRANSFER_OPTIONS = [
   { value: "tax_wht", label: "2500 Withholding Tax Payable" },
   { value: "tax_corporate", label: "2600 Other Liabilities" },
   { value: "capital", label: "3100 Director Capital (header)" },
+  { value: "directors_capital_distributions_clearing", label: "3160 Directors’ Capital Distributions Clearing" },
   { value: "side_fund", label: "3200 Side Fund" },
   { value: "retained_earnings", label: "3300 Retained Earnings" }
 ];
@@ -233,6 +250,7 @@ const MANUAL_GL_EXTRA_OPTIONS = [
   { value: "income_interest", label: "4300 Interest income" },
   { value: "income_dividend", label: "4400 Dividend income" },
   { value: "rental_income", label: "4500 Rental income" },
+  { value: "income_other_4290", label: "4290 Other income (fines)" },
   { value: "income_other", label: "4900 Other income" },
   { value: "penalties", label: "4900 Penalties & surcharges" },
   { value: "income_fx", label: "4900 Foreign exchange gain" },

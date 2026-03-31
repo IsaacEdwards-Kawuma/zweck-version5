@@ -15,7 +15,11 @@ import {
   TX_ACCOUNT_MAP
 } from "../lib/constants.js";
 import { allocateNextReferenceNumber, peekNextReferenceNumber } from "../lib/referenceNumber.js";
+import { allocateNextDirectorReceiptReference } from "../lib/directorReferenceNumbers.js";
 import { notifyUser } from "../services/inAppNotifications.js";
+import { deriveBalances } from "../lib/derive.js";
+import { ymFromDateUtc } from "../lib/directorPosting.js";
+import { generateDirectorReceiptPdfNow } from "../lib/directorReceiptPdfJob.js";
 
 const router = Router();
 
@@ -77,6 +81,28 @@ function resolveStoredGlKey(
     const row = directorCapitalCodeById.get(id);
     const label = row?.name || (t.director?.id === id ? t.director.name : "Director");
     return { key: accountKey, code: ACCOUNTS.side_fund.code, name: `Side Fund — ${label}` };
+  }
+  const loan = /^director_loans_receivable_(\d+)$/.exec(accountKey);
+  if (loan) {
+    const id = Number(loan[1]);
+    const row = directorCapitalCodeById.get(id);
+    const label = row?.name || (t.director?.id === id ? t.director.name : "Director");
+    return {
+      key: accountKey,
+      code: ACCOUNTS.director_loans_receivable.code,
+      name: `Director Loans Receivable — ${label}`
+    };
+  }
+  const clear = /^director_capital_distributions_clearing_(\d+)$/.exec(accountKey);
+  if (clear) {
+    const id = Number(clear[1]);
+    const row = directorCapitalCodeById.get(id);
+    const label = row?.name || (t.director?.id === id ? t.director.name : "Director");
+    return {
+      key: accountKey,
+      code: ACCOUNTS.directors_capital_distributions_clearing.code,
+      name: `Capital Distributions Clearing — ${label}`
+    };
   }
   if (accountKey === "bank") {
     if (currency === "UGX") return { key: "bank_ugx", code: 1200, name: "Cash at Bank (UGX)" };
@@ -150,6 +176,40 @@ function shapeTransactionRow(
         return { key: `director_side_fund_${dirId}`, code: ACCOUNTS.side_fund.code, name: `Side Fund — ${label}` };
       }
       return { key: "side_fund", code: ACCOUNTS.side_fund.code, name: ACCOUNTS.side_fund.name };
+    }
+    if (accountKey === "director_loans_receivable") {
+      const dirId = t.director?.id;
+      if (dirId != null) {
+        const row = directorCapitalCodeById.get(dirId);
+        const label = row?.name || t.director?.name || "Director";
+        return {
+          key: `director_loans_receivable_${dirId}`,
+          code: ACCOUNTS.director_loans_receivable.code,
+          name: `Director Loans Receivable — ${label}`
+        };
+      }
+      return {
+        key: "director_loans_receivable",
+        code: ACCOUNTS.director_loans_receivable.code,
+        name: ACCOUNTS.director_loans_receivable.name
+      };
+    }
+    if (accountKey === "directors_capital_distributions_clearing") {
+      const dirId = t.director?.id;
+      if (dirId != null) {
+        const row = directorCapitalCodeById.get(dirId);
+        const label = row?.name || t.director?.name || "Director";
+        return {
+          key: `director_capital_distributions_clearing_${dirId}`,
+          code: ACCOUNTS.directors_capital_distributions_clearing.code,
+          name: `Capital Distributions Clearing — ${label}`
+        };
+      }
+      return {
+        key: "directors_capital_distributions_clearing",
+        code: ACCOUNTS.directors_capital_distributions_clearing.code,
+        name: ACCOUNTS.directors_capital_distributions_clearing.name
+      };
     }
     const meta = (ACCOUNTS as Record<string, { code: number; name: string } | undefined>)[accountKey];
     if (!meta) return { key: accountKey, code: null, name: accountKey };
@@ -332,7 +392,17 @@ const postSchema = z
     transferFromAccountKey: z.string().max(40).optional(),
     transferToAccountKey: z.string().max(40).optional(),
     manualDebitAccountKey: z.string().max(48).optional(),
-    manualCreditAccountKey: z.string().max(48).optional()
+    manualCreditAccountKey: z.string().max(48).optional(),
+    arrearsFromMonth: z.string().regex(/^\d{4}-\d{2}$/).optional(),
+    arrearsToMonth: z.string().regex(/^\d{4}-\d{2}$/).optional(),
+    reason: z.string().max(500).optional(),
+    distributionId: z.number().int().positive().optional()
+    ,
+    loanDate: z.string().datetime().optional(),
+    repaymentTerms: z.string().max(800).optional(),
+    loanId: z.number().int().positive().optional(),
+    principalAmount: z.number().nonnegative().optional(),
+    interestAmount: z.number().nonnegative().optional()
   })
   .refine((data) => validateAmountForCurrency(data.amount, data.currency), {
     message: "Amount must match currency rules (EUR/USD: max 2 decimals; UGX: whole numbers only)",
@@ -360,8 +430,10 @@ async function validateManualLedgerKeys(
   ): Promise<{ error?: string; field?: string } | undefined> {
     const cap = /^director_capital_(\d+)$/.exec(key);
     const sf = /^director_side_fund_(\d+)$/.exec(key);
-    if (cap || sf) {
-      const id = Number((cap || sf)![1]);
+    const loan = /^director_loans_receivable_(\d+)$/.exec(key);
+    const clear = /^director_capital_distributions_clearing_(\d+)$/.exec(key);
+    if (cap || sf || loan || clear) {
+      const id = Number((cap || sf || loan || clear)![1]);
       const d = await prisma.director.findUnique({ where: { id } });
       if (!d) return { error: `No director matches account key ${key}`, field };
       if (body.directorId != null && body.directorId !== id) {
@@ -409,6 +481,44 @@ async function validatePostBody(
     return { error: "directorId is required for this transaction type", field: "directorId" };
   }
 
+  if (body.type === "DIRECTORS_DISCIPLINARY_LEVY") {
+    if (!body.reason || !body.reason.trim()) {
+      return { error: "Reason is required for disciplinary levy", field: "reason" };
+    }
+  }
+
+  if (body.type === "CONTRIBUTION_ARREARS") {
+    if (!body.arrearsFromMonth) return { error: "From Month is required", field: "arrearsFromMonth" };
+    if (!body.arrearsToMonth) return { error: "To Month is required", field: "arrearsToMonth" };
+    if (body.arrearsFromMonth > body.arrearsToMonth) {
+      return { error: "From Month must be before or equal to To Month", field: "arrearsFromMonth" };
+    }
+  }
+
+  if (body.type === "CAPITAL_REINSTATEMENT") {
+    if (!body.distributionId) return { error: "distributionId is required", field: "distributionId" };
+  }
+
+  if (body.type === "COMPANY_LOAN_TO_DIRECTOR") {
+    if (!body.loanDate) return { error: "loanDate is required", field: "loanDate" };
+    if (!body.repaymentTerms || !body.repaymentTerms.trim()) {
+      return { error: "repaymentTerms is required", field: "repaymentTerms" };
+    }
+  }
+
+  if (body.type === "DIRECTOR_REPAYMENT_OF_COMPANY_LOAN") {
+    if (!body.loanId) return { error: "loanId is required", field: "loanId" };
+    if (body.principalAmount == null || body.principalAmount <= 0) {
+      return { error: "principalAmount is required", field: "principalAmount" };
+    }
+    if (body.interestAmount != null && body.interestAmount < 0) {
+      return { error: "interestAmount must be >= 0", field: "interestAmount" };
+    }
+    if (body.principalAmount > body.amount) {
+      return { error: "principalAmount cannot exceed total amount received", field: "principalAmount" };
+    }
+  }
+
   if (body.type === "PROJECT_REVENUE" || body.type === "PROJECT_DISBURSEMENT") {
     if (!body.projectId) return { error: "projectId is required for this transaction type", field: "projectId" };
   }
@@ -437,6 +547,43 @@ async function validatePostBody(
 
   return {};
 }
+
+router.get("/director-distributions", requireRole("DIRECTOR"), async (req, res) => {
+  const directorId = Number(req.query.directorId);
+  if (!Number.isFinite(directorId)) return res.status(400).json(apiError("Invalid directorId"));
+  const rows = await prisma.directorCapitalDistribution.findMany({
+    where: { directorId, status: { in: ["OPEN", "PARTIALLY_REINSTATED"] } },
+    orderBy: { distributionDate: "desc" },
+    select: {
+      id: true,
+      distributionDate: true,
+      totalAmount: true,
+      outstandingBalance: true,
+      currency: true,
+      status: true
+    }
+  });
+  return res.json(rows);
+});
+
+router.get("/director-loans", requireRole("DIRECTOR"), async (req, res) => {
+  const directorId = Number(req.query.directorId);
+  if (!Number.isFinite(directorId)) return res.status(400).json(apiError("Invalid directorId"));
+  const rows = await prisma.companyLoanToDirector.findMany({
+    where: { directorId, status: { in: ["OPEN", "PARTIALLY_REPAID"] } },
+    orderBy: { loanDate: "desc" },
+    select: {
+      id: true,
+      loanDate: true,
+      principalAmount: true,
+      outstandingBalance: true,
+      currency: true,
+      repaymentTerms: true,
+      status: true
+    }
+  });
+  return res.json(rows);
+});
 
 const updateSchema = z
   .object({
@@ -781,6 +928,24 @@ router.post("/", validateBody(postSchema), async (req, res) => {
 
   const sideChunk = sideFundAllocationFor(body.currency);
 
+  function monthDiffInclusive(fromYm: string, toYm: string): number {
+    const m1 = /^(\d{4})-(\d{2})$/.exec(fromYm);
+    const m2 = /^(\d{4})-(\d{2})$/.exec(toYm);
+    const fy = m1 ? Number(m1[1]) : NaN;
+    const fm = m1 ? Number(m1[2]) : NaN;
+    const ty = m2 ? Number(m2[1]) : NaN;
+    const tm = m2 ? Number(m2[2]) : NaN;
+    if (!Number.isFinite(fy) || !Number.isFinite(fm) || !Number.isFinite(ty) || !Number.isFinite(tm)) return 0;
+    if (fm < 1 || fm > 12 || tm < 1 || tm > 12) return 0;
+    return (ty - fy) * 12 + (tm - fm) + 1;
+  }
+
+  function receiptPrefixForDirectorTxType(t: TxType): "CCR" | "FNE" {
+    if (t === "DIRECTORS_DISCIPLINARY_LEVY") return "FNE";
+    // monthly contribution / arrears / supplementary / reinstatement all use CCR family
+    return "CCR";
+  }
+
   if (body.type === "CONTRIBUTION" && body.directorId && !hasManualPosting) {
     if (body.amount <= sideChunk) {
       return res.status(400).json(
@@ -794,21 +959,45 @@ router.post("/", validateBody(postSchema), async (req, res) => {
     const mainAmount = body.amount - sideChunk;
     const sideAmount = sideChunk;
 
-    const refMain = await allocateNextReferenceNumber();
+    const receiptRef = await allocateNextDirectorReceiptReference({ prefix: "CCR", date: dt });
     const refSide = await allocateNextReferenceNumber();
 
-    const [mainTx] = await prisma.$transaction([
-      prisma.transaction.create({
+    const mainTx = await prisma.$transaction(async (tx) => {
+      const batch = await tx.directorTransactionBatch.create({
+        data: {
+          directorId: body.directorId!,
+          typeKey: "CCR",
+          receiptReference: receiptRef,
+          periodMonth: ymFromDateUtc(dt),
+          transactionDate: dt,
+          totalAmount: new Prisma.Decimal(body.amount),
+          currency: body.currency,
+          meta: {
+            receiptType: "Monthly Capital Contribution",
+            kind: "CONTRIBUTION",
+            currency: body.currency,
+            amount: body.amount,
+            sideFundDeduction: sideAmount,
+            capitalCredited: mainAmount,
+            glReference: receiptRef
+          } as any,
+          createdBy: req.user!.id
+        }
+      });
+
+      const tMain = await tx.transaction.create({
         data: {
           ...commonData,
-          referenceNumber: refMain,
+          referenceNumber: receiptRef,
           type: "CONTRIBUTION",
           date: dt,
           amount: mainAmount,
-          directorId: body.directorId
+          directorId: body.directorId,
+          directorTransactionBatchId: batch.id
         }
-      }),
-      prisma.transaction.create({
+      });
+
+      await tx.transaction.create({
         data: {
           ...commonData,
           referenceNumber: refSide,
@@ -817,35 +1006,1226 @@ router.post("/", validateBody(postSchema), async (req, res) => {
           amount: sideAmount,
           description:
             body.description ?? `Automatic side fund allocation (${sideAmount} ${body.currency}) from contribution`,
-          directorId: body.directorId
+          directorId: body.directorId,
+          directorTransactionBatchId: batch.id
         }
-      }),
-      prisma.auditLog.create({
+      });
+
+      const receipt = await tx.directorReceipt.create({
+        data: {
+          directorId: body.directorId!,
+          transactionBatchId: batch.id,
+          primaryTransactionId: tMain.id,
+          receiptReference: receiptRef,
+          periodMonth: ymFromDateUtc(dt),
+          transactionDate: dt,
+          meta: {
+            receiptType: "Monthly Capital Contribution",
+            kind: "CONTRIBUTION",
+            currency: body.currency,
+            amount: body.amount,
+            sideFundDeduction: sideAmount,
+            capitalCredited: mainAmount,
+            glReference: receiptRef
+          } as any
+        }
+      });
+
+      await tx.documentRegister.create({
+        data: {
+          title: `Director Transaction Receipt — ${receiptRef}`,
+          category: "Director Transaction Receipt",
+          reference: receiptRef,
+          owner: "Finance",
+          confidentiality: "Internal",
+          status: "ACTIVE",
+          url: `/api/director-receipts/${receipt.id}/pdf`,
+          directorId: body.directorId,
+          transactionId: tMain.id,
+          receiptReference: receiptRef,
+          createdById: req.user!.id,
+          updatedById: req.user!.id
+        }
+      });
+
+      await tx.auditLog.create({
         data: {
           userId: req.user!.id,
           action: "CREATE_CONTRIBUTION_SPLIT",
           entityType: "Transaction",
-          entityId: 0,
+          entityId: tMain.id,
           before: Prisma.JsonNull,
           after: {
             contributionAmount: mainAmount,
             sideFundAmount: sideAmount,
             directorId: body.directorId,
-            currency: body.currency
+            currency: body.currency,
+            receiptReference: receiptRef
           } as unknown as Prisma.InputJsonValue
         }
-      })
-    ]);
+      });
+
+      return tMain;
+    });
 
     await notifyUser(
       req.user!.id,
       "TX_POSTED",
       "Transaction posted",
-      `Reference ${refMain} · ${body.amount} ${body.currency}`,
+      `Reference ${receiptRef} · ${body.amount} ${body.currency}`,
       "/ledger"
     );
 
-    return res.status(201).json({ id: mainTx.id, referenceNumber: refMain });
+    void prisma.directorReceipt
+      .findUnique({ where: { receiptReference: receiptRef }, select: { id: true } })
+      .then((r) => (r ? generateDirectorReceiptPdfNow(r.id) : undefined))
+      .catch(() => {});
+
+    return res.status(201).json({ id: mainTx.id, referenceNumber: receiptRef });
+  }
+
+  if (body.type === "CONTRIBUTION_ARREARS" && body.directorId && !hasManualPosting) {
+    const months = monthDiffInclusive(body.arrearsFromMonth!, body.arrearsToMonth!);
+    if (months <= 0) {
+      return res.status(400).json(apiError("Invalid month range", "arrearsFromMonth"));
+    }
+    const sideFundDeduction = months * sideChunk;
+    if (body.amount < sideFundDeduction) {
+      return res.status(400).json(
+        apiError(
+          `Total amount must be at least ${sideFundDeduction} ${body.currency} to cover side fund deductions for ${months} months.`,
+          "amount"
+        )
+      );
+    }
+
+    const capitalCredited = body.amount - sideFundDeduction;
+    const receiptRef = await allocateNextDirectorReceiptReference({ prefix: "CCR", date: dt });
+    const refSide = await allocateNextReferenceNumber();
+    const mainTx = await prisma.$transaction(async (tx) => {
+      const batch = await tx.directorTransactionBatch.create({
+        data: {
+          directorId: body.directorId!,
+          typeKey: "CCR",
+          receiptReference: receiptRef,
+          periodMonth: ymFromDateUtc(dt),
+          transactionDate: dt,
+          totalAmount: new Prisma.Decimal(body.amount),
+          currency: body.currency,
+          meta: {
+            kind: "CONTRIBUTION_ARREARS",
+            currency: body.currency,
+            amount: body.amount,
+            perMonthSideFund: sideChunk,
+            months,
+            periodCovered: `${body.arrearsFromMonth} to ${body.arrearsToMonth}`,
+            sideFundDeduction,
+            capitalCredited,
+            glReference: receiptRef
+          } as any,
+          createdBy: req.user!.id
+        }
+      });
+
+      const tMain = await tx.transaction.create({
+        data: {
+          ...commonData,
+          referenceNumber: receiptRef,
+          type: "CONTRIBUTION_ARREARS",
+          date: dt,
+          amount: capitalCredited,
+          directorId: body.directorId,
+          directorTransactionBatchId: batch.id
+        }
+      });
+
+      await tx.transaction.create({
+        data: {
+          ...commonData,
+          referenceNumber: refSide,
+          type: "SIDE_FUND",
+          date: dt,
+          amount: sideFundDeduction,
+          description:
+            body.description ??
+            `Side fund deductions (${months} months × ${sideChunk} ${body.currency}) for arrears ${body.arrearsFromMonth} to ${body.arrearsToMonth}`,
+          directorId: body.directorId,
+          directorTransactionBatchId: batch.id
+        }
+      });
+
+      await tx.directorReceipt.create({
+        data: {
+          directorId: body.directorId!,
+          transactionBatchId: batch.id,
+          primaryTransactionId: tMain.id,
+          receiptReference: receiptRef,
+          periodMonth: ymFromDateUtc(dt),
+          transactionDate: dt,
+          meta: {
+            receiptType: "Contribution in Arrears",
+            kind: "CONTRIBUTION_ARREARS",
+            currency: body.currency,
+            amount: body.amount,
+            months,
+            monthRange: `${body.arrearsFromMonth} to ${body.arrearsToMonth}`,
+            perMonthSideFund: sideChunk,
+            sideFundDeduction,
+            capitalCredited,
+            glReference: receiptRef
+          } as any
+        }
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId: req.user!.id,
+          action: "CREATE_CONTRIBUTION_ARREARS_SPLIT",
+          entityType: "Transaction",
+          entityId: tMain.id,
+          before: Prisma.JsonNull,
+          after: {
+            directorId: body.directorId,
+            currency: body.currency,
+            fromMonth: body.arrearsFromMonth,
+            toMonth: body.arrearsToMonth,
+            months,
+            totalReceived: body.amount,
+            sideFundDeduction,
+            capitalCredited,
+            receiptReference: receiptRef
+          } as unknown as Prisma.InputJsonValue
+        }
+      });
+
+      return tMain;
+    });
+
+    await notifyUser(
+      req.user!.id,
+      "TX_POSTED",
+      "Transaction posted",
+      `Reference ${receiptRef} · ${body.amount} ${body.currency}`,
+      "/ledger"
+    );
+
+    // Non-blocking: generate receipt PDF (retry via cron job if it fails).
+    void prisma.directorReceipt
+      .findUnique({ where: { receiptReference: receiptRef }, select: { id: true } })
+      .then((r) => (r ? generateDirectorReceiptPdfNow(r.id) : undefined))
+      .catch(() => {});
+
+    return res.status(201).json({ id: mainTx.id, referenceNumber: receiptRef });
+  }
+
+  if (body.type === "SUPPLEMENTARY_CAPITAL_CONTRIBUTION" && body.directorId && !hasManualPosting) {
+    const ref = await allocateNextDirectorReceiptReference({ prefix: "CCR", date: dt });
+    const tx = await prisma.$transaction(async (tx) => {
+      const batch = await tx.directorTransactionBatch.create({
+        data: {
+          directorId: body.directorId!,
+          typeKey: "CCR",
+          receiptReference: ref,
+          periodMonth: ymFromDateUtc(dt),
+          transactionDate: dt,
+          totalAmount: new Prisma.Decimal(body.amount),
+          currency: body.currency,
+          meta: { kind: "SUPPLEMENTARY_CAPITAL_CONTRIBUTION", currency: body.currency, amount: body.amount, glReference: ref } as any,
+          createdBy: req.user!.id
+        }
+      });
+      const trow = await tx.transaction.create({
+        data: {
+          ...commonData,
+          referenceNumber: ref,
+          type: "SUPPLEMENTARY_CAPITAL_CONTRIBUTION",
+          date: dt,
+          amount: body.amount,
+          directorId: body.directorId,
+          directorTransactionBatchId: batch.id
+        }
+      });
+      const receipt = await tx.directorReceipt.create({
+        data: {
+          directorId: body.directorId!,
+          transactionBatchId: batch.id,
+          primaryTransactionId: trow.id,
+          receiptReference: ref,
+          periodMonth: ymFromDateUtc(dt),
+          transactionDate: dt,
+          meta: {
+            receiptType: "Supplementary Capital Contribution",
+            kind: "SUPPLEMENTARY_CAPITAL_CONTRIBUTION",
+            currency: body.currency,
+            amount: body.amount,
+            glReference: ref
+          } as any
+        }
+      });
+      await tx.documentRegister.create({
+        data: {
+          title: `Director Transaction Receipt — ${ref}`,
+          category: "Director Transaction Receipt",
+          reference: ref,
+          owner: "Finance",
+          confidentiality: "Internal",
+          status: "ACTIVE",
+          url: `/api/director-receipts/${receipt.id}/pdf`,
+          directorId: body.directorId,
+          transactionId: trow.id,
+          receiptReference: ref,
+          createdById: req.user!.id,
+          updatedById: req.user!.id
+        }
+      });
+      await tx.auditLog.create({
+        data: {
+          userId: req.user!.id,
+          action: "CREATE_TRANSACTION",
+          entityType: "Transaction",
+          entityId: trow.id,
+          before: Prisma.JsonNull,
+          after: { ...trow, receiptReference: ref } as unknown as Prisma.InputJsonValue
+        }
+      });
+      return trow;
+    });
+    await notifyUser(
+      req.user!.id,
+      "TX_POSTED",
+      "Transaction posted",
+      `Reference ${ref} · ${body.amount} ${body.currency}`,
+      "/ledger"
+    );
+    void prisma.directorReceipt
+      .findUnique({ where: { receiptReference: ref }, select: { id: true } })
+      .then((r) => (r ? generateDirectorReceiptPdfNow(r.id) : undefined))
+      .catch(() => {});
+    return res.status(201).json({ id: tx.id, referenceNumber: ref });
+  }
+
+  if (body.type === "DIRECTORS_DISCIPLINARY_LEVY" && body.directorId && !hasManualPosting) {
+    const ref = await allocateNextDirectorReceiptReference({ prefix: "FNE", date: dt });
+    const tx = await prisma.$transaction(async (tx) => {
+      const batch = await tx.directorTransactionBatch.create({
+        data: {
+          directorId: body.directorId!,
+          typeKey: "FNE",
+          receiptReference: ref,
+          periodMonth: ymFromDateUtc(dt),
+          transactionDate: dt,
+          totalAmount: new Prisma.Decimal(body.amount),
+          currency: body.currency,
+          meta: { kind: "DIRECTORS_DISCIPLINARY_LEVY", currency: body.currency, amount: body.amount, reason: body.reason, glReference: ref } as any,
+          createdBy: req.user!.id
+        }
+      });
+      const trow = await tx.transaction.create({
+        data: {
+          ...commonData,
+          referenceNumber: ref,
+          type: "DIRECTORS_DISCIPLINARY_LEVY",
+          date: dt,
+          amount: body.amount,
+          directorId: body.directorId,
+          directorTransactionBatchId: batch.id,
+          description: body.reason?.trim() || body.description || null
+        }
+      });
+      const receipt = await tx.directorReceipt.create({
+        data: {
+          directorId: body.directorId!,
+          transactionBatchId: batch.id,
+          primaryTransactionId: trow.id,
+          receiptReference: ref,
+          periodMonth: ymFromDateUtc(dt),
+          transactionDate: dt,
+          meta: {
+            receiptType: "Directors’ Disciplinary Levy",
+            kind: "DIRECTORS_DISCIPLINARY_LEVY",
+            currency: body.currency,
+            amount: body.amount,
+            reason: body.reason?.trim(),
+            glReference: ref
+          } as any
+        }
+      });
+      await tx.documentRegister.create({
+        data: {
+          title: `Director Transaction Receipt — ${ref}`,
+          category: "Director Transaction Receipt",
+          reference: ref,
+          owner: "Finance",
+          confidentiality: "Internal",
+          status: "ACTIVE",
+          url: `/api/director-receipts/${receipt.id}/pdf`,
+          directorId: body.directorId,
+          transactionId: trow.id,
+          receiptReference: ref,
+          createdById: req.user!.id,
+          updatedById: req.user!.id
+        }
+      });
+      await tx.auditLog.create({
+        data: {
+          userId: req.user!.id,
+          action: "CREATE_TRANSACTION",
+          entityType: "Transaction",
+          entityId: trow.id,
+          before: Prisma.JsonNull,
+          after: { ...trow, reason: body.reason?.trim(), receiptReference: ref } as unknown as Prisma.InputJsonValue
+        }
+      });
+      return trow;
+    });
+    await notifyUser(
+      req.user!.id,
+      "TX_POSTED",
+      "Transaction posted",
+      `Reference ${ref} · ${body.amount} ${body.currency}`,
+      "/ledger"
+    );
+    void prisma.directorReceipt
+      .findUnique({ where: { receiptReference: ref }, select: { id: true } })
+      .then((r) => (r ? generateDirectorReceiptPdfNow(r.id) : undefined))
+      .catch(() => {});
+    return res.status(201).json({ id: tx.id, referenceNumber: ref });
+  }
+
+  if (body.type === "DIRECTORS_CAPITAL_DISTRIBUTION" && body.directorId && !hasManualPosting) {
+    const receiptRef = await allocateNextDirectorReceiptReference({ prefix: "WDR", date: dt });
+    const bankKey = body.currency === "UGX" ? "bank_ugx" : body.currency === "USD" ? "bank_usd" : "bank_eur";
+    const clearKey = `director_capital_distributions_clearing_${body.directorId}`;
+
+    const txRow = await prisma.$transaction(async (tx) => {
+      const dist = await tx.directorCapitalDistribution.create({
+        data: {
+          directorId: body.directorId!,
+          distributionDate: dt,
+          totalAmount: new Prisma.Decimal(body.amount),
+          currency: body.currency,
+          outstandingBalance: new Prisma.Decimal(body.amount),
+          status: "OPEN",
+          createdBy: req.user!.id
+        }
+      });
+
+      const batch = await tx.directorTransactionBatch.create({
+        data: {
+          directorId: body.directorId!,
+          typeKey: "WDR",
+          receiptReference: receiptRef,
+          periodMonth: ymFromDateUtc(dt),
+          transactionDate: dt,
+          totalAmount: new Prisma.Decimal(body.amount),
+          currency: body.currency,
+          meta: {
+            receiptType: "Directors’ Capital Distribution",
+            kind: "DIRECTORS_CAPITAL_DISTRIBUTION",
+            currency: body.currency,
+            amount: body.amount,
+            distributionId: dist.id,
+            outstandingBalance: body.amount,
+            glReference: receiptRef
+          } as any,
+          createdBy: req.user!.id
+        }
+      });
+
+      const trow = await tx.transaction.create({
+        data: {
+          ...commonData,
+          referenceNumber: receiptRef,
+          type: "DIRECTORS_CAPITAL_DISTRIBUTION",
+          date: dt,
+          amount: body.amount,
+          directorId: body.directorId,
+          directorTransactionBatchId: batch.id,
+          manualDebitAccountKey: clearKey,
+          manualCreditAccountKey: bankKey,
+          description: body.description ?? `Directors’ capital distribution (clearing outstanding)`
+        }
+      });
+
+      await tx.directorCapitalDistribution.update({
+        where: { id: dist.id },
+        data: { transactionBatchId: batch.id, primaryTransactionId: trow.id }
+      });
+
+      const receipt = await tx.directorReceipt.create({
+        data: {
+          directorId: body.directorId!,
+          transactionBatchId: batch.id,
+          primaryTransactionId: trow.id,
+          receiptReference: receiptRef,
+          periodMonth: ymFromDateUtc(dt),
+          transactionDate: dt,
+          meta: {
+            receiptType: "Directors’ Capital Distribution",
+            kind: "DIRECTORS_CAPITAL_DISTRIBUTION",
+            currency: body.currency,
+            amount: body.amount,
+            outstandingBalance: body.amount,
+            glReference: receiptRef
+          } as any
+        }
+      });
+
+      await tx.documentRegister.create({
+        data: {
+          title: `Director Transaction Receipt — ${receiptRef}`,
+          category: "Director Transaction Receipt",
+          reference: receiptRef,
+          owner: "Finance",
+          confidentiality: "Internal",
+          status: "ACTIVE",
+          url: `/api/director-receipts/${receipt.id}/pdf`,
+          directorId: body.directorId,
+          transactionId: trow.id,
+          receiptReference: receiptRef,
+          createdById: req.user!.id,
+          updatedById: req.user!.id
+        }
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId: req.user!.id,
+          action: "CREATE_CAPITAL_DISTRIBUTION",
+          entityType: "DirectorCapitalDistribution",
+          entityId: dist.id,
+          before: Prisma.JsonNull,
+          after: { directorId: body.directorId, amount: body.amount, currency: body.currency, receiptReference: receiptRef } as unknown as Prisma.InputJsonValue
+        }
+      });
+
+      return trow;
+    });
+
+    await notifyUser(
+      req.user!.id,
+      "TX_POSTED",
+      "Transaction posted",
+      `Reference ${receiptRef} · ${body.amount} ${body.currency}`,
+      "/ledger"
+    );
+    void prisma.directorReceipt
+      .findUnique({ where: { receiptReference: receiptRef }, select: { id: true } })
+      .then((r) => (r ? generateDirectorReceiptPdfNow(r.id) : undefined))
+      .catch(() => {});
+    return res.status(201).json({ id: txRow.id, referenceNumber: receiptRef });
+  }
+
+  if (body.type === "CAPITAL_REINSTATEMENT" && body.directorId != null && body.distributionId && !hasManualPosting) {
+    const directorId = body.directorId;
+    const dist = await prisma.directorCapitalDistribution.findUnique({ where: { id: body.distributionId } });
+    if (!dist || dist.directorId !== directorId) {
+      return res.status(400).json(apiError("Invalid distribution selection", "distributionId"));
+    }
+    const ob = Number(dist.outstandingBalance || 0);
+    if (body.amount > ob + 1e-9) {
+      return res.status(400).json(apiError("Reinstatement amount exceeds outstanding balance", "amount"));
+    }
+
+    const ref = await allocateNextDirectorReceiptReference({ prefix: "CCR", date: dt });
+    const bankKey = body.currency === "UGX" ? "bank_ugx" : body.currency === "USD" ? "bank_usd" : "bank_eur";
+    const clearKey = `director_capital_distributions_clearing_${directorId}`;
+
+    const reinstated = new Prisma.Decimal(body.amount);
+    const nextOutstanding = new Prisma.Decimal(dist.outstandingBalance).minus(reinstated);
+    const nextStatus =
+      nextOutstanding.toNumber() <= 0
+        ? "FULLY_REINSTATED"
+        : nextOutstanding.toNumber() < new Prisma.Decimal(dist.totalAmount).toNumber()
+          ? "PARTIALLY_REINSTATED"
+          : "OPEN";
+
+    const txRow = await prisma.$transaction(async (tx) => {
+      const batch = await tx.directorTransactionBatch.create({
+        data: {
+          directorId,
+          typeKey: "CCR",
+          receiptReference: ref,
+          periodMonth: ymFromDateUtc(dt),
+          transactionDate: dt,
+          totalAmount: new Prisma.Decimal(body.amount),
+          currency: body.currency,
+          meta: {
+            receiptType: "Capital Reinstatement",
+            kind: "CAPITAL_REINSTATEMENT",
+            currency: body.currency,
+            amount: body.amount,
+            distributionId: dist.id,
+            originalAmount: dist.totalAmount,
+            originalDistributionDate: dist.distributionDate?.toISOString?.().slice(0, 10),
+            outstandingBalance: nextOutstanding,
+            glReference: ref
+          } as any,
+          createdBy: req.user!.id
+        }
+      });
+      const trow = await tx.transaction.create({
+        data: {
+          ...commonData,
+          referenceNumber: ref,
+          type: "CAPITAL_REINSTATEMENT",
+          date: dt,
+          amount: body.amount,
+          directorId,
+          directorTransactionBatchId: batch.id,
+          manualDebitAccountKey: bankKey,
+          manualCreditAccountKey: clearKey,
+          description: body.description ?? `Capital reinstatement against distribution #${dist.id}`
+        }
+      });
+      await tx.directorCapitalReinstatement.create({
+        data: {
+          directorId,
+          distributionId: dist.id,
+          date: dt,
+          amount: reinstated,
+          currency: body.currency,
+          transactionBatchId: batch.id,
+          primaryTransactionId: trow.id,
+          createdBy: req.user!.id
+        }
+      });
+      await tx.directorCapitalDistribution.update({
+        where: { id: dist.id },
+        data: {
+          outstandingBalance: nextOutstanding,
+          status: nextStatus
+        }
+      });
+      const receipt = await tx.directorReceipt.create({
+        data: {
+          directorId,
+          transactionBatchId: batch.id,
+          primaryTransactionId: trow.id,
+          receiptReference: ref,
+          periodMonth: ymFromDateUtc(dt),
+          transactionDate: dt,
+          meta: {
+            receiptType: "Capital Reinstatement",
+            kind: "CAPITAL_REINSTATEMENT",
+            currency: body.currency,
+            amount: body.amount,
+            originalAmount: dist.totalAmount,
+            originalDistributionDate: dist.distributionDate?.toISOString?.().slice(0, 10),
+            outstandingBalance: nextOutstanding,
+            glReference: ref
+          } as any
+        }
+      });
+      await tx.documentRegister.create({
+        data: {
+          title: `Director Transaction Receipt — ${ref}`,
+          category: "Director Transaction Receipt",
+          reference: ref,
+          owner: "Finance",
+          confidentiality: "Internal",
+          status: "ACTIVE",
+          url: `/api/director-receipts/${receipt.id}/pdf`,
+          directorId,
+          transactionId: trow.id,
+          receiptReference: ref,
+          createdById: req.user!.id,
+          updatedById: req.user!.id
+        }
+      });
+      await tx.auditLog.create({
+        data: {
+          userId: req.user!.id,
+          action: "CREATE_CAPITAL_REINSTATEMENT",
+          entityType: "DirectorCapitalDistribution",
+          entityId: dist.id,
+          before: { outstandingBalance: dist.outstandingBalance, status: dist.status } as any,
+          after: { outstandingBalance: nextOutstanding, status: nextStatus, ref } as any
+        }
+      });
+      return trow;
+    });
+
+    await notifyUser(
+      req.user!.id,
+      "TX_POSTED",
+      "Transaction posted",
+      `Reference ${ref} · ${body.amount} ${body.currency}`,
+      "/ledger"
+    );
+    void prisma.directorReceipt
+      .findUnique({ where: { receiptReference: ref }, select: { id: true } })
+      .then((r) => (r ? generateDirectorReceiptPdfNow(r.id) : undefined))
+      .catch(() => {});
+    return res.status(201).json({ id: txRow.id, referenceNumber: ref });
+  }
+
+  if (body.type === "COMPANY_LOAN_TO_DIRECTOR" && body.directorId != null && !hasManualPosting) {
+    const directorId = body.directorId;
+    const loanDt = new Date(body.loanDate!);
+    if (Number.isNaN(loanDt.getTime())) return res.status(400).json(apiError("Invalid loanDate", "loanDate"));
+
+    // Side fund sufficiency check (best-effort based on derived balances).
+    const allForDerive = await prisma.transaction.findMany({
+      select: {
+        type: true,
+        amount: true,
+        currency: true,
+        directorId: true,
+        postingStatus: true,
+        reversalOfId: true,
+        expensePaymentMode: true,
+        transferFromAccountKey: true,
+        transferToAccountKey: true,
+        manualDebitAccountKey: true,
+        manualCreditAccountKey: true
+      }
+    });
+    const balances = deriveBalances(allForDerive as any);
+    const b = balances as Record<string, number>;
+    const sideFundAvailable =
+      Number(b.side_fund || 0) +
+      Object.entries(b)
+        .filter(([k]) => /^director_side_fund_\d+$/.test(k))
+        .reduce((s, [, v]) => s + Number(v || 0), 0);
+
+    if (body.amount > sideFundAvailable + 1e-9) {
+      return res
+        .status(400)
+        .json(
+          apiError(
+            `Side Fund is insufficient to cover this loan. Available Side Fund balance: ${sideFundAvailable} (derived).`,
+            "amount"
+          )
+        );
+    }
+
+    const ref = await allocateNextDirectorReceiptReference({ prefix: "CLN", date: loanDt });
+    const loanKey = `director_loans_receivable_${directorId}`;
+
+    const tx = await prisma.$transaction(async (tx) => {
+      const loan = await tx.companyLoanToDirector.create({
+        data: {
+          directorId,
+          loanDate: loanDt,
+          principalAmount: new Prisma.Decimal(body.amount),
+          currency: body.currency,
+          repaymentTerms: body.repaymentTerms!.trim(),
+          reason: (body.reason || body.description || "").trim() || null,
+          outstandingBalance: new Prisma.Decimal(body.amount),
+          totalInterestPaid: new Prisma.Decimal(0),
+          status: "OPEN",
+          createdBy: req.user!.id
+        }
+      });
+      const batch = await tx.directorTransactionBatch.create({
+        data: {
+          directorId,
+          typeKey: "CLN",
+          receiptReference: ref,
+          periodMonth: ymFromDateUtc(loanDt),
+          transactionDate: loanDt,
+          totalAmount: new Prisma.Decimal(body.amount),
+          currency: body.currency,
+          meta: {
+            receiptType: "Company Loan to Director",
+            kind: "COMPANY_LOAN_TO_DIRECTOR",
+            currency: body.currency,
+            amount: body.amount,
+            repaymentTerms: body.repaymentTerms!.trim(),
+            outstandingBalance: body.amount,
+            glReference: ref
+          } as any,
+          createdBy: req.user!.id
+        }
+      });
+      const trow = await tx.transaction.create({
+        data: {
+          ...commonData,
+          referenceNumber: ref,
+          type: "COMPANY_LOAN_TO_DIRECTOR",
+          date: loanDt,
+          amount: body.amount,
+          directorId,
+          directorTransactionBatchId: batch.id,
+          manualDebitAccountKey: loanKey,
+          manualCreditAccountKey: "side_fund",
+          description: body.description ?? `Company loan to director (from side fund)`
+        }
+      });
+      await tx.companyLoanToDirector.update({
+        where: { id: loan.id },
+        data: { primaryTransactionId: trow.id, transactionBatchId: batch.id }
+      });
+      const receipt = await tx.directorReceipt.create({
+        data: {
+          directorId,
+          transactionBatchId: batch.id,
+          primaryTransactionId: trow.id,
+          receiptReference: ref,
+          periodMonth: ymFromDateUtc(loanDt),
+          transactionDate: loanDt,
+          meta: {
+            receiptType: "Company Loan to Director",
+            kind: "COMPANY_LOAN_TO_DIRECTOR",
+            currency: body.currency,
+            amount: body.amount,
+            repaymentTerms: body.repaymentTerms!.trim(),
+            outstandingBalance: body.amount,
+            glReference: ref
+          } as any
+        }
+      });
+      await tx.documentRegister.create({
+        data: {
+          title: `Director Transaction Receipt — ${ref}`,
+          category: "Director Transaction Receipt",
+          reference: ref,
+          owner: "Finance",
+          confidentiality: "Internal",
+          status: "ACTIVE",
+          url: `/api/director-receipts/${receipt.id}/pdf`,
+          directorId,
+          transactionId: trow.id,
+          receiptReference: ref,
+          createdById: req.user!.id,
+          updatedById: req.user!.id
+        }
+      });
+      await tx.auditLog.create({
+        data: {
+          userId: req.user!.id,
+          action: "CREATE_COMPANY_LOAN_TO_DIRECTOR",
+          entityType: "CompanyLoanToDirector",
+          entityId: loan.id,
+          before: Prisma.JsonNull,
+          after: { loanId: loan.id, directorId, amount: body.amount, currency: body.currency, ref } as any
+        }
+      });
+      return trow;
+    });
+
+    await notifyUser(
+      req.user!.id,
+      "TX_POSTED",
+      "Transaction posted",
+      `Reference ${ref} · ${body.amount} ${body.currency}`,
+      "/ledger"
+    );
+    void prisma.directorReceipt
+      .findUnique({ where: { receiptReference: ref }, select: { id: true } })
+      .then((r) => (r ? generateDirectorReceiptPdfNow(r.id) : undefined))
+      .catch(() => {});
+    return res.status(201).json({ id: tx.id, referenceNumber: ref });
+  }
+
+  if (body.type === "DIRECTOR_REPAYMENT_OF_COMPANY_LOAN" && body.directorId != null && body.loanId && !hasManualPosting) {
+    const directorId = body.directorId;
+    const loan = await prisma.companyLoanToDirector.findUnique({ where: { id: body.loanId } });
+    if (!loan || loan.directorId !== directorId) {
+      return res.status(400).json(apiError("Invalid loan selection", "loanId"));
+    }
+
+    const outstanding = Number(loan.outstandingBalance || 0);
+    const principal = Number(body.principalAmount || 0);
+    const interest = body.interestAmount != null ? Number(body.interestAmount) : Number(body.amount) - principal;
+    if (interest < -1e-9) {
+      return res.status(400).json(apiError("Interest amount cannot be negative", "interestAmount"));
+    }
+    if (principal > outstanding + 1e-9) {
+      return res.status(400).json(apiError("Principal cannot exceed outstanding loan balance", "principalAmount"));
+    }
+
+    const ref = await allocateNextDirectorReceiptReference({ prefix: "CLR", date: dt });
+    const bankKey = body.currency === "UGX" ? "bank_ugx" : body.currency === "USD" ? "bank_usd" : "bank_eur";
+
+    const nextOutstanding = new Prisma.Decimal(loan.outstandingBalance).minus(new Prisma.Decimal(principal));
+    const nextStatus = nextOutstanding.toNumber() <= 0 ? "FULLY_REPAID" : "PARTIALLY_REPAID";
+
+    const result = await prisma.$transaction(async (tx) => {
+      const batch = await tx.directorTransactionBatch.create({
+        data: {
+          directorId,
+          typeKey: "CLR",
+          receiptReference: ref,
+          periodMonth: ymFromDateUtc(dt),
+          transactionDate: dt,
+          totalAmount: new Prisma.Decimal(body.amount),
+          currency: body.currency,
+          meta: {
+            receiptType: "Director Repayment of Company Loan",
+            kind: "DIRECTOR_REPAYMENT_OF_COMPANY_LOAN",
+            currency: body.currency,
+            totalAmount: body.amount,
+            principalAmount: principal,
+            interestAmount: Math.max(0, interest),
+            originalPrincipal: loan.principalAmount,
+            outstandingBalance: nextOutstanding,
+            glReference: ref
+          } as any,
+          createdBy: req.user!.id
+        }
+      });
+      const tPrincipal = await tx.transaction.create({
+        data: {
+          ...commonData,
+          referenceNumber: ref,
+          type: "DIRECTOR_REPAYMENT_OF_COMPANY_LOAN",
+          date: dt,
+          amount: principal,
+          directorId,
+          directorTransactionBatchId: batch.id,
+          manualDebitAccountKey: bankKey,
+          manualCreditAccountKey: "side_fund",
+          description: body.description ?? `Loan repayment (principal) for loan #${loan.id}`
+        }
+      });
+      if (interest > 0) {
+        await tx.transaction.create({
+          data: {
+            ...commonData,
+            referenceNumber: await allocateNextReferenceNumber(),
+            type: "INTEREST_INCOME",
+            date: dt,
+            amount: interest,
+            directorId: null,
+            directorTransactionBatchId: batch.id,
+            manualDebitAccountKey: bankKey,
+            manualCreditAccountKey: "income_interest",
+            description: body.description ?? `Loan repayment (interest) for loan #${loan.id}`
+          }
+        });
+      }
+      await tx.companyLoanToDirectorRepayment.create({
+        data: {
+          directorId,
+          loanId: loan.id,
+          date: dt,
+          totalReceived: new Prisma.Decimal(body.amount),
+          principalPaid: new Prisma.Decimal(principal),
+          interestPaid: new Prisma.Decimal(Math.max(0, interest)),
+          currency: body.currency,
+          transactionBatchId: batch.id,
+          primaryTransactionId: tPrincipal.id,
+          createdBy: req.user!.id
+        }
+      });
+      await tx.companyLoanToDirector.update({
+        where: { id: loan.id },
+        data: {
+          outstandingBalance: nextOutstanding,
+          totalInterestPaid: new Prisma.Decimal(loan.totalInterestPaid).plus(new Prisma.Decimal(Math.max(0, interest))),
+          status: nextStatus
+        }
+      });
+      const receipt = await tx.directorReceipt.create({
+        data: {
+          directorId,
+          transactionBatchId: batch.id,
+          primaryTransactionId: tPrincipal.id,
+          receiptReference: ref,
+          periodMonth: ymFromDateUtc(dt),
+          transactionDate: dt,
+          meta: {
+            receiptType: "Director Repayment of Company Loan",
+            kind: "DIRECTOR_REPAYMENT_OF_COMPANY_LOAN",
+            currency: body.currency,
+            totalReceived: body.amount,
+            principalAmount: principal,
+            interestAmount: Math.max(0, interest),
+            originalPrincipal: loan.principalAmount,
+            outstandingBalance: nextOutstanding,
+            glReference: ref
+          } as any
+        }
+      });
+      await tx.documentRegister.create({
+        data: {
+          title: `Director Transaction Receipt — ${ref}`,
+          category: "Director Transaction Receipt",
+          reference: ref,
+          owner: "Finance",
+          confidentiality: "Internal",
+          status: "ACTIVE",
+          url: `/api/director-receipts/${receipt.id}/pdf`,
+          directorId,
+          transactionId: tPrincipal.id,
+          receiptReference: ref,
+          createdById: req.user!.id,
+          updatedById: req.user!.id
+        }
+      });
+      await tx.auditLog.create({
+        data: {
+          userId: req.user!.id,
+          action: "CREATE_COMPANY_LOAN_REPAYMENT",
+          entityType: "CompanyLoanToDirector",
+          entityId: loan.id,
+          before: { outstandingBalance: loan.outstandingBalance, status: loan.status } as any,
+          after: { outstandingBalance: nextOutstanding, status: nextStatus, receiptReference: ref } as any
+        }
+      });
+      return { principalTxId: tPrincipal.id };
+    });
+
+    await notifyUser(
+      req.user!.id,
+      "TX_POSTED",
+      "Transactions posted",
+      `Loan repayment recorded · receipt ${ref}`,
+      "/ledger"
+    );
+    void prisma.directorReceipt
+      .findUnique({ where: { receiptReference: ref }, select: { id: true } })
+      .then((r) => (r ? generateDirectorReceiptPdfNow(r.id) : undefined))
+      .catch(() => {});
+    return res.status(201).json({ ...result, referenceNumber: ref });
+  }
+
+  if (body.type === "DIRECTOR_FEE_ALLOWANCE" && body.directorId && !hasManualPosting) {
+    const receiptRef = await allocateNextDirectorReceiptReference({ prefix: "FEE", date: dt });
+    const txRow = await prisma.$transaction(async (tx) => {
+      const batch = await tx.directorTransactionBatch.create({
+        data: {
+          directorId: body.directorId!,
+          typeKey: "FEE",
+          receiptReference: receiptRef,
+          periodMonth: ymFromDateUtc(dt),
+          transactionDate: dt,
+          totalAmount: new Prisma.Decimal(body.amount),
+          currency: body.currency,
+          meta: {
+            receiptType: "Director Fee / Allowance",
+            kind: "DIRECTOR_FEE_ALLOWANCE",
+            currency: body.currency,
+            amount: body.amount,
+            glReference: receiptRef
+          } as any,
+          createdBy: req.user!.id
+        }
+      });
+      const trow = await tx.transaction.create({
+        data: {
+          ...commonData,
+          referenceNumber: receiptRef,
+          type: "DIRECTOR_FEE_ALLOWANCE",
+          date: dt,
+          amount: body.amount,
+          directorId: body.directorId,
+          directorTransactionBatchId: batch.id
+        }
+      });
+      const receipt = await tx.directorReceipt.create({
+        data: {
+          directorId: body.directorId!,
+          transactionBatchId: batch.id,
+          primaryTransactionId: trow.id,
+          receiptReference: receiptRef,
+          periodMonth: ymFromDateUtc(dt),
+          transactionDate: dt,
+          meta: {
+            receiptType: "Director Fee / Allowance",
+            kind: "DIRECTOR_FEE_ALLOWANCE",
+            currency: body.currency,
+            amount: body.amount,
+            glReference: receiptRef
+          } as any
+        }
+      });
+      await tx.documentRegister.create({
+        data: {
+          title: `Director Transaction Receipt — ${receiptRef}`,
+          category: "Director Transaction Receipt",
+          reference: receiptRef,
+          owner: "Finance",
+          confidentiality: "Internal",
+          status: "ACTIVE",
+          url: `/api/director-receipts/${receipt.id}/pdf`,
+          directorId: body.directorId,
+          transactionId: trow.id,
+          receiptReference: receiptRef,
+          createdById: req.user!.id,
+          updatedById: req.user!.id
+        }
+      });
+      return trow;
+    });
+    await notifyUser(
+      req.user!.id,
+      "TX_POSTED",
+      "Transaction posted",
+      `Reference ${receiptRef} · ${body.amount} ${body.currency}`,
+      "/ledger"
+    );
+    void prisma.directorReceipt
+      .findUnique({ where: { receiptReference: receiptRef }, select: { id: true } })
+      .then((r) => (r ? generateDirectorReceiptPdfNow(r.id) : undefined))
+      .catch(() => {});
+    return res.status(201).json({ id: txRow.id, referenceNumber: receiptRef });
+  }
+
+  if (body.type === "DIRECTOR_LOAN_TO_COMPANY" && body.directorId && !hasManualPosting) {
+    const receiptRef = await allocateNextDirectorReceiptReference({ prefix: "DLN", date: dt });
+    const txRow = await prisma.$transaction(async (tx) => {
+      const batch = await tx.directorTransactionBatch.create({
+        data: {
+          directorId: body.directorId!,
+          typeKey: "DLN",
+          receiptReference: receiptRef,
+          periodMonth: ymFromDateUtc(dt),
+          transactionDate: dt,
+          totalAmount: new Prisma.Decimal(body.amount),
+          currency: body.currency,
+          meta: {
+            receiptType: "Director Loan to Company",
+            kind: "DIRECTOR_LOAN_TO_COMPANY",
+            currency: body.currency,
+            amount: body.amount,
+            glReference: receiptRef
+          } as any,
+          createdBy: req.user!.id
+        }
+      });
+      const trow = await tx.transaction.create({
+        data: {
+          ...commonData,
+          referenceNumber: receiptRef,
+          type: "DIRECTOR_LOAN_TO_COMPANY",
+          date: dt,
+          amount: body.amount,
+          directorId: body.directorId,
+          directorTransactionBatchId: batch.id
+        }
+      });
+      const receipt = await tx.directorReceipt.create({
+        data: {
+          directorId: body.directorId!,
+          transactionBatchId: batch.id,
+          primaryTransactionId: trow.id,
+          receiptReference: receiptRef,
+          periodMonth: ymFromDateUtc(dt),
+          transactionDate: dt,
+          meta: {
+            receiptType: "Director Loan to Company",
+            kind: "DIRECTOR_LOAN_TO_COMPANY",
+            currency: body.currency,
+            amount: body.amount,
+            glReference: receiptRef
+          } as any
+        }
+      });
+      await tx.documentRegister.create({
+        data: {
+          title: `Director Transaction Receipt — ${receiptRef}`,
+          category: "Director Transaction Receipt",
+          reference: receiptRef,
+          owner: "Finance",
+          confidentiality: "Internal",
+          status: "ACTIVE",
+          url: `/api/director-receipts/${receipt.id}/pdf`,
+          directorId: body.directorId,
+          transactionId: trow.id,
+          receiptReference: receiptRef,
+          createdById: req.user!.id,
+          updatedById: req.user!.id
+        }
+      });
+      return trow;
+    });
+    await notifyUser(
+      req.user!.id,
+      "TX_POSTED",
+      "Transaction posted",
+      `Reference ${receiptRef} · ${body.amount} ${body.currency}`,
+      "/ledger"
+    );
+    void prisma.directorReceipt
+      .findUnique({ where: { receiptReference: receiptRef }, select: { id: true } })
+      .then((r) => (r ? generateDirectorReceiptPdfNow(r.id) : undefined))
+      .catch(() => {});
+    return res.status(201).json({ id: txRow.id, referenceNumber: receiptRef });
+  }
+
+  if (body.type === "DIRECTOR_LOAN_REPAYMENT" && body.directorId && !hasManualPosting) {
+    const receiptRef = await allocateNextDirectorReceiptReference({ prefix: "DLR", date: dt });
+    const txRow = await prisma.$transaction(async (tx) => {
+      const batch = await tx.directorTransactionBatch.create({
+        data: {
+          directorId: body.directorId!,
+          typeKey: "DLR",
+          receiptReference: receiptRef,
+          periodMonth: ymFromDateUtc(dt),
+          transactionDate: dt,
+          totalAmount: new Prisma.Decimal(body.amount),
+          currency: body.currency,
+          meta: {
+            receiptType: "Director Repayment to Company",
+            kind: "DIRECTOR_LOAN_REPAYMENT",
+            currency: body.currency,
+            amount: body.amount,
+            glReference: receiptRef
+          } as any,
+          createdBy: req.user!.id
+        }
+      });
+      const trow = await tx.transaction.create({
+        data: {
+          ...commonData,
+          referenceNumber: receiptRef,
+          type: "DIRECTOR_LOAN_REPAYMENT",
+          date: dt,
+          amount: body.amount,
+          directorId: body.directorId,
+          directorTransactionBatchId: batch.id
+        }
+      });
+      const receipt = await tx.directorReceipt.create({
+        data: {
+          directorId: body.directorId!,
+          transactionBatchId: batch.id,
+          primaryTransactionId: trow.id,
+          receiptReference: receiptRef,
+          periodMonth: ymFromDateUtc(dt),
+          transactionDate: dt,
+          meta: {
+            receiptType: "Director Repayment to Company",
+            kind: "DIRECTOR_LOAN_REPAYMENT",
+            currency: body.currency,
+            amount: body.amount,
+            glReference: receiptRef
+          } as any
+        }
+      });
+      await tx.documentRegister.create({
+        data: {
+          title: `Director Transaction Receipt — ${receiptRef}`,
+          category: "Director Transaction Receipt",
+          reference: receiptRef,
+          owner: "Finance",
+          confidentiality: "Internal",
+          status: "ACTIVE",
+          url: `/api/director-receipts/${receipt.id}/pdf`,
+          directorId: body.directorId,
+          transactionId: trow.id,
+          receiptReference: receiptRef,
+          createdById: req.user!.id,
+          updatedById: req.user!.id
+        }
+      });
+      return trow;
+    });
+    await notifyUser(
+      req.user!.id,
+      "TX_POSTED",
+      "Transaction posted",
+      `Reference ${receiptRef} · ${body.amount} ${body.currency}`,
+      "/ledger"
+    );
+    void prisma.directorReceipt
+      .findUnique({ where: { receiptReference: receiptRef }, select: { id: true } })
+      .then((r) => (r ? generateDirectorReceiptPdfNow(r.id) : undefined))
+      .catch(() => {});
+    return res.status(201).json({ id: txRow.id, referenceNumber: receiptRef });
   }
 
   if (body.type === "RETAINED_EARNINGS_TRANSFER" && !hasManualPosting) {

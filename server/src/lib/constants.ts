@@ -1,4 +1,4 @@
-﻿import { TxType } from "@prisma/client";
+import { TxType } from "@prisma/client";
 
 export type AccountKey =
   | "bank"
@@ -11,11 +11,13 @@ export type AccountKey =
   | "investments_general"
   | "accounts_receivable"
   | "loan_receivable"
+  | "director_loans_receivable"
   | "other_assets"
   | "loan_liability"
   | "accounts_payable"
   | "director_loan_to_company"
   | "capital"
+  | "directors_capital_distributions_clearing"
   | "side_fund"
   | "retained_earnings"
   | "mmf_income"
@@ -25,6 +27,7 @@ export type AccountKey =
   | "income_interest"
   | "income_dividend"
   | "rental_income"
+  | "income_other_4290"
   | "income_other"
   | "income_fx"
   | "reg_costs"
@@ -61,6 +64,7 @@ export const ACCOUNTS: Record<
   ypa: { name: "YPA Goats Project", group: "Assets", code: 1520 },
   accounts_receivable: { name: "Accounts Receivable", group: "Assets", code: 1300 },
   loan_receivable: { name: "Loans Extended", group: "Assets", code: 1400 },
+  director_loans_receivable: { name: "Director Loans Receivable", group: "Assets", code: 1410 },
   capex: { name: "Fixed Assets", group: "Assets", code: 1600 },
   other_assets: { name: "Other Assets", group: "Assets", code: 1700 },
 
@@ -73,6 +77,11 @@ export const ACCOUNTS: Record<
 
   /** Equity header ΓÇö no postings; director lines use 3110ΓÇô3150 in COA. */
   capital: { name: "Director Capital (header ΓÇö no postings)", group: "Equity", code: 3100 },
+  directors_capital_distributions_clearing: {
+    name: "Directors’ Capital Distributions / Withdrawals Clearing",
+    group: "Equity",
+    code: 3160
+  },
   side_fund: { name: "Side Fund", group: "Equity", code: 3200 },
   retained_earnings: { name: "Retained Earnings", group: "Equity", code: 3300 },
 
@@ -83,6 +92,7 @@ export const ACCOUNTS: Record<
   income_interest: { name: "Interest Income", group: "Income", code: 4300 },
   income_dividend: { name: "Dividend Income", group: "Income", code: 4400 },
   rental_income: { name: "Rental Income", group: "Income", code: 4500 },
+  income_other_4290: { name: "Other Income", group: "Income", code: 4290 },
   income_other: { name: "Other Income", group: "Income", code: 4900 },
   penalties: { name: "Other Income", group: "Income", code: 4900 },
   income_fx: { name: "Other Income", group: "Income", code: 4900 },
@@ -115,6 +125,7 @@ export const INTER_ACCOUNT_TRANSFER_KEYS: AccountKey[] = [
   "investments_general",
   "accounts_receivable",
   "loan_receivable",
+  "director_loans_receivable",
   "capex",
   "other_assets",
   "accounts_payable",
@@ -124,6 +135,7 @@ export const INTER_ACCOUNT_TRANSFER_KEYS: AccountKey[] = [
   "tax_wht",
   "tax_corporate",
   "capital",
+  "directors_capital_distributions_clearing",
   "side_fund",
   "retained_earnings"
 ];
@@ -159,7 +171,11 @@ export const TX_ACCOUNT_MAP: Record<
   { debit: AccountKey; credit: AccountKey; needsDirector: boolean }
 > = {
   CONTRIBUTION: { debit: "bank", credit: "capital", needsDirector: true },
+  CONTRIBUTION_ARREARS: { debit: "bank", credit: "capital", needsDirector: true },
+  SUPPLEMENTARY_CAPITAL_CONTRIBUTION: { debit: "bank", credit: "capital", needsDirector: true },
   CAPITAL_WITHDRAWAL: { debit: "capital", credit: "bank", needsDirector: true },
+  DIRECTORS_CAPITAL_DISTRIBUTION: { debit: "capital", credit: "bank", needsDirector: true },
+  CAPITAL_REINSTATEMENT: { debit: "bank", credit: "capital", needsDirector: true },
   SIDE_FUND: { debit: "bank", credit: "side_fund", needsDirector: true },
   MMF_DEPLOY: { debit: "mmf", credit: "bank", needsDirector: false },
   MMF_RETURN: { debit: "bank", credit: "mmf_income", needsDirector: false },
@@ -190,6 +206,9 @@ export const TX_ACCOUNT_MAP: Record<
   MEALS_ENTERTAINMENT: { debit: "exp_meals", credit: "bank", needsDirector: false },
   DIRECTOR_LOAN_TO_COMPANY: { debit: "bank", credit: "director_loan_to_company", needsDirector: true },
   DIRECTOR_LOAN_REPAYMENT: { debit: "director_loan_to_company", credit: "bank", needsDirector: true },
+  DIRECTORS_DISCIPLINARY_LEVY: { debit: "capital", credit: "income_other_4290", needsDirector: true },
+  COMPANY_LOAN_TO_DIRECTOR: { debit: "director_loans_receivable", credit: "side_fund", needsDirector: true },
+  DIRECTOR_REPAYMENT_OF_COMPANY_LOAN: { debit: "bank", credit: "side_fund", needsDirector: true },
   LOAN_REPAYMENT_EXTERNAL: { debit: "loan_liability", credit: "bank", needsDirector: false },
   WITHHOLDING_TAX: { debit: "tax_wht", credit: "bank", needsDirector: false },
   VAT_PAYABLE: { debit: "tax_vat", credit: "bank", needsDirector: false },
