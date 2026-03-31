@@ -30,6 +30,9 @@ export default async function middleware(request) {
   const target = `${normalized}${url.pathname}${url.search}`;
   const headers = new Headers(request.headers);
   headers.delete("host");
+  // Some edge runtimes drop Authorization when cloning Headers; set explicitly.
+  const auth = request.headers.get("authorization") || request.headers.get("Authorization");
+  if (auth) headers.set("Authorization", auth);
 
   /** @type {RequestInit} */
   const init = {
