@@ -20,6 +20,7 @@ import { notifyUser } from "../services/inAppNotifications.js";
 import { deriveBalances } from "../lib/derive.js";
 import { ymFromDateUtc } from "../lib/directorPosting.js";
 import { generateDirectorReceiptPdfNow } from "../lib/directorReceiptPdfJob.js";
+import { canViewDirectorFinancials } from "../lib/directorVisibility.js";
 
 const router = Router();
 
@@ -551,6 +552,8 @@ async function validatePostBody(
 router.get("/director-distributions", requireRole("DIRECTOR"), async (req, res) => {
   const directorId = Number(req.query.directorId);
   if (!Number.isFinite(directorId)) return res.status(400).json(apiError("Invalid directorId"));
+  const viewer = { role: req.user!.role, directorId: req.user!.directorId ?? null };
+  if (!canViewDirectorFinancials(viewer, directorId)) return res.status(403).json(apiError("Forbidden"));
   const rows = await prisma.directorCapitalDistribution.findMany({
     where: { directorId, status: { in: ["OPEN", "PARTIALLY_REINSTATED"] } },
     orderBy: { distributionDate: "desc" },
@@ -569,6 +572,8 @@ router.get("/director-distributions", requireRole("DIRECTOR"), async (req, res) 
 router.get("/director-loans", requireRole("DIRECTOR"), async (req, res) => {
   const directorId = Number(req.query.directorId);
   if (!Number.isFinite(directorId)) return res.status(400).json(apiError("Invalid directorId"));
+  const viewer = { role: req.user!.role, directorId: req.user!.directorId ?? null };
+  if (!canViewDirectorFinancials(viewer, directorId)) return res.status(403).json(apiError("Forbidden"));
   const rows = await prisma.companyLoanToDirector.findMany({
     where: { directorId, status: { in: ["OPEN", "PARTIALLY_REPAID"] } },
     orderBy: { loanDate: "desc" },

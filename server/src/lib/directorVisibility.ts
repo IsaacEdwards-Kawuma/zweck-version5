@@ -27,9 +27,12 @@ export type DirectorPublic = Pick<
  * - Tier 0: USER (no director access; routes should block before this)
  */
 export function powerTierForRole(role: Role): PowerTier {
-  if (role === "ADMIN" || role === "ADMIN_DIRECTOR") return 3;
-  if (role === "TREASURER" || role === "CEO" || role === "OPERATIONAL_MANAGER") return 2;
-  if (role === "DIRECTOR") return 1;
+  // Some environments may have stale generated Prisma `Role` types during deploys.
+  // Compare via string to keep runtime behavior correct while avoiding impossible-union TS errors.
+  const r = String(role);
+  if (r === "ADMIN" || r === "ADMIN_DIRECTOR") return 3;
+  if (r === "TREASURER" || r === "CEO" || r === "OPERATIONAL_MANAGER") return 2;
+  if (r === "DIRECTOR") return 1;
   return 0;
 }
 
@@ -43,12 +46,13 @@ export function canViewDirectorFinancials(viewer: Viewer, directorId: number): b
 export function canViewDirectorConfidentialProfile(viewer: Viewer, directorId: number): boolean {
   const tier = powerTierForRole(viewer.role);
   if (tier >= 3) return true;
+  if (tier >= 2) return true;
   return tier >= 1 && viewer.directorId != null && viewer.directorId === directorId;
 }
 
 export function canViewDirectorContact(viewer: Viewer, directorId: number): boolean {
   if (canViewDirectorConfidentialProfile(viewer, directorId)) return true;
-  return powerTierForRole(viewer.role) >= 2;
+  return powerTierForRole(viewer.role) >= 1;
 }
 
 export function toDirectorPublic(d: Director, viewer: Viewer): DirectorPublic {

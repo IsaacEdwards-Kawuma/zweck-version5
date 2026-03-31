@@ -66,7 +66,7 @@ router.post("/", requireRole("ADMIN"), validateBody(createDirectorSchema), async
 
 export const updateDirectorSchema = createDirectorSchema.partial();
 
-router.put("/:id", requireRole("ADMIN"), validateBody(updateDirectorSchema), async (req, res) => {
+router.put("/:id", requireAdminOrDirectorSelf("id"), validateBody(updateDirectorSchema), async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) return res.status(400).json(apiError("Invalid director id"));
 

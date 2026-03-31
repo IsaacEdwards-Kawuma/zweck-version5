@@ -5,7 +5,7 @@ import { prisma } from "../lib/prisma.js";
 import { apiError } from "../lib/http.js";
 import { requireRole } from "../middleware/auth.js";
 import { buildDirectorReceiptPdfBuffer } from "../lib/directorReceiptPdf.js";
-import { toDirectorPublic } from "../lib/directorVisibility.js";
+import { canViewDirectorFinancials, toDirectorPublic } from "../lib/directorVisibility.js";
 
 const router = Router();
 
@@ -15,6 +15,8 @@ fs.mkdirSync(uploadRoot, { recursive: true });
 router.get("/", requireRole("DIRECTOR"), async (req, res) => {
   const directorId = Number(req.query.directorId);
   if (!Number.isFinite(directorId)) return res.status(400).json(apiError("Invalid directorId"));
+  const viewer = { role: req.user!.role, directorId: req.user!.directorId ?? null };
+  if (!canViewDirectorFinancials(viewer, directorId)) return res.status(403).json(apiError("Forbidden"));
   const rows = await prisma.directorReceipt.findMany({
     where: { directorId, deletedAt: null },
     orderBy: { transactionDate: "desc" },
@@ -45,13 +47,11 @@ router.get("/:id/pdf", requireRole("DIRECTOR"), async (req, res) => {
   });
   if (!receipt || receipt.deletedAt) return res.status(404).json(apiError("Receipt not found"));
 
-  // Authorization: directors may view receipts for themselves; leadership can view via requireRole(DIRECTOR) already
-  // (admins/leadership are DIRECTOR-capable in this project). Further restrictions can be added if needed.
   const viewer = { role: req.user!.role, directorId: req.user!.directorId ?? null };
-  const directorPublic = toDirectorPublic(receipt.director, viewer);
-  if (viewer.directorId != null && viewer.directorId !== receipt.directorId && viewer.role === "DIRECTOR") {
+  if (!canViewDirectorFinancials(viewer, receipt.directorId)) {
     return res.status(403).json(apiError("Forbidden"));
   }
+  const directorPublic = toDirectorPublic(receipt.director, viewer);
 
   // If we already have a stored URL under /api/uploads, serve the file bytes.
   if (receipt.pdfUrl && receipt.pdfUrl.startsWith("/api/uploads/")) {

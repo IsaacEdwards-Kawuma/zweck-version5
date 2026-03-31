@@ -53,9 +53,9 @@ describe("directorVisibility", () => {
     expect(canViewDirectorFinancials(viewer, 7)).toBe(true);
   });
 
-  it("finance leadership can view contact + financials but not confidential profile fields", () => {
+  it("finance leadership can view confidential profile + contact + financials", () => {
     const viewer = { role: "TREASURER", directorId: null };
-    expect(canViewDirectorConfidentialProfile(viewer, 7)).toBe(false);
+    expect(canViewDirectorConfidentialProfile(viewer, 7)).toBe(true);
     expect(canViewDirectorContact(viewer, 7)).toBe(true);
     expect(canViewDirectorFinancials(viewer, 7)).toBe(true);
   });
@@ -63,6 +63,7 @@ describe("directorVisibility", () => {
   it("other directors cannot see another director's confidential profile fields", () => {
     const viewer = { role: "DIRECTOR", directorId: 99 };
     expect(canViewDirectorConfidentialProfile(viewer, 7)).toBe(false);
+    expect(canViewDirectorContact(viewer, 7)).toBe(true);
     expect(canViewDirectorFinancials(viewer, 7)).toBe(false);
   });
 
@@ -73,7 +74,7 @@ describe("directorVisibility", () => {
 
     expect(pub.id).toBe(7);
     expect(pub.name).toBe("Jane Doe");
-    expect(pub.email).toBeUndefined();
+    expect(pub.email).toBe("jane@example.com");
     expect(pub.idNumber).toBeUndefined();
     expect(pub.nextOfKinName).toBeUndefined();
     expect(pub.notes).toBeUndefined();
