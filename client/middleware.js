@@ -3,19 +3,20 @@
  * Proxies /api/* → Render (RENDER_API_URL).
  */
 
+function resolveRenderBaseUrl() {
+  const raw =
+    process.env.RENDER_API_URL?.trim() ||
+    process.env.VERCEL_RENDER_API_URL?.trim() ||
+    "";
+  if (!raw) return "";
+  return raw.replace(/\/$/, "").replace(/\/api$/i, "");
+}
+
 export default async function middleware(request) {
   const url = new URL(request.url);
-  const base = process.env.RENDER_API_URL?.trim() || "";
-  const normalized = base.replace(/\/$/, "").replace(/\/api$/i, "");
+  const normalized = resolveRenderBaseUrl();
   if (!normalized) {
-    return new Response(
-      JSON.stringify({
-        error: true,
-        message:
-          "RENDER_API_URL is not set. Vercel → Project → Settings → Environment Variables → https://your-service.onrender.com"
-      }),
-      { status: 500, headers: { "content-type": "application/json; charset=utf-8" } }
-    );
+    return;
   }
 
   const target = `${normalized}${url.pathname}${url.search}`;
