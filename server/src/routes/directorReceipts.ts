@@ -21,6 +21,7 @@ router.get("/", requireRole("DIRECTOR"), async (req, res) => {
       receiptReference: true,
       periodMonth: true,
       transactionDate: true,
+      meta: true,
       pdfUrl: true,
       pdfStatus: true,
       createdAt: true

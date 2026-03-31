@@ -590,6 +590,121 @@ router.get("/director-loans", requireRole("DIRECTOR"), async (req, res) => {
   return res.json(rows);
 });
 
+/** Director detail page: summary cards + capital distributions (with reinstatements) + company loans (with repayments). */
+router.get("/director-financial-overview", requireRole("DIRECTOR"), async (req, res) => {
+  const directorId = Number(req.query.directorId);
+  if (!Number.isFinite(directorId)) return res.status(400).json(apiError("Invalid directorId"));
+  const viewer = { role: req.user!.role, directorId: req.user!.directorId ?? null };
+  if (!canViewDirectorFinancials(viewer, directorId)) return res.status(403).json(apiError("Forbidden"));
+
+  const dec = (v: unknown) =>
+    v == null ? 0 : typeof v === "object" && v !== null && "toNumber" in v ? (v as { toNumber: () => number }).toNumber() : Number(v);
+
+  const [
+    contributionTxs,
+    levyTxs,
+    distributions,
+    loans,
+    repaymentInterestRows
+  ] = await Promise.all([
+    prisma.transaction.findMany({
+      where: {
+        directorId,
+        postingStatus: "POSTED",
+        type: { in: ["CONTRIBUTION", "CONTRIBUTION_ARREARS", "SUPPLEMENTARY_CAPITAL_CONTRIBUTION"] }
+      },
+      select: { amount: true }
+    }),
+    prisma.transaction.findMany({
+      where: { directorId, postingStatus: "POSTED", type: "DIRECTORS_DISCIPLINARY_LEVY" },
+      select: { amount: true }
+    }),
+    prisma.directorCapitalDistribution.findMany({
+      where: { directorId },
+      orderBy: { distributionDate: "desc" },
+      include: {
+        reinstatements: { orderBy: { date: "asc" } }
+      }
+    }),
+    prisma.companyLoanToDirector.findMany({
+      where: { directorId },
+      orderBy: { loanDate: "desc" },
+      include: {
+        repayments: { orderBy: { date: "asc" } }
+      }
+    }),
+    prisma.companyLoanToDirectorRepayment.findMany({
+      where: { directorId },
+      select: { interestPaid: true }
+    })
+  ]);
+
+  const totalCapitalContributions = contributionTxs.reduce((s, t) => s + Number(t.amount || 0), 0);
+  const totalDisciplinaryLevies = levyTxs.reduce((s, t) => s + Number(t.amount || 0), 0);
+  const totalInterestPaid = repaymentInterestRows.reduce((s, r) => s + dec(r.interestPaid), 0);
+
+  const totalDistributionsOutstanding = distributions
+    .filter((d) => d.status !== "FULLY_REINSTATED")
+    .reduce((s, d) => s + dec(d.outstandingBalance), 0);
+
+  const totalCompanyLoansOutstanding = loans
+    .filter((l) => l.status !== "FULLY_REPAID")
+    .reduce((s, l) => s + dec(l.outstandingBalance), 0);
+
+  const distributionsOut = distributions.map((d) => {
+    const original = dec(d.totalAmount);
+    const outstanding = dec(d.outstandingBalance);
+    const sumRest = d.reinstatements.reduce((s, r) => s + dec(r.amount), 0);
+    const totalReinstated = sumRest > 0 ? sumRest : Math.max(0, original - outstanding);
+    return {
+      id: d.id,
+      distributionDate: d.distributionDate.toISOString(),
+      originalAmount: original,
+      totalReinstated,
+      outstandingBalance: outstanding,
+      currency: d.currency,
+      status: d.status,
+      reinstatements: d.reinstatements.map((r) => ({
+        id: r.id,
+        date: r.date.toISOString(),
+        amount: dec(r.amount),
+        currency: r.currency
+      }))
+    };
+  });
+
+  const loansOut = loans.map((loan) => ({
+    id: loan.id,
+    loanDate: loan.loanDate.toISOString(),
+    principalAmount: dec(loan.principalAmount),
+    outstandingBalance: dec(loan.outstandingBalance),
+    interestPaid: dec(loan.totalInterestPaid),
+    currency: loan.currency,
+    status: loan.status,
+    repaymentTerms: loan.repaymentTerms,
+    repayments: loan.repayments.map((r) => ({
+      id: r.id,
+      date: r.date.toISOString(),
+      totalReceived: dec(r.totalReceived),
+      principalPaid: dec(r.principalPaid),
+      interestPaid: dec(r.interestPaid),
+      currency: r.currency
+    }))
+  }));
+
+  return res.json({
+    summary: {
+      totalCapitalContributions,
+      totalDistributionsOutstanding,
+      totalCompanyLoansOutstanding,
+      totalDisciplinaryLevies,
+      totalInterestPaid
+    },
+    distributions: distributionsOut,
+    loans: loansOut
+  });
+});
+
 const updateSchema = z
   .object({
     date: z.string().datetime().optional(),

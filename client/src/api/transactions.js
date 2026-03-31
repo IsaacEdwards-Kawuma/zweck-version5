@@ -53,6 +53,14 @@ export async function listDirectorLoans(directorId) {
   return data;
 }
 
+/** Summary cards + distributions (with reinstatements) + loans (with repayments) for director detail. */
+export async function getDirectorFinancialOverview(directorId) {
+  const { data } = await api.get("/transactions/director-financial-overview", {
+    params: { directorId }
+  });
+  return data;
+}
+
 export async function deleteTransaction(id) {
   const { data } = await api.delete(`/transactions/${id}`);
   return data;

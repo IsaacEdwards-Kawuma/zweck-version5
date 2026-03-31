@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { Fragment, useCallback, useMemo, useState } from "react";
 import { useParams, Link, useOutletContext } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Loading from "../components/Loading";
@@ -15,7 +15,7 @@ import { TX_ACCOUNT_MAP } from "../lib/transactionTypes";
 import { downloadTransactionsCsv } from "../lib/reportsAnalytics";
 import { hasAdminPrivileges, hasDirectorPrivileges } from "../lib/roles";
 import { TX_TYPE_LABELS } from "../lib/dashboardAnalytics";
-import { downloadPdf, openPdfInNewTab, printPdfInNewTab } from "../lib/openPdf";
+import { downloadPdf, openPdfInNewTab } from "../lib/openPdf";
 import {
   ResponsiveContainer,
   PieChart,
@@ -43,6 +43,14 @@ export default function DirectorDetail() {
     queryFn: () => listDirectorReceipts(directorIdNum),
     enabled: Number.isFinite(directorIdNum)
   });
+  const qOverview = useQuery({
+    queryKey: ["director_financial_overview", directorIdNum],
+    queryFn: () => getDirectorFinancialOverview(directorIdNum),
+    enabled: Number.isFinite(directorIdNum)
+  });
+  const [seenVersion, setSeenVersion] = useState(0);
+  const [expandedDistId, setExpandedDistId] = useState(null);
+  const [expandedLoanId, setExpandedLoanId] = useState(null);
   const qLinkedInvoices = useQuery({
     queryKey: ["invoices", "linkedDirector", directorIdNum],
     queryFn: () => listInvoices({ linkedDirectorId: directorIdNum }),
@@ -152,6 +160,47 @@ export default function DirectorDetail() {
     return `/director-receipts/${id}/pdf`;
   }
 
+  const receiptUnviewedCount = useMemo(() => {
+    void seenVersion;
+    const rows = qReceipts.data || [];
+    const seen = getSeenReceiptIds(directorIdNum);
+    return rows.filter((r) => !seen.has(String(r.id))).length;
+  }, [qReceipts.data, directorIdNum, seenVersion]);
+
+  const markReceiptSeenAndRefresh = useCallback(
+    (receiptId) => {
+      markReceiptSeen(directorIdNum, receiptId);
+      setSeenVersion((v) => v + 1);
+    },
+    [directorIdNum]
+  );
+
+  function receiptTypeLabel(meta) {
+    const m = meta && typeof meta === "object" ? meta : {};
+    if (m.receiptType) return String(m.receiptType);
+    if (m.kind) return String(m.kind).replace(/_/g, " ");
+    return "—";
+  }
+
+  function receiptAmount(meta) {
+    const m = meta && typeof meta === "object" ? meta : {};
+    if (m.amount != null && !Number.isNaN(Number(m.amount))) return Number(m.amount);
+    if (m.totalReceived != null) return Number(m.totalReceived);
+    return null;
+  }
+
+  function receiptCurrency(meta) {
+    const m = meta && typeof meta === "object" ? meta : {};
+    return m.currency || "EUR";
+  }
+
+  function formatStatusLabel(s) {
+    return String(s || "").replace(/_/g, " ");
+  }
+
+  const overview = qOverview.data;
+  const summary = overview?.summary;
+
   return (
     <div className="space-y-6">
       <PrintStatementHeader
@@ -235,17 +284,50 @@ export default function DirectorDetail() {
         </div>
       </div>
 
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="rounded-xl ui-surface p-4">
+          <div className="text-xs uppercase tracking-wide text-slate-500">Total capital contributions</div>
+          <div className="mt-1 text-xl font-semibold">
+            {qOverview.isLoading ? "…" : formatMoney(summary?.totalCapitalContributions ?? 0, "EUR")}
+          </div>
+        </div>
+        <div className="rounded-xl ui-surface p-4">
+          <div className="text-xs uppercase tracking-wide text-slate-500">Distributions outstanding</div>
+          <div className="mt-1 text-xl font-semibold">
+            {qOverview.isLoading ? "…" : formatMoney(summary?.totalDistributionsOutstanding ?? 0, "EUR")}
+          </div>
+        </div>
+        <div className="rounded-xl ui-surface p-4">
+          <div className="text-xs uppercase tracking-wide text-slate-500">Company loans outstanding</div>
+          <div className="mt-1 text-xl font-semibold">
+            {qOverview.isLoading ? "…" : formatMoney(summary?.totalCompanyLoansOutstanding ?? 0, "EUR")}
+          </div>
+        </div>
+        <div className="rounded-xl ui-surface p-4">
+          <div className="text-xs uppercase tracking-wide text-slate-500">Disciplinary levies</div>
+          <div className="mt-1 text-xl font-semibold">
+            {qOverview.isLoading ? "…" : formatMoney(summary?.totalDisciplinaryLevies ?? 0, "EUR")}
+          </div>
+        </div>
+        <div className="rounded-xl ui-surface p-4">
+          <div className="text-xs uppercase tracking-wide text-slate-500">Interest paid (loans)</div>
+          <div className="mt-1 text-xl font-semibold">
+            {qOverview.isLoading ? "…" : formatMoney(summary?.totalInterestPaid ?? 0, "EUR")}
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <div className="rounded-xl ui-surface p-4">
-          <div className="text-xs uppercase tracking-wide text-slate-500">Capital</div>
+          <div className="text-xs uppercase tracking-wide text-slate-500">Capital (balance)</div>
           <div className="mt-1 text-2xl font-semibold">{eur(totals.capital || 0)}</div>
         </div>
         <div className="rounded-xl ui-surface p-4">
-          <div className="text-xs uppercase tracking-wide text-slate-500">Side Fund</div>
+          <div className="text-xs uppercase tracking-wide text-slate-500">Side fund (balance)</div>
           <div className="mt-1 text-2xl font-semibold">{eur(totals.sideFund || 0)}</div>
         </div>
         <div className="rounded-xl ui-surface p-4">
-          <div className="text-xs uppercase tracking-wide text-slate-500">Total</div>
+          <div className="text-xs uppercase tracking-wide text-slate-500">Total (balance)</div>
           <div className="mt-1 text-2xl font-semibold">{eur(totals.total || 0)}</div>
         </div>
       </div>
@@ -400,20 +482,20 @@ export default function DirectorDetail() {
         ) : null}
       </div>
 
-      <div>
-        <div className="mb-2 text-sm font-semibold text-slate-900">Contribution history</div>
-        <p className="mb-3 text-xs text-slate-500">
-          Lists contribution, side fund, and penalty postings for this director (same rules as the API).
-        </p>
-        <TransactionTable rows={contributionRows} />
-      </div>
-
       <div className="rounded-2xl ui-surface p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
+          <div className="flex flex-wrap items-center gap-2">
             <div className="text-sm font-semibold text-slate-900">Transaction receipts</div>
-            <p className="mt-0.5 text-xs text-slate-500">Printable / downloadable director transaction receipts.</p>
+            {receiptUnviewedCount > 0 ? (
+              <span
+                className="inline-flex min-h-[1.25rem] min-w-[1.25rem] items-center justify-center rounded-full bg-rose-600 px-1.5 text-xs font-bold text-white"
+                title="Unviewed receipts"
+              >
+                {receiptUnviewedCount}
+              </span>
+            ) : null}
           </div>
+          <p className="mt-0.5 text-xs text-slate-500">Sorted by date (newest first). View or download marks a receipt as seen.</p>
         </div>
         {qReceipts.isLoading ? <div className="mt-3 text-sm text-slate-500">Loading receipts…</div> : null}
         {qReceipts.error ? <div className="mt-3 text-sm text-rose-600">Could not load receipts.</div> : null}
@@ -425,60 +507,229 @@ export default function DirectorDetail() {
             <table className="min-w-full text-left text-sm">
               <thead className="ui-table-head">
                 <tr>
-                  <th className="px-3 py-2">Date</th>
                   <th className="px-3 py-2">Reference</th>
-                  <th className="px-3 py-2">PDF</th>
+                  <th className="px-3 py-2">Type</th>
+                  <th className="px-3 py-2">Period</th>
+                  <th className="px-3 py-2">Date</th>
+                  <th className="px-3 py-2">Currency</th>
+                  <th className="px-3 py-2 text-right">Amount</th>
+                  <th className="px-3 py-2">Action</th>
                 </tr>
               </thead>
               <tbody className="ui-table-divide">
-                {(qReceipts.data || []).map((r) => (
-                  <tr key={r.id} className="ui-table-row-hover">
-                    <td className="px-3 py-2">{fmtDate(r.transactionDate)}</td>
-                    <td className="px-3 py-2 font-mono text-xs text-slate-700">{r.receiptReference}</td>
-                    <td className="px-3 py-2">
-                      <div className="flex flex-wrap items-center gap-3">
+                {(qReceipts.data || []).map((r) => {
+                  const meta = r.meta;
+                  const amt = receiptAmount(meta);
+                  return (
+                    <tr key={r.id} className="ui-table-row-hover">
+                      <td className="px-3 py-2 font-mono text-xs text-slate-700">{r.receiptReference}</td>
+                      <td className="px-3 py-2">{receiptTypeLabel(meta)}</td>
+                      <td className="px-3 py-2">{r.periodMonth || "—"}</td>
+                      <td className="px-3 py-2">{fmtDate(r.transactionDate)}</td>
+                      <td className="px-3 py-2">{receiptCurrency(meta)}</td>
+                      <td className="px-3 py-2 text-right font-medium">
+                        {amt != null ? formatMoney(amt, receiptCurrency(meta)) : "—"}
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            className="text-xs font-medium text-slate-600 hover:underline"
+                            onClick={() => {
+                              markReceiptSeenAndRefresh(r.id);
+                              void openPdfInNewTab(receiptApiPath(r.id)).catch((e) =>
+                                alert(e instanceof Error ? e.message : "Could not open PDF")
+                              );
+                            }}
+                          >
+                            View
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded-lg bg-brand-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-brand-700"
+                            onClick={() => {
+                              markReceiptSeenAndRefresh(r.id);
+                              void downloadPdf(
+                                receiptApiPath(r.id),
+                                `director-receipt-${r.receiptReference || r.id}`
+                              ).catch((e) => alert(e instanceof Error ? e.message : "Could not download PDF"));
+                            }}
+                          >
+                            Download PDF
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="rounded-2xl ui-surface p-4">
+        <div className="text-sm font-semibold text-slate-900">Capital distributions & reinstatements</div>
+        <p className="mt-0.5 text-xs text-slate-500">Directors’ capital distributions and payments toward reinstatement.</p>
+        {qOverview.isLoading ? <div className="mt-3 text-sm text-slate-500">Loading…</div> : null}
+        {qOverview.error ? <div className="mt-3 text-sm text-rose-600">Could not load distributions.</div> : null}
+        {!qOverview.isLoading && !qOverview.error && !(overview?.distributions || []).length ? (
+          <div className="mt-3 text-sm text-slate-500">No capital distributions recorded.</div>
+        ) : null}
+        {(overview?.distributions || []).length > 0 ? (
+          <div className="mt-3 overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead className="ui-table-head">
+                <tr>
+                  <th className="px-3 py-2">Distribution date</th>
+                  <th className="px-3 py-2 text-right">Original amount</th>
+                  <th className="px-3 py-2 text-right">Total reinstated</th>
+                  <th className="px-3 py-2 text-right">Outstanding balance</th>
+                  <th className="px-3 py-2">Status</th>
+                  <th className="px-3 py-2">Action</th>
+                </tr>
+              </thead>
+              <tbody className="ui-table-divide">
+                {(overview?.distributions || []).map((d) => (
+                  <Fragment key={d.id}>
+                    <tr className="ui-table-row-hover">
+                      <td className="px-3 py-2">{fmtDate(d.distributionDate)}</td>
+                      <td className="px-3 py-2 text-right">{formatMoney(d.originalAmount, d.currency)}</td>
+                      <td className="px-3 py-2 text-right">{formatMoney(d.totalReinstated, d.currency)}</td>
+                      <td className="px-3 py-2 text-right">{formatMoney(d.outstandingBalance, d.currency)}</td>
+                      <td className="px-3 py-2 text-xs font-semibold text-slate-700">{formatStatusLabel(d.status)}</td>
+                      <td className="px-3 py-2">
                         <button
                           type="button"
-                          className="text-sm font-medium text-brand-700 hover:underline"
-                          onClick={() =>
-                            void openPdfInNewTab(receiptApiPath(r.id)).catch((e) =>
-                              alert(e instanceof Error ? e.message : "Could not open PDF")
-                            )
-                          }
+                          className="text-xs font-medium text-brand-700 hover:underline"
+                          onClick={() => setExpandedDistId((x) => (x === d.id ? null : d.id))}
                         >
-                          View
+                          {expandedDistId === d.id ? "Hide reinstatements" : "View reinstatements"}
                         </button>
-                        <button
-                          type="button"
-                          className="text-sm font-medium text-brand-700 hover:underline"
-                          onClick={() =>
-                            void downloadPdf(
-                              receiptApiPath(r.id),
-                              `director-receipt-${r.receiptReference || r.id}`
-                            ).catch((e) => alert(e instanceof Error ? e.message : "Could not download PDF"))
-                          }
-                        >
-                          Download
-                        </button>
-                        <button
-                          type="button"
-                          className="text-sm font-medium text-brand-700 hover:underline"
-                          onClick={() =>
-                            void printPdfInNewTab(receiptApiPath(r.id)).catch((e) =>
-                              alert(e instanceof Error ? e.message : "Could not print PDF")
-                            )
-                          }
-                        >
-                          Print
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                      </td>
+                    </tr>
+                    {expandedDistId === d.id ? (
+                      <tr className="bg-slate-50/80 dark:bg-slate-900/40">
+                        <td colSpan={6} className="px-3 py-3">
+                          {(d.reinstatements || []).length === 0 ? (
+                            <div className="text-xs text-slate-600">No reinstatement payments recorded for this distribution.</div>
+                          ) : (
+                            <table className="min-w-full text-left text-xs">
+                              <thead>
+                                <tr className="text-slate-500">
+                                  <th className="py-1 pr-3">Date</th>
+                                  <th className="py-1 pr-3">Amount</th>
+                                  <th className="py-1">Currency</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {(d.reinstatements || []).map((row) => (
+                                  <tr key={row.id}>
+                                    <td className="py-1 pr-3">{fmtDate(row.date)}</td>
+                                    <td className="py-1 pr-3 font-medium">{formatMoney(row.amount, row.currency)}</td>
+                                    <td className="py-1">{row.currency}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          )}
+                        </td>
+                      </tr>
+                    ) : null}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
           </div>
         ) : null}
+      </div>
+
+      <div className="rounded-2xl ui-surface p-4">
+        <div className="text-sm font-semibold text-slate-900">Company loans</div>
+        <p className="mt-0.5 text-xs text-slate-500">Loans from the company to this director and repayment history.</p>
+        {qOverview.isLoading ? <div className="mt-3 text-sm text-slate-500">Loading…</div> : null}
+        {qOverview.error ? <div className="mt-3 text-sm text-rose-600">Could not load loans.</div> : null}
+        {!qOverview.isLoading && !qOverview.error && !(overview?.loans || []).length ? (
+          <div className="mt-3 text-sm text-slate-500">No company loans recorded.</div>
+        ) : null}
+        {(overview?.loans || []).length > 0 ? (
+          <div className="mt-3 overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead className="ui-table-head">
+                <tr>
+                  <th className="px-3 py-2">Loan date</th>
+                  <th className="px-3 py-2 text-right">Principal amount</th>
+                  <th className="px-3 py-2 text-right">Outstanding balance</th>
+                  <th className="px-3 py-2 text-right">Interest paid</th>
+                  <th className="px-3 py-2">Status</th>
+                  <th className="px-3 py-2">Action</th>
+                </tr>
+              </thead>
+              <tbody className="ui-table-divide">
+                {(overview?.loans || []).map((loan) => (
+                  <Fragment key={loan.id}>
+                    <tr className="ui-table-row-hover">
+                      <td className="px-3 py-2">{fmtDate(loan.loanDate)}</td>
+                      <td className="px-3 py-2 text-right">{formatMoney(loan.principalAmount, loan.currency)}</td>
+                      <td className="px-3 py-2 text-right">{formatMoney(loan.outstandingBalance, loan.currency)}</td>
+                      <td className="px-3 py-2 text-right">{formatMoney(loan.interestPaid, loan.currency)}</td>
+                      <td className="px-3 py-2 text-xs font-semibold text-slate-700">{formatStatusLabel(loan.status)}</td>
+                      <td className="px-3 py-2">
+                        <button
+                          type="button"
+                          className="text-xs font-medium text-brand-700 hover:underline"
+                          onClick={() => setExpandedLoanId((x) => (x === loan.id ? null : loan.id))}
+                        >
+                          {expandedLoanId === loan.id ? "Hide repayments" : "View repayments"}
+                        </button>
+                      </td>
+                    </tr>
+                    {expandedLoanId === loan.id ? (
+                      <tr className="bg-slate-50/80 dark:bg-slate-900/40">
+                        <td colSpan={6} className="px-3 py-3">
+                          {(loan.repayments || []).length === 0 ? (
+                            <div className="text-xs text-slate-600">No repayments recorded yet.</div>
+                          ) : (
+                            <table className="min-w-full text-left text-xs">
+                              <thead>
+                                <tr className="text-slate-500">
+                                  <th className="py-1 pr-3">Date</th>
+                                  <th className="py-1 pr-3 text-right">Total received</th>
+                                  <th className="py-1 pr-3 text-right">Principal</th>
+                                  <th className="py-1 pr-3 text-right">Interest</th>
+                                  <th className="py-1">Currency</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {(loan.repayments || []).map((row) => (
+                                  <tr key={row.id}>
+                                    <td className="py-1 pr-3">{fmtDate(row.date)}</td>
+                                    <td className="py-1 pr-3 text-right font-medium">{formatMoney(row.totalReceived, row.currency)}</td>
+                                    <td className="py-1 pr-3 text-right">{formatMoney(row.principalPaid, row.currency)}</td>
+                                    <td className="py-1 pr-3 text-right">{formatMoney(row.interestPaid, row.currency)}</td>
+                                    <td className="py-1">{row.currency}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          )}
+                        </td>
+                      </tr>
+                    ) : null}
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+      </div>
+
+      <div>
+        <div className="mb-2 text-sm font-semibold text-slate-900">Contribution history</div>
+        <p className="mb-3 text-xs text-slate-500">
+          Lists contribution, side fund, and penalty postings for this director (same rules as the API).
+        </p>
+        <TransactionTable rows={contributionRows} />
       </div>
     </div>
   );
