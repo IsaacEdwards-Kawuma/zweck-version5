@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import Loading from "../components/Loading";
 import ErrorBanner from "../components/ErrorBanner";
@@ -67,6 +67,18 @@ function escHtml(value) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+/** @returns {{ from: string, to: string } | null} */
+function boundsFromYearMonth(period) {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(period).trim());
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  if (!Number.isFinite(y) || !Number.isFinite(mo) || mo < 1 || mo > 12) return null;
+  const from = new Date(Date.UTC(y, mo - 1, 1));
+  const to = new Date(Date.UTC(y, mo, 0));
+  return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
 }
 
 const PRINT_COMPANY_NAME = "Zweck Tukula Co. Ltd";
@@ -218,6 +230,8 @@ function openPrintDocument(title, statementName, reportMeta, statementRef, inner
 }
 
 export default function Reports() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const monthlyRangeAppliedRef = useRef(false);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [customPresets, setCustomPresets] = useState(() => loadCustomPresets());
@@ -434,6 +448,48 @@ export default function Reports() {
     const s = q.toString();
     return s ? `/ledger?${s}` : "/ledger";
   }, [from, to]);
+
+  const monthlyStatementMeta = useMemo(() => {
+    if (searchParams.get("monthly") !== "1") return null;
+    const period = searchParams.get("period");
+    if (!period) return null;
+    const b = boundsFromYearMonth(period);
+    if (!b) return null;
+    const [y, m] = period.split("-").map(Number);
+    const label = new Date(Date.UTC(y, m - 1, 15)).toLocaleString("en-GB", {
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC"
+    });
+    return { period, label, from: b.from, to: b.to };
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (searchParams.get("monthly") !== "1") {
+      monthlyRangeAppliedRef.current = false;
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (monthlyRangeAppliedRef.current) return;
+    if (searchParams.get("monthly") !== "1") return;
+    const period = searchParams.get("period");
+    if (!period) return;
+    const b = boundsFromYearMonth(period);
+    if (!b) return;
+    setFrom(b.from);
+    setTo(b.to);
+    monthlyRangeAppliedRef.current = true;
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (searchParams.get("monthly") !== "1") return;
+    if (qTx.isLoading) return;
+    const t = window.setTimeout(() => {
+      document.getElementById("reports-monthly-statement")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 400);
+    return () => window.clearTimeout(t);
+  }, [searchParams, qTx.isLoading]);
 
   if (qTx.isLoading || qSummary.isLoading || qDirectors.isLoading || qDirectorsFull.isLoading) {
     return <Loading label="Loading reports..." />;
@@ -837,6 +893,64 @@ export default function Reports() {
           </Link>
         </div>
       </PageHero>
+
+      {monthlyStatementMeta ? (
+        <section
+          id="reports-monthly-statement"
+          className="ui-animate-pop rounded-xl border border-brand-300/80 bg-gradient-to-br from-brand-50 to-white p-4 shadow-sm dark:border-brand-700/60 dark:from-brand-950/50 dark:to-slate-900/80 print:hidden"
+        >
+          <div className="text-sm font-semibold text-brand-900 dark:text-brand-100">Monthly statement</div>
+          <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">
+            Period: <strong>{monthlyStatementMeta.label}</strong> ({monthlyStatementMeta.from} → {monthlyStatementMeta.to}). Use the
+            actions below to export data or open printable statements (same as the sections further down this page).
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              className="rounded-lg border border-brand-200 bg-white px-3 py-1.5 text-sm font-medium text-brand-900 shadow-sm transition hover:bg-brand-50 dark:border-brand-600 dark:bg-brand-950/40 dark:text-brand-100 dark:hover:bg-brand-900/50"
+              onClick={async () => {
+                if (!txs.length) return window.alert("No transactions in the selected range to export.");
+                downloadTransactionsCsv(txs, `zweck-transactions-${monthlyStatementMeta.period}.csv`);
+                await logReportEvent("EXPORT_CSV", "TRANSACTIONS", "monthly");
+              }}
+            >
+              Download transactions CSV
+            </button>
+            <button
+              type="button"
+              className="ui-btn-outline text-slate-800 dark:text-slate-200"
+              onClick={() => window.print()}
+            >
+              Print this page
+            </button>
+            <button type="button" className="ui-btn-outline-xs" onClick={() => printProfitLoss("summary")}>
+              Print P&amp;L (summary)
+            </button>
+            <button type="button" className="ui-btn-outline-xs" onClick={() => printBalanceSheet("summary")}>
+              Print balance sheet
+            </button>
+            <button type="button" className="ui-btn-outline-xs" onClick={() => printCashFlow("summary")}>
+              Print cash flow
+            </button>
+            <Link
+              to={ledgerHref}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 shadow-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+            >
+              Open ledger (same range)
+            </Link>
+            <button
+              type="button"
+              className="text-xs font-medium text-slate-600 underline hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
+              onClick={() => {
+                monthlyRangeAppliedRef.current = false;
+                setSearchParams({});
+              }}
+            >
+              Clear monthly link
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       <PrintStatementHeader
         title="Financial report"

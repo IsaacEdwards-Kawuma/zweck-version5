@@ -18,6 +18,7 @@ import {
   normalizeChatBody,
   normalizeChatBodyWithAttachment
 } from "../lib/chatPermissions.js";
+import { hasAdminPrivileges } from "../lib/roles.js";
 import { getMentionableUserIds, parseMentionEmails, resolveMentionUserIds } from "../lib/chatMentions.js";
 import { getChatIo } from "../socket/chatSocket.js";
 
@@ -1432,7 +1433,7 @@ router.post("/rooms/:roomId/messages/:messageId/forward", async (req, res) => {
   }
 
   if (tgtRoom.kind === "GROUP" && tgtRoom.adminOnlyPost) {
-    if (user.role !== "ADMIN" && user.id !== tgtRoom.createdById) {
+    if (!hasAdminPrivileges(user.role) && user.id !== tgtRoom.createdById) {
       return res.status(403).json(apiError("Only admins can post in target room"));
     }
   }

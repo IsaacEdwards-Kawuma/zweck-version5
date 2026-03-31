@@ -7,6 +7,7 @@ import { prisma } from "../lib/prisma.js";
 import { apiError } from "../lib/http.js";
 import { getOrCreateAppSettings } from "../lib/appSettings.js";
 import { requireRole } from "../middleware/auth.js";
+import { hasAdminPrivileges } from "../lib/roles.js";
 
 const router = Router();
 
@@ -16,7 +17,7 @@ const router = Router();
  */
 router.get("/", async (req, res) => {
   const user = req.user!;
-  const isAdmin = user.role === "ADMIN";
+  const isAdmin = hasAdminPrivileges(user.role);
   const [dbUser, orgRow] = await Promise.all([
     prisma.user.findUnique({
       where: { id: user.id },

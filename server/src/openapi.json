@@ -535,7 +535,7 @@
       "post": {
         "tags": ["jobs"],
         "summary": "Monthly statement reminder (scheduler)",
-        "description": "Call daily from a cron job. On the first calendar day of each month (UTC), sends one in-app notification per active ADMIN and DIRECTOR user pointing to Reports. No-ops on other days or if this month was already processed. Requires `CRON_SECRET` in `X-Cron-Secret` or `Authorization: Bearer`.",
+        "description": "Call daily from a cron job. On the first calendar day of each month (UTC), sends one in-app notification per active user with role ADMIN, ADMIN_DIRECTOR, DIRECTOR, TREASURER, CEO, or OPERATIONAL_MANAGER. Each notification links to `/reports?monthly=1&period=YYYY-MM` (prior calendar month, UTC) for export and print. No-ops on other days or if this month was already processed. Requires `CRON_SECRET` in `X-Cron-Secret` or `Authorization: Bearer`.",
         "security": [{ "cronSecret": [] }],
         "responses": {
           "200": {

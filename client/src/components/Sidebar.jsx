@@ -2,6 +2,7 @@ import { Link, NavLink } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import DirectorAvatar from "./DirectorAvatar";
 import { logout as logoutApi } from "../api/auth";
+import { hasAdminPrivileges } from "../lib/roles";
 
 const links = [
   { to: "/", label: "Dashboard", icon: "dashboard" },
@@ -165,7 +166,7 @@ export default function Sidebar({ mobileOpen, onClose, me }) {
   const profileName = me?.director?.name || (me?.email ? String(me.email).split("@")[0] : "Signed in user");
   const profileSubtitle = me?.email || "No email";
   const avatarDirector = me?.director || { name: profileName, initials: String(profileName).slice(0, 2).toUpperCase(), avatarUrl: null };
-  const profileTarget = me?.role === "ADMIN" ? "/settings#settings-login-stamps" : "/settings#settings-account";
+  const profileTarget = hasAdminPrivileges(me?.role) ? "/settings#settings-login-stamps" : "/settings#settings-account";
   return (
     <>
       <button

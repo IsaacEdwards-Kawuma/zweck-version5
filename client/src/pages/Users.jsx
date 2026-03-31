@@ -4,8 +4,10 @@ import Loading from "../components/Loading";
 import ErrorBanner from "../components/ErrorBanner";
 import { listUsers } from "../api/users";
 import { useMe } from "../hooks/useMe";
+import { hasAdminPrivileges } from "../lib/roles";
 
 function formatRoleLabel(role) {
+  if (role === "ADMIN_DIRECTOR") return "Admin / Director";
   if (role === "OPERATIONAL_MANAGER") return "Operational manager";
   if (role === "SECRETARY") return "Secretary";
   if (role === "CEO") return "CEO";
@@ -14,11 +16,11 @@ function formatRoleLabel(role) {
 
 export default function Users() {
   const qMe = useMe(true);
-  const q = useQuery({ queryKey: ["users"], queryFn: listUsers, enabled: qMe.data?.role === "ADMIN" });
+  const q = useQuery({ queryKey: ["users"], queryFn: listUsers, enabled: hasAdminPrivileges(qMe.data?.role) });
 
   if (qMe.isLoading || q.isLoading) return <Loading label="Loading users..." />;
   if (qMe.error) return <ErrorBanner error={qMe.error} />;
-  if (qMe.data?.role !== "ADMIN") {
+  if (!hasAdminPrivileges(qMe.data?.role)) {
     return (
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
         You must be an admin to view the users list.

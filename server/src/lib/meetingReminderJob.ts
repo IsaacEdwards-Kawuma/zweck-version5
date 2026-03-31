@@ -68,6 +68,7 @@ export async function runMeetingReminderJob(): Promise<MeetingReminderJobResult>
       where: {
         OR: [
           { role: "ADMIN" },
+          { role: "ADMIN_DIRECTOR" },
           { role: "DIRECTOR" },
           ...(meeting.createdById != null ? [{ id: meeting.createdById }] : [])
         ]

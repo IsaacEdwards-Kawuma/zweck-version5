@@ -9,6 +9,7 @@ import { IconBank, IconClipboard, IconListNumbers, IconScale } from "../componen
 import { formatMoney } from "../lib/format";
 import { useMe } from "../hooks/useMe";
 import { listClients, createClient, updateClient, deleteClient } from "../api/clients";
+import { hasAdminPrivileges } from "../lib/roles";
 import { listInvoices } from "../api/invoices";
 
 const PARTY_TYPES = ["CLIENT", "DIRECTOR", "PROJECT_PARTY"];
@@ -18,7 +19,7 @@ export default function ClientRegister() {
   const nav = useNavigate();
   const qc = useQueryClient();
   const { data: me } = useMe(true);
-  const canAdmin = me?.role === "ADMIN";
+  const canAdmin = hasAdminPrivileges(me?.role);
 
   const qClients = useQuery({ queryKey: ["clients_all"], queryFn: listClients });
   const qSalesInvoices = useQuery({

@@ -12,6 +12,7 @@ import { directorAccount } from "../api/accounts";
 import { eur, eurCompact, fmtDate, formatMoney, formatTxRef } from "../lib/format";
 import { TX_ACCOUNT_MAP } from "../lib/transactionTypes";
 import { downloadTransactionsCsv } from "../lib/reportsAnalytics";
+import { hasAdminPrivileges, hasDirectorPrivileges } from "../lib/roles";
 import { TX_TYPE_LABELS } from "../lib/dashboardAnalytics";
 import {
   ResponsiveContainer,
@@ -115,8 +116,8 @@ export default function DirectorDetail() {
   const totals = qTotals.data;
 
   const canManagePhoto =
-    me?.role === "ADMIN" ||
-    (me?.role === "DIRECTOR" && me?.directorId != null && me.directorId === directorIdNum);
+    hasAdminPrivileges(me?.role) ||
+    (hasDirectorPrivileges(me?.role) && me?.directorId != null && me.directorId === directorIdNum);
 
   function uploadErrorMessage(err) {
     const d = err?.response?.data;
@@ -312,7 +313,7 @@ export default function DirectorDetail() {
             <div className="text-sm font-semibold text-slate-900">Linked invoices</div>
             <p className="mt-0.5 text-xs text-slate-500">Invoices with this director linked.</p>
           </div>
-          {me?.role === "ADMIN" ? (
+          {hasAdminPrivileges(me?.role) ? (
             <Link
               to={`/invoices/new?directorId=${directorIdNum}`}
               className="text-sm font-medium text-brand-700 hover:underline"

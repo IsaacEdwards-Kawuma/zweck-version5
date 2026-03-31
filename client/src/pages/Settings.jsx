@@ -22,6 +22,7 @@ import {
 import { listPresence } from "../api/presence";
 import { pingIntegration } from "../api/integrations";
 import { fmtDate } from "../lib/format";
+import { hasAdminPrivileges, hasDirectorPrivileges } from "../lib/roles";
 
 const SECTION = "ui-panel-elevated scroll-mt-24 p-5";
 const PREFS_KEY = "zweck_settings_prefs_v1";
@@ -189,7 +190,7 @@ export default function Settings() {
   const qUsers = useQuery({
     queryKey: ["users"],
     queryFn: listUsers,
-    enabled: qSettings.data?.session?.role === "ADMIN"
+    enabled: hasAdminPrivileges(qSettings.data?.session?.role)
   });
   const mRole = useMutation({
     mutationFn: ({ id, role }) => updateUserRole(id, role),
@@ -230,12 +231,12 @@ export default function Settings() {
   const qLoginEvents = useQuery({
     queryKey: ["login_events_admin_settings"],
     queryFn: () => listLoginEvents(500),
-    enabled: qSettings.data?.session?.role === "ADMIN"
+    enabled: hasAdminPrivileges(qSettings.data?.session?.role)
   });
   const qPresence = useQuery({
     queryKey: ["presence", "admin"],
     queryFn: listPresence,
-    enabled: qSettings.data?.session?.role === "ADMIN",
+    enabled: hasAdminPrivileges(qSettings.data?.session?.role),
     refetchInterval: 5000
   });
   const qMyLoginEvents = useQuery({
@@ -297,7 +298,7 @@ export default function Settings() {
   const monitoring = s?.monitoring || {};
   const rateLimits = s?.rateLimits || {};
   const session = s?.session || {};
-  const isAdmin = session.role === "ADMIN";
+  const isAdmin = hasAdminPrivileges(session.role);
 
   const presenceUsersRaw = qPresence.data?.users ?? [];
   const presenceOnlineCount = presenceUsersRaw.filter((u) => u.isOnline).length;
@@ -565,24 +566,28 @@ export default function Settings() {
               "ml-2 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide align-middle",
               session.role === "ADMIN"
                 ? "bg-violet-100 text-violet-800 ring-1 ring-violet-200/80"
-                : session.role === "DIRECTOR"
-                  ? "bg-accent-100 text-accent-800 ring-1 ring-accent-200/80"
-                  : session.role === "TREASURER"
-                    ? "bg-emerald-100 text-emerald-900 ring-1 ring-emerald-200/80 dark:bg-emerald-950/50 dark:text-emerald-200 dark:ring-emerald-800/60"
-                    : session.role === "SECRETARY"
-                      ? "bg-sky-100 text-sky-900 ring-1 ring-sky-200/80 dark:bg-sky-950/50 dark:text-sky-200 dark:ring-sky-800/60"
-                      : session.role === "OPERATIONAL_MANAGER"
-                        ? "bg-indigo-100 text-indigo-900 ring-1 ring-indigo-200/80 dark:bg-indigo-950/50 dark:text-indigo-200 dark:ring-indigo-800/60"
-                        : session.role === "CEO"
-                          ? "bg-amber-200 text-amber-950 ring-1 ring-amber-300/90 dark:bg-amber-950/60 dark:text-amber-100 dark:ring-amber-700/60"
-                          : "bg-slate-100 text-slate-700 ring-1 ring-slate-200/80"
+                : session.role === "ADMIN_DIRECTOR"
+                  ? "bg-violet-200 text-violet-950 ring-1 ring-violet-300/90 dark:bg-violet-950/50 dark:text-violet-100 dark:ring-violet-800/60"
+                  : session.role === "DIRECTOR"
+                    ? "bg-accent-100 text-accent-800 ring-1 ring-accent-200/80"
+                    : session.role === "TREASURER"
+                      ? "bg-emerald-100 text-emerald-900 ring-1 ring-emerald-200/80 dark:bg-emerald-950/50 dark:text-emerald-200 dark:ring-emerald-800/60"
+                      : session.role === "SECRETARY"
+                        ? "bg-sky-100 text-sky-900 ring-1 ring-sky-200/80 dark:bg-sky-950/50 dark:text-sky-200 dark:ring-sky-800/60"
+                        : session.role === "OPERATIONAL_MANAGER"
+                          ? "bg-indigo-100 text-indigo-900 ring-1 ring-indigo-200/80 dark:bg-indigo-950/50 dark:text-indigo-200 dark:ring-indigo-800/60"
+                          : session.role === "CEO"
+                            ? "bg-amber-200 text-amber-950 ring-1 ring-amber-300/90 dark:bg-amber-950/60 dark:text-amber-100 dark:ring-amber-700/60"
+                            : "bg-slate-100 text-slate-700 ring-1 ring-slate-200/80"
             ].join(" ")}
           >
-            {session.role === "OPERATIONAL_MANAGER"
-              ? "Operational manager"
-              : session.role === "SECRETARY"
-                ? "Secretary"
-                : session.role || "USER"}
+            {session.role === "ADMIN_DIRECTOR"
+              ? "Admin / Director"
+              : session.role === "OPERATIONAL_MANAGER"
+                ? "Operational manager"
+                : session.role === "SECRETARY"
+                  ? "Secretary"
+                  : session.role || "USER"}
           </span>
         </p>
         <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
@@ -598,7 +603,7 @@ export default function Settings() {
           >
             Password reset
           </Link>
-          {session.role === "ADMIN" ? (
+          {isAdmin ? (
             <>
               <Link
                 to="/users"
@@ -614,7 +619,7 @@ export default function Settings() {
               </Link>
             </>
           ) : null}
-          {session.role === "DIRECTOR" && session.directorId != null ? (
+          {hasDirectorPrivileges(session.role) && session.directorId != null ? (
             <Link
               to={`/directors/${session.directorId}`}
               className="rounded-full bg-accent-100 px-3 py-1 text-xs font-semibold text-accent-900 ring-1 ring-accent-200/80 hover:bg-accent-200"
@@ -1085,6 +1090,7 @@ export default function Settings() {
                             <option value="OPERATIONAL_MANAGER">Operational manager</option>
                             <option value="CEO">CEO</option>
                             <option value="ADMIN">ADMIN</option>
+                            <option value="ADMIN_DIRECTOR">Admin / Director</option>
                           </select>
                           {isSelf ? (
                             <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">You</div>

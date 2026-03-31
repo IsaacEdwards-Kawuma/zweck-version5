@@ -7,6 +7,7 @@ import PageHero from "../components/PageHero";
 import { IconClipboard, IconBolt } from "../components/Icons";
 import { useMe } from "../hooks/useMe";
 import { fmtDate, formatMoney } from "../lib/format";
+import { hasAdminPrivileges } from "../lib/roles";
 import { getInvoice, sendInvoice, voidInvoice, addPayment, approveProforma, convertProforma, downloadInvoicePdf } from "../api/invoices";
 
 function isoFromDateInput(dateStr) {
@@ -19,7 +20,7 @@ export default function InvoiceDetail() {
   const { id } = useParams();
   const invoiceId = Number(id);
   const { data: me } = useMe(true);
-  const canAdmin = me?.role === "ADMIN";
+  const canAdmin = hasAdminPrivileges(me?.role);
 
   const qInvoice = useQuery({ queryKey: ["invoice", invoiceId], queryFn: () => getInvoice(invoiceId), enabled: Number.isFinite(invoiceId) });
 

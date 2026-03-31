@@ -1,8 +1,10 @@
 import { Router } from "express";
 import { z } from "zod";
+import type { Role } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { apiError } from "../lib/http.js";
 import { requireRole } from "../middleware/auth.js";
+import { hasAdminPrivileges, hasDirectorPrivileges } from "../lib/roles.js";
 import { validateBody } from "../middleware/validate.js";
 import { notifyUser } from "../services/inAppNotifications.js";
 
@@ -36,8 +38,8 @@ const createMeetingSchema = meetingSchema.extend({
 });
 
 /** Board invites: admins and director-linked users only. */
-function isAllowedBoardInvitee(u: { role: string; directorId: number | null }): boolean {
-  return u.role === "ADMIN" || u.role === "DIRECTOR" || u.directorId != null;
+function isAllowedBoardInvitee(u: { role: Role; directorId: number | null }): boolean {
+  return hasAdminPrivileges(u.role) || hasDirectorPrivileges(u.role) || u.directorId != null;
 }
 
 function meetingInviteBody(row: {

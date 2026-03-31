@@ -29,6 +29,7 @@ import {
   patchChatRoomSettings
 } from "../api/chat";
 import MessageBody from "../components/chat/MessageBody";
+import { hasAdminPrivileges } from "../lib/roles";
 
 function resolveSocketURL() {
   const env = import.meta.env.VITE_API_URL?.trim();
@@ -210,8 +211,9 @@ export default function ChatRoom() {
 
   const room = qSummary.data;
   const canManageGroup =
-    room?.kind === "GROUP" && (me?.role === "ADMIN" || (room.createdById != null && room.createdById === me?.id));
-  const canModerate = me?.role === "ADMIN";
+    room?.kind === "GROUP" &&
+    (hasAdminPrivileges(me?.role) || (room.createdById != null && room.createdById === me?.id));
+  const canModerate = hasAdminPrivileges(me?.role);
 
   const [pinnedPlain, setPinnedPlain] = useState(null);
   const [attachmentBlobUrls, setAttachmentBlobUrls] = useState({});

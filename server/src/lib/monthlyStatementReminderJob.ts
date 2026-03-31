@@ -20,9 +20,30 @@ export type MonthlyStatementReminderJobResult = {
   errors: string[];
 };
 
+/** Previous calendar month as YYYY-MM (UTC). On 1 Mar → 2026-02. */
+export function utcPreviousYearMonth(now: Date = new Date()): string {
+  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  d.setUTCMonth(d.getUTCMonth() - 1);
+  return d.toISOString().slice(0, 7);
+}
+
+/** Deep link to Reports monthly statement panel for a YYYY-MM period. */
+export function buildMonthlyStatementReportLink(statementPeriod: string): string {
+  return `/reports?monthly=1&period=${encodeURIComponent(statementPeriod)}`;
+}
+
+const MONTHLY_STATEMENT_ROLES = [
+  "ADMIN",
+  "ADMIN_DIRECTOR",
+  "DIRECTOR",
+  "TREASURER",
+  "CEO",
+  "OPERATIONAL_MANAGER"
+] as const;
+
 /**
- * On the first calendar day of each month (UTC), notify every ADMIN and DIRECTOR (active, not removed or blocked)
- * to review monthly financial statements in Reports. Idempotent per month via MonthlyStatementReminderSent.
+ * On the first calendar day of each month (UTC), notify leadership roles (active, not removed or blocked)
+ * that the prior month’s figures are available in Reports. Idempotent per month via MonthlyStatementReminderSent.
  *
  * Schedule: call daily from the same cron as other jobs; this no-ops except on the 1st.
  */
@@ -45,7 +66,7 @@ export async function runMonthlyStatementReminderJob(
 
   const users = await prisma.user.findMany({
     where: {
-      role: { in: ["ADMIN", "DIRECTOR"] },
+      role: { in: [...MONTHLY_STATEMENT_ROLES] },
       deletedAt: null,
       isActive: true,
       adminBlockedAt: null
@@ -59,9 +80,22 @@ export async function runMonthlyStatementReminderJob(
     timeZone: "UTC"
   });
 
-  const title = "Monthly financial statement";
-  const body = `It is the first day of ${monthLabel} (UTC). Open Reports to review statements, exports, and print layouts for the period.`;
-  const link = "/reports";
+  const statementPeriod = utcPreviousYearMonth(now);
+  const periodParts = /^(\d{4})-(\d{2})$/.exec(statementPeriod);
+  const py = periodParts ? Number(periodParts[1]) : NaN;
+  const pm = periodParts ? Number(periodParts[2]) : NaN;
+  const periodLabel =
+    Number.isFinite(py) && Number.isFinite(pm) && pm >= 1 && pm <= 12
+      ? new Date(Date.UTC(py, pm - 1, 15)).toLocaleString("en-GB", {
+          month: "long",
+          year: "numeric",
+          timeZone: "UTC"
+        })
+      : statementPeriod;
+
+  const title = "Monthly financial statement ready";
+  const body = `It is the first day of ${monthLabel} (UTC). Statements for ${periodLabel} are ready — open the link to view, export CSV, or print (P&L, balance sheet, cash flow).`;
+  const link = buildMonthlyStatementReportLink(statementPeriod);
 
   const notificationRows = users.map((u) => ({
     userId: u.id,

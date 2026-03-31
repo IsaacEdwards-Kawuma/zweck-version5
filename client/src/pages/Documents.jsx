@@ -4,6 +4,7 @@ import { useMe } from "../hooks/useMe";
 import Loading from "../components/Loading";
 import ErrorBanner from "../components/ErrorBanner";
 import { createDocument, deleteDocument, listDocuments, updateDocument } from "../api/documents";
+import { hasAdminPrivileges } from "../lib/roles";
 
 const CATEGORIES = ["Governance", "Legal", "Finance", "HR", "Operations", "Other"];
 const STATUS = ["ACTIVE", "UNDER_REVIEW", "ARCHIVED"];
@@ -29,7 +30,7 @@ export default function Documents() {
   const qc = useQueryClient();
   const qMe = useMe(true);
   const q = useQuery({ queryKey: ["documents"], queryFn: listDocuments });
-  const isAdmin = qMe.data?.role === "ADMIN";
+  const isAdmin = hasAdminPrivileges(qMe.data?.role);
 
   const [form, setForm] = useState(EMPTY_FORM);
   const rows = useMemo(() => (Array.isArray(q.data) ? q.data : []), [q.data]);

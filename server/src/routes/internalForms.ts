@@ -9,6 +9,7 @@ import { apiError } from "../lib/http.js";
 import { requireAuth, requireTreasurerOrAdmin } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 import { notifyUser } from "../services/inAppNotifications.js";
+import { hasAdminPrivileges } from "../lib/roles.js";
 
 const router = Router();
 
@@ -134,7 +135,7 @@ router.get("/", requireAuth, async (req, res) => {
 
   const where: Prisma.InternalFormWhereInput = {};
   const canSeeAll =
-    user.role === "ADMIN" ||
+    hasAdminPrivileges(user.role) ||
     user.role === "TREASURER" ||
     user.role === "SECRETARY" ||
     user.role === "OPERATIONAL_MANAGER" ||
@@ -188,7 +189,10 @@ router.post("/", requireAuth, validateBody(createBody), async (req, res) => {
   const treasurers = await prisma.user.findMany({ where: { role: "TREASURER" }, select: { id: true } });
   const fallbackAdmins =
     treasurers.length === 0
-      ? await prisma.user.findMany({ where: { role: "ADMIN" }, select: { id: true } })
+      ? await prisma.user.findMany({
+          where: { role: { in: ["ADMIN", "ADMIN_DIRECTOR"] } },
+          select: { id: true }
+        })
       : [];
   const observers = await prisma.user.findMany({
     where: { role: { in: ["SECRETARY", "OPERATIONAL_MANAGER", "CEO"] } },

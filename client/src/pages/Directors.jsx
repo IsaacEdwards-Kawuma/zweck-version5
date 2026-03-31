@@ -12,6 +12,7 @@ import { createDirector, updateDirector, deleteDirector } from "../api/directors
 import { downloadDirectorsCsv } from "../lib/directorsExport";
 import { eur, eurCompact } from "../lib/format";
 import { useDarkClass } from "../lib/useDarkClass";
+import { hasAdminPrivileges } from "../lib/roles";
 import {
   ResponsiveContainer,
   BarChart,
@@ -292,7 +293,7 @@ export default function Directors() {
         </div>
       ) : null}
 
-      {me?.role === "ADMIN" && (
+      {hasAdminPrivileges(me?.role) && (
         <div className="ui-panel-elevated space-y-3">
           <div className="flex items-center gap-2">
             <span className="h-6 w-1 rounded-full bg-gradient-to-b from-brand-500 to-sky-500" aria-hidden />
@@ -447,7 +448,7 @@ export default function Directors() {
         {filtered.map((d) => (
           <div key={d.id} className="space-y-2">
             <DirectorCard director={d} maxTotal={maxTotal} onClick={() => nav(`/directors/${d.id}`)} />
-            {me?.role === "ADMIN" && (
+            {hasAdminPrivileges(me?.role) && (
               <div className="flex gap-2 text-xs">
                 <button
                   className="ui-btn-outline-xs font-medium py-1"

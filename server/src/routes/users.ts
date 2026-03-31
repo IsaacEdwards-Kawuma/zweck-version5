@@ -8,10 +8,20 @@ import { validateBody } from "../middleware/validate.js";
 import { notifyUser } from "../services/inAppNotifications.js";
 import { writeAudit } from "../lib/audit.js";
 import { countAbleAdmins } from "../lib/userLifecycle.js";
+import { hasAdminPrivileges } from "../lib/roles.js";
 
 const router = Router();
 const updateRoleBody = z.object({
-  role: z.enum(["ADMIN", "USER", "DIRECTOR", "TREASURER", "SECRETARY", "OPERATIONAL_MANAGER", "CEO"])
+  role: z.enum([
+    "ADMIN",
+    "ADMIN_DIRECTOR",
+    "USER",
+    "DIRECTOR",
+    "TREASURER",
+    "SECRETARY",
+    "OPERATIONAL_MANAGER",
+    "CEO"
+  ])
 });
 
 const blockUserBody = z.object({
@@ -28,7 +38,7 @@ async function assertNotLastAbleAdmin(targetId: number): Promise<void> {
     where: { id: targetId },
     select: { role: true, deletedAt: true, isActive: true, adminBlockedAt: true }
   });
-  if (!target || target.role !== "ADMIN") return;
+  if (!target || !hasAdminPrivileges(target.role)) return;
   const able = !target.deletedAt && target.isActive && !target.adminBlockedAt;
   if (!able) return;
   const n = await countAbleAdmins();
@@ -375,17 +385,19 @@ router.patch(
       const label = (r: string) =>
         r === "ADMIN"
           ? "Admin"
-          : r === "DIRECTOR"
-            ? "Director"
-            : r === "TREASURER"
-              ? "Treasurer"
-              : r === "SECRETARY"
-                ? "Secretary"
-                : r === "OPERATIONAL_MANAGER"
-                  ? "Operational manager"
-                  : r === "CEO"
-                    ? "CEO"
-                    : "User";
+          : r === "ADMIN_DIRECTOR"
+            ? "Admin / Director"
+            : r === "DIRECTOR"
+              ? "Director"
+              : r === "TREASURER"
+                ? "Treasurer"
+                : r === "SECRETARY"
+                  ? "Secretary"
+                  : r === "OPERATIONAL_MANAGER"
+                    ? "Operational manager"
+                    : r === "CEO"
+                      ? "CEO"
+                      : "User";
       await notifyUser(
         id,
         "ROLE_CHANGED",

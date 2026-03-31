@@ -3,6 +3,7 @@ import { useOutletContext } from "react-router-dom";
 import ErrorBanner from "../components/ErrorBanner";
 import { getMyDataExport, requestDataErasure } from "../api/auth";
 import { downloadOrgBackupJson } from "../api/admin";
+import { hasAdminPrivileges } from "../lib/roles";
 
 function downloadJson(filename, obj) {
   const blob = new Blob([JSON.stringify(obj, null, 2)], { type: "application/json;charset=utf-8" });
@@ -16,7 +17,7 @@ function downloadJson(filename, obj) {
 
 export default function DataRights() {
   const { me } = useOutletContext() || {};
-  const isAdmin = me?.role === "ADMIN";
+  const isAdmin = hasAdminPrivileges(me?.role);
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);

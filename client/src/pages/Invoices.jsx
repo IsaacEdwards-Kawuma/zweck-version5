@@ -10,6 +10,7 @@ import PageHero from "../components/PageHero";
 import { IconBank, IconClipboard, IconListNumbers, IconScale } from "../components/Icons";
 import { fmtDate, formatMoney } from "../lib/format";
 import { useMe } from "../hooks/useMe";
+import { hasAdminPrivileges } from "../lib/roles";
 
 const INVOICE_TYPES = ["ALL", "SALES", "PURCHASE", "PROFORMA", "CREDIT_NOTE"];
 const STATUSES = ["ALL", "DRAFT", "SENT", "PARTIALLY_PAID", "PAID", "OVERDUE", "VOID", "APPROVED"];
@@ -62,7 +63,7 @@ export default function Invoices() {
   const clients = qClients.data || [];
   const rows = qInvoices.data || [];
 
-  const canAdmin = me?.role === "ADMIN";
+  const canAdmin = hasAdminPrivileges(me?.role);
 
   return (
     <div className="space-y-6">

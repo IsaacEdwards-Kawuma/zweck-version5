@@ -1,12 +1,14 @@
 import type { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
+import type { Role } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { apiError } from "../lib/http.js";
+import { hasAdminPrivileges, hasDirectorPrivileges } from "../lib/roles.js";
 
 export type AuthUser = {
   id: number;
   email: string;
-  role: "ADMIN" | "USER" | "DIRECTOR" | "TREASURER" | "SECRETARY" | "OPERATIONAL_MANAGER" | "CEO";
+  role: Role;
   directorId: number | null;
   sessionId?: number | null;
 };
@@ -91,10 +93,21 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   })();
 }
 
+/**
+ * Route guard: `requireRole("ADMIN")` allows ADMIN and ADMIN_DIRECTOR;
+ * `requireRole("DIRECTOR")` allows DIRECTOR and ADMIN_DIRECTOR; other roles must match exactly.
+ */
 export function requireRole(role: AuthUser["role"]) {
   return (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return res.status(401).json(apiError("Unauthorized"));
-    if (req.user.role !== role) return res.status(403).json(apiError("Forbidden"));
+    const u = req.user;
+    if (role === "ADMIN") {
+      if (!hasAdminPrivileges(u.role)) return res.status(403).json(apiError("Forbidden"));
+    } else if (role === "DIRECTOR") {
+      if (!hasDirectorPrivileges(u.role)) return res.status(403).json(apiError("Forbidden"));
+    } else if (u.role !== role) {
+      return res.status(403).json(apiError("Forbidden"));
+    }
     next();
   };
 }
@@ -102,7 +115,7 @@ export function requireRole(role: AuthUser["role"]) {
 /** Approve/reject internal forms (requisitions, etc.). */
 export function requireTreasurerOrAdmin(req: Request, res: Response, next: NextFunction) {
   if (!req.user) return res.status(401).json(apiError("Unauthorized"));
-  if (req.user.role === "ADMIN" || req.user.role === "TREASURER") return next();
+  if (hasAdminPrivileges(req.user.role) || req.user.role === "TREASURER") return next();
   return res.status(403).json(apiError("Treasurer or admin only"));
 }
 
@@ -110,11 +123,11 @@ export function requireTreasurerOrAdmin(req: Request, res: Response, next: NextF
 export function requireAdminOrDirectorSelf(paramName: string = "id") {
   return (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return res.status(401).json(apiError("Unauthorized"));
-    if (req.user.role === "ADMIN") return next();
+    if (hasAdminPrivileges(req.user.role)) return next();
     const raw = req.params[paramName];
     const id = Number(raw);
     if (!Number.isFinite(id)) return res.status(400).json(apiError("Invalid director id"));
-    if (req.user.role === "DIRECTOR" && req.user.directorId === id) return next();
+    if (hasDirectorPrivileges(req.user.role) && req.user.directorId === id) return next();
     return res.status(403).json(apiError("Forbidden"));
   };
 }

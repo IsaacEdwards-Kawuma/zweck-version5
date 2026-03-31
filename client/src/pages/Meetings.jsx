@@ -13,6 +13,7 @@ import {
 } from "../api/meetings";
 import { listUsers } from "../api/users";
 import PageHero, { SectionTitle } from "../components/PageHero";
+import { hasAdminPrivileges, hasDirectorPrivileges } from "../lib/roles";
 import {
   IconBolt,
   IconCalendar,
@@ -44,7 +45,7 @@ function parseDateKeyLocal(dateKey) {
 
 /** Board meetings: admins plus director-linked accounts (Director role or linked profile). */
 function isBoardAttendeeOption(u) {
-  return u.role === "ADMIN" || u.role === "DIRECTOR" || u.directorId != null;
+  return hasAdminPrivileges(u.role) || hasDirectorPrivileges(u.role) || u.directorId != null;
 }
 
 function formatAttendeeLine(u) {
@@ -109,7 +110,7 @@ export default function Meetings() {
   const qc = useQueryClient();
   const qMe = useMe(true);
   const q = useQuery({ queryKey: ["meetings"], queryFn: listMeetings });
-  const isAdmin = qMe.data?.role === "ADMIN";
+  const isAdmin = hasAdminPrivileges(qMe.data?.role);
   const qUsers = useQuery({
     queryKey: ["users"],
     queryFn: listUsers,

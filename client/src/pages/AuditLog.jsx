@@ -5,6 +5,7 @@ import ErrorBanner from "../components/ErrorBanner";
 import { listAuditLogs, downloadAuditLogCsv } from "../api/audit";
 import { listLoginEvents } from "../api/users";
 import { useMe } from "../hooks/useMe";
+import { hasAdminPrivileges } from "../lib/roles";
 
 export default function AuditLog() {
   const qMe = useMe(true);
@@ -30,12 +31,12 @@ export default function AuditLog() {
   const q = useQuery({
     queryKey: ["audit_log", auditParams],
     queryFn: () => listAuditLogs(auditParams),
-    enabled: qMe.data?.role === "ADMIN"
+    enabled: hasAdminPrivileges(qMe.data?.role)
   });
   const qLogins = useQuery({
     queryKey: ["login_events"],
     queryFn: () => listLoginEvents(200),
-    enabled: qMe.data?.role === "ADMIN"
+    enabled: hasAdminPrivileges(qMe.data?.role)
   });
 
   const hasActiveFilters = Boolean(
@@ -44,7 +45,7 @@ export default function AuditLog() {
 
   if (qMe.isLoading || q.isLoading || qLogins.isLoading) return <Loading label="Loading audit log..." />;
   if (qMe.error) return <ErrorBanner error={qMe.error} />;
-  if (qMe.data?.role !== "ADMIN") {
+  if (!hasAdminPrivileges(qMe.data?.role)) {
     return (
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
         You must be an admin to view the audit log.

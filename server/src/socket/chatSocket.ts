@@ -5,6 +5,7 @@ import { prisma } from "../lib/prisma.js";
 import { isAuthDisabled } from "../middleware/auth.js";
 import type { AuthUser } from "../middleware/auth.js";
 import { assertUserCanAccessChatRoom, normalizeChatBodyWithAttachment } from "../lib/chatPermissions.js";
+import { hasAdminPrivileges } from "../lib/roles.js";
 import { getMentionableUserIds, parseMentionEmails, resolveMentionUserIds } from "../lib/chatMentions.js";
 import { extractFirstHttpUrl, fetchLinkPreview } from "../lib/linkPreview.js";
 let chatIoSingleton: SocketIOServer | null = null;
@@ -255,7 +256,7 @@ export function setupChatSocket(httpServer: http.Server): SocketIOServer {
         await assertUserCanAccessChatRoom(user, room);
 
         if (room.kind === "GROUP" && room.adminOnlyPost) {
-          if (user.role !== "ADMIN" && user.id !== room.createdById) {
+          if (!hasAdminPrivileges(user.role) && user.id !== room.createdById) {
             throw new Error("Only admins can post in this room");
           }
         }

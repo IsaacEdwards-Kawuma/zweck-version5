@@ -7,6 +7,7 @@ import PageHero from "../components/PageHero";
 import { IconClipboard } from "../components/Icons";
 import { useMe } from "../hooks/useMe";
 import { formatMoney } from "../lib/format";
+import { hasAdminPrivileges } from "../lib/roles";
 import { listClients } from "../api/clients";
 import { listProjects } from "../api/projects"; // listProjects is exported in api/projects.js
 import { listDirectors } from "../api/directors";
@@ -83,7 +84,7 @@ function computeTotals(lineItems, currency) {
 export default function InvoiceCreate() {
   const nav = useNavigate();
   const { data: me } = useMe(true);
-  const canAdmin = me?.role === "ADMIN";
+  const canAdmin = hasAdminPrivileges(me?.role);
   const [sp] = useSearchParams();
   const editId = sp.get("edit") ? Number(sp.get("edit")) : null;
 

@@ -17,7 +17,7 @@ export function loginDeniedMessage(u: UserLoginGate): string | null {
 export async function countAbleAdmins(): Promise<number> {
   return prisma.user.count({
     where: {
-      role: "ADMIN",
+      role: { in: ["ADMIN", "ADMIN_DIRECTOR"] },
       deletedAt: null,
       isActive: true,
       adminBlockedAt: null

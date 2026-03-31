@@ -10,6 +10,7 @@ import { listTransactions, reverseTransaction, txItems } from "../api/transactio
 import { eur, fmtDate, formatMoney, formatTxRef } from "../lib/format";
 import { ALL_TX_TYPE_VALUES, LEDGER_ACCOUNT_FILTER_OPTIONS, TX_TYPE_LABELS } from "../lib/transactionTypes";
 import { downloadTransactionsCsv } from "../lib/reportsAnalytics";
+import { hasAdminPrivileges } from "../lib/roles";
 
 export default function Ledger() {
   const qc = useQueryClient();
@@ -304,7 +305,7 @@ export default function Ledger() {
                       ? "Reversal entry"
                       : "Posted";
               const canReverse =
-                me?.role === "ADMIN" &&
+                hasAdminPrivileges(me?.role) &&
                 r.postingStatus === "POSTED" &&
                 !r.reversalOfId &&
                 !r.reversedByTransactionId;

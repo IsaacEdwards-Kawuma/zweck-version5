@@ -24,6 +24,7 @@ import {
   statusBadgeClass,
   priorityBadgeClass
 } from "../lib/projectLabels";
+import { hasAdminPrivileges } from "../lib/roles";
 
 const TASK_ORDER = ["TODO", "IN_PROGRESS", "REVIEW", "BLOCKED", "DONE"];
 const PROJECT_STATUSES = Object.keys(PROJECT_STATUS);
@@ -249,7 +250,7 @@ export default function ProjectDetail() {
               Edit project
             </button>
           ) : null}
-          {me?.role === "ADMIN" ? (
+          {hasAdminPrivileges(me?.role) ? (
             <button
               type="button"
               className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-sm font-medium text-rose-800 hover:bg-rose-100"
@@ -557,7 +558,7 @@ export default function ProjectDetail() {
             <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">Linked invoices</div>
             <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Invoices with this project linked.</p>
           </div>
-          {me?.role === "ADMIN" ? (
+          {hasAdminPrivileges(me?.role) ? (
             <Link
               to={`/invoices/new?projectId=${projectId}`}
               className="text-sm font-medium text-brand-700 hover:underline dark:text-brand-400"

@@ -32,6 +32,7 @@ import {
   buildManualGlAccountOptions,
   defaultManualKeysFromType
 } from "../lib/transactionTypes";
+import { hasAdminPrivileges } from "../lib/roles";
 
 const TEMPLATES = [
   { id: "monthly-fee", label: "Monthly charges", type: "TX_CHARGE", amount: "25", description: "Monthly bank/service charges" },
@@ -810,7 +811,7 @@ export default function PostTransaction() {
                   const canEdit = t.postingStatus === "PENDING";
                   const isPosted = t.postingStatus === "POSTED" || t.postingStatus == null;
                   const showReverse =
-                    me?.role === "ADMIN" &&
+                    hasAdminPrivileges(me?.role) &&
                     isPosted &&
                     !t.reversalOfId &&
                     !t.reversedByTransactionId;
@@ -872,7 +873,7 @@ export default function PostTransaction() {
                               Reverse
                             </button>
                           ) : null}
-                          {me?.role === "ADMIN" && (
+                          {hasAdminPrivileges(me?.role) && (
                             <button
                               type="button"
                               disabled={mDelete.isPending}

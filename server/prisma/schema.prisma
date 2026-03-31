@@ -263,6 +263,8 @@ enum Role {
   ADMIN
   USER
   DIRECTOR
+  /** Full admin access plus director-level access (link a director profile via `directorId`). */
+  ADMIN_DIRECTOR
   TREASURER
   SECRETARY
   OPERATIONAL_MANAGER

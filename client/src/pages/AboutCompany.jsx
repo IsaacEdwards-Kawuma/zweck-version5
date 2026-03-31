@@ -7,6 +7,7 @@ import DirectorAvatar from "../components/DirectorAvatar";
 import AboutPageEditor from "../components/AboutPageEditor";
 import { useDirectorsAll } from "../hooks/useDashboard";
 import { getAboutPage, updateAboutPage, resetAboutPage } from "../api/aboutPage";
+import { hasAdminPrivileges } from "../lib/roles";
 
 function clonePayload(p) {
   return JSON.parse(JSON.stringify(p));
@@ -14,7 +15,7 @@ function clonePayload(p) {
 
 export default function AboutCompany() {
   const { me } = useOutletContext() || {};
-  const isAdmin = me?.role === "ADMIN";
+  const isAdmin = hasAdminPrivileges(me?.role);
   const qc = useQueryClient();
 
   const qAbout = useQuery({

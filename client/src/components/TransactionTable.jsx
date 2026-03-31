@@ -1,5 +1,6 @@
 import DirectorAvatar from "./DirectorAvatar";
 import { fmtDate, formatMoney, formatTxRef } from "../lib/format";
+import { hasAdminPrivileges } from "../lib/roles";
 import { TX_TYPE_LABELS } from "../lib/transactionTypes";
 
 const typeLabel = (t) => TX_TYPE_LABELS[t] || t?.replaceAll("_", " ");
@@ -108,7 +109,7 @@ export default function TransactionTable({ rows, showDelete, onDelete, isDeletin
               </td>
               {showDelete ? (
                 <td className="px-4 py-3 text-right">
-                  {role === "ADMIN" ? (
+                  {hasAdminPrivileges(role) ? (
                     <button
                       disabled={isDeleting}
                       className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-800 hover:bg-rose-100 disabled:opacity-50 dark:border-rose-800 dark:bg-rose-950/50 dark:text-rose-200 dark:hover:bg-rose-900/60"

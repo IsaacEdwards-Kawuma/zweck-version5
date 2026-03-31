@@ -15,6 +15,7 @@ import {
   uploadInternalFormReceipt
 } from "../api/internalForms";
 import { downloadApprovedForm, printApprovedForm } from "../lib/internalFormDocument";
+import { hasAdminPrivileges } from "../lib/roles";
 
 const KINDS = [
   { value: "REQUISITION", label: "Requisition (spend / procurement)" },
@@ -76,7 +77,7 @@ export default function Forms() {
   const qc = useQueryClient();
   const qMe = useMe(true);
   const role = qMe.data?.role;
-  const canReview = role === "ADMIN" || role === "TREASURER";
+  const canReview = hasAdminPrivileges(role) || role === "TREASURER";
   const canSeeAll =
     canReview || role === "SECRETARY" || role === "OPERATIONAL_MANAGER" || role === "CEO";
 

@@ -1,6 +1,7 @@
 import { prisma } from "./prisma.js";
 import { apiError } from "./http.js";
 import type { AuthUser } from "../middleware/auth.js";
+import { hasAdminPrivileges } from "./roles.js";
 
 export type ChatRoomForAuth = {
   id: number;
@@ -91,7 +92,7 @@ export async function assertUserCanAccessChatRoom(user: AuthUser, room: ChatRoom
 /** GROUP room: creator or ADMIN can add/remove members. If creator unknown (legacy), only ADMIN. */
 export async function assertUserCanManageGroupMembers(user: AuthUser, room: ChatRoomForAuth): Promise<void> {
   if (room.kind !== "GROUP") throw apiError("Forbidden", "chatRoom");
-  if (user.role === "ADMIN") return;
+  if (hasAdminPrivileges(user.role)) return;
   if (room.createdById != null && room.createdById === user.id) return;
   throw apiError("Forbidden", "chatRoom");
 }
@@ -103,6 +104,6 @@ export function assertUserOwnsMessage(user: AuthUser, senderId: number): void {
 /** Delete own message, or any message in the room if ADMIN. */
 export function assertUserCanDeleteMessage(user: AuthUser, senderId: number): void {
   if (senderId === user.id) return;
-  if (user.role === "ADMIN") return;
+  if (hasAdminPrivileges(user.role)) return;
   throw apiError("Forbidden", "message");
 }
