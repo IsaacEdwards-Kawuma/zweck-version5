@@ -23,7 +23,8 @@
     { "name": "meetings" },
     { "name": "integrations" },
     { "name": "jobs" },
-    { "name": "notifications" }
+    { "name": "notifications" },
+    { "name": "director-receipts" }
   ],
   "components": {
     "securitySchemes": {
@@ -559,6 +560,88 @@
           "401": { "description": "Missing or wrong secret" },
           "503": { "description": "`CRON_SECRET` not configured on server" },
           "500": { "description": "Job failed" }
+        }
+      }
+    },
+    "/jobs/director-receipts/generate-pdfs": {
+      "post": {
+        "tags": ["jobs"],
+        "summary": "Generate/retry director receipt PDFs (scheduler)",
+        "description": "Generates and stores PDFs for DirectorReceipt rows with pdfStatus PENDING/FAILED (bounded attempts). Safe to run frequently. Requires `CRON_SECRET` in `X-Cron-Secret` or `Authorization: Bearer`.",
+        "security": [{ "cronSecret": [] }],
+        "responses": {
+          "200": {
+            "description": "Job result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "picked": { "type": "integer" },
+                    "generated": { "type": "integer" },
+                    "failed": { "type": "integer" },
+                    "errors": { "type": "array", "items": { "type": "string" } }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Missing or wrong secret" },
+          "503": { "description": "`CRON_SECRET` not configured on server" },
+          "500": { "description": "Job failed" }
+        }
+      }
+    },
+    "/director-receipts": {
+      "get": {
+        "tags": ["director-receipts"],
+        "summary": "List director transaction receipts (date desc)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "directorId", "in": "query", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Receipt list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "integer" },
+                      "directorId": { "type": "integer" },
+                      "receiptReference": { "type": "string" },
+                      "periodMonth": { "type": "string" },
+                      "transactionDate": { "type": "string" },
+                      "pdfUrl": { "type": ["string", "null"] },
+                      "pdfStatus": { "type": "string" },
+                      "createdAt": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Invalid directorId" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" }
+        }
+      }
+    },
+    "/director-receipts/{id}/pdf": {
+      "get": {
+        "tags": ["director-receipts"],
+        "summary": "View/print director receipt PDF",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": {
+          "200": { "description": "PDF bytes (inline)", "content": { "application/pdf": { "schema": { "type": "string", "format": "binary" } } } },
+          "400": { "description": "Invalid id" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Not found" }
         }
       }
     },
