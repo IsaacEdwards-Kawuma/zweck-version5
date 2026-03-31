@@ -24,15 +24,16 @@ async function getBodyBuffer(req) {
  */
 function resolveFullUrl(req) {
   const raw = req.url || "";
-  if (raw.startsWith("/api")) return raw;
+  const search = raw.includes("?") ? raw.slice(raw.indexOf("?")) : "";
   const q = req.query?.path;
-  if (q !== undefined) {
+  if (q !== undefined && q !== "") {
     const seg = Array.isArray(q) ? q.join("/") : String(q);
-    const qs = raw.includes("?") ? raw.slice(raw.indexOf("?")) : "";
-    return `/api/${seg}${qs}`;
+    return `/api/${seg}${search}`;
   }
+  if (raw.startsWith("/api")) return raw;
   if (raw.startsWith("/") && raw !== "/") {
-    return `/api${raw}`;
+    const pathOnly = raw.split("?")[0];
+    return `/api${pathOnly}${search}`;
   }
   return raw;
 }

@@ -33,9 +33,58 @@ function revokeLater(url) {
   }, 60_000);
 }
 
+/** Match `client/src/api/client.js` — Render base must end with `/api`. */
+function normalizeRemoteApiBase(url) {
+  let u = url.replace(/\/+$/, "");
+  if (!u.endsWith("/api")) u = `${u}/api`;
+  return u;
+}
+
+async function blobHasPdfHeader(blob) {
+  if (!blob || blob.size === 0) return false;
+  const head = await blob.slice(0, 5).arrayBuffer();
+  const sig = new Uint8Array(head);
+  return sig[0] === 0x25 && sig[1] === 0x50 && sig[2] === 0x44 && sig[3] === 0x46;
+}
+
+/**
+ * When Vercel’s /api proxy returns 404 or an HTML error page, call Render directly.
+ * Requires `VITE_API_URL=https://…onrender.com` at build time and CORS (ALLOWED_ORIGINS) on the API.
+ */
+async function fetchPdfBlobDirect(apiPath) {
+  const env = import.meta.env.VITE_API_URL?.trim();
+  if (!env || !/^https:\/\//i.test(env)) return null;
+  const base = normalizeRemoteApiBase(env);
+  const path = apiPath.startsWith("/") ? apiPath : `/${apiPath}`;
+  const token = localStorage.getItem("zweck_token");
+  const r = await fetch(`${base}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {}
+  });
+  if (!r.ok) throw new Error(`PDF request failed (${r.status})`);
+  return await r.blob();
+}
+
 export async function fetchPdfBlob(apiPath) {
-  const res = await api.get(apiPath, { responseType: "blob" });
-  return res.data;
+  let blob;
+  let axiosErr;
+  try {
+    const res = await api.get(apiPath, { responseType: "blob" });
+    blob = res.data;
+  } catch (err) {
+    if (err?.response?.status === 404) axiosErr = err;
+    else throw err;
+  }
+  if (axiosErr) {
+    const direct = await fetchPdfBlobDirect(apiPath);
+    if (direct) blob = direct;
+    else throw axiosErr;
+  }
+  if (blob && (await blobHasPdfHeader(blob))) return blob;
+  const direct = await fetchPdfBlobDirect(apiPath);
+  if (direct && (await blobHasPdfHeader(direct))) return direct;
+  throw new Error(
+    "Could not load PDF (response was not a PDF). Check Vercel proxy routes and RENDER_API_URL, or set VITE_API_URL for direct API fallback with CORS."
+  );
 }
 
 /** Open PDF in a new tab (authenticated — works on Vercel same-origin proxy). */
