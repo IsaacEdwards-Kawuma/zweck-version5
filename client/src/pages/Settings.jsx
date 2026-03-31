@@ -8,7 +8,9 @@ import { IconSettings } from "../components/Icons";
 import ThemeSettings from "../components/ThemeSettings";
 import { getHealth, getSettings, updateNotificationPreferences, updateOrgSettings } from "../api/settings";
 import { listUsers, updateUserRole, listLoginEvents, listMyLoginEvents } from "../api/users";
+import { listPresence } from "../api/presence";
 import { pingIntegration } from "../api/integrations";
+import { fmtDate } from "../lib/format";
 
 const SECTION = "ui-panel-elevated scroll-mt-24 p-5";
 const PREFS_KEY = "zweck_settings_prefs_v1";
@@ -94,6 +96,7 @@ const NAV = [
   { href: "#settings-limits", label: "Rate limits" },
   { href: "#settings-api-docs", label: "API docs" },
   { href: "#settings-user-roles", label: "User roles" },
+  { href: "#settings-presence", label: "Team presence" },
   { href: "#settings-login-stamps", label: "Login stamps" },
   { href: "#settings-features", label: "Features" },
   { href: "#settings-security", label: "Security" },
@@ -190,6 +193,12 @@ export default function Settings() {
     queryFn: () => listLoginEvents(500),
     enabled: qSettings.data?.session?.role === "ADMIN"
   });
+  const qPresence = useQuery({
+    queryKey: ["presence", "admin"],
+    queryFn: listPresence,
+    enabled: qSettings.data?.session?.role === "ADMIN",
+    refetchInterval: 5000
+  });
   const qMyLoginEvents = useQuery({
     queryKey: ["login_events_mine_settings"],
     queryFn: () => listMyLoginEvents(50),
@@ -222,6 +231,7 @@ export default function Settings() {
   });
 
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [presenceFilter, setPresenceFilter] = useState("ALL");
   useEffect(() => {
     const id = window.setInterval(() => setNowMs(Date.now()), 60_000);
     return () => window.clearInterval(id);
@@ -230,12 +240,14 @@ export default function Settings() {
   useEffect(() => {
     const o = qSettings.data?.org;
     if (!o) return;
-    setOrgDraft({
+    const next = {
       companyName: o.companyName ?? "",
       baseCurrency: o.baseCurrency ?? "EUR",
       fiscalYearStartMonth: o.fiscalYearStartMonth ?? 1,
       defaultReportDays: o.defaultReportDays ?? 90
-    });
+    };
+    const t = window.setTimeout(() => setOrgDraft(next), 0);
+    return () => window.clearTimeout(t);
   }, [qSettings.data?.org]);
 
   const s = qSettings.data;
@@ -247,6 +259,21 @@ export default function Settings() {
   const rateLimits = s?.rateLimits || {};
   const session = s?.session || {};
   const isAdmin = session.role === "ADMIN";
+
+  const presenceUsersRaw = qPresence.data?.users ?? [];
+  const presenceOnlineCount = presenceUsersRaw.filter((u) => u.isOnline).length;
+  const presenceOfflineCount = presenceUsersRaw.length - presenceOnlineCount;
+  const filteredPresenceRows = presenceUsersRaw
+    .filter((u) => {
+      if (presenceFilter === "ONLINE") return u.isOnline;
+      if (presenceFilter === "OFFLINE") return !u.isOnline;
+      return true;
+    })
+    .slice()
+    .sort((a, b) => {
+      if (a.isOnline !== b.isOnline) return a.isOnline ? -1 : 1;
+      return a.email.localeCompare(b.email);
+    });
   const clientSentry = Boolean(import.meta.env.VITE_SENTRY_DSN?.trim());
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const docsUrl = `${origin}/api/docs`;
@@ -1004,6 +1031,116 @@ export default function Settings() {
               <ErrorBanner error={mRole.error} />
             </div>
           ) : null}
+        </section>
+      ) : null}
+
+      {isAdmin ? (
+        <section id="settings-presence" className={SECTION}>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Team presence</h2>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+            See who has the app open right now. <strong>Online</strong> means we received a heartbeat within the last{" "}
+            {Math.round((qPresence.data?.offlineThresholdMs ?? 120_000) / 1000)} seconds (configurable via{" "}
+            <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">PRESENCE_OFFLINE_AFTER_MS</code> on the server).
+            Heartbeats are sent about every 45 seconds while a user is signed in.
+          </p>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <div className="ui-stat-strip rounded-lg px-3 py-2">
+              <div className="text-xs uppercase tracking-wide text-slate-500">Online</div>
+              <div className="mt-1 text-lg font-semibold text-emerald-700 dark:text-emerald-300">{presenceOnlineCount}</div>
+            </div>
+            <div className="ui-stat-strip rounded-lg px-3 py-2">
+              <div className="text-xs uppercase tracking-wide text-slate-500">Offline</div>
+              <div className="mt-1 text-lg font-semibold text-slate-800 dark:text-slate-100">{presenceOfflineCount}</div>
+            </div>
+            <div className="ui-stat-strip rounded-lg px-3 py-2">
+              <div className="text-xs uppercase tracking-wide text-slate-500">As of (server)</div>
+              <div className="mt-1 text-sm font-medium text-slate-800 dark:text-slate-200">
+                {qPresence.data?.serverTime ? fmtDate(qPresence.data.serverTime) : "—"}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+              Filter
+              <select
+                className="ui-input ml-2 mt-1 max-w-[200px]"
+                value={presenceFilter}
+                onChange={(e) => setPresenceFilter(e.target.value)}
+              >
+                <option value="ALL">All users</option>
+                <option value="ONLINE">Online only</option>
+                <option value="OFFLINE">Offline only</option>
+              </select>
+            </label>
+            {qPresence.isFetching ? (
+              <span className="text-xs text-slate-500 dark:text-slate-400">Refreshing…</span>
+            ) : null}
+          </div>
+
+          {qPresence.isLoading ? (
+            <div className="mt-3 text-sm text-slate-600 dark:text-slate-300">Loading presence…</div>
+          ) : qPresence.error ? (
+            <div className="mt-3">
+              <ErrorBanner error={qPresence.error} />
+            </div>
+          ) : (
+            <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-slate-50 dark:bg-slate-800/70">
+                  <tr>
+                    <th className="px-4 py-2">Status</th>
+                    <th className="px-4 py-2">Email</th>
+                    <th className="px-4 py-2">Role</th>
+                    <th className="px-4 py-2">Director</th>
+                    <th className="px-4 py-2">Online for</th>
+                    <th className="px-4 py-2">Offline for</th>
+                    <th className="px-4 py-2">Last heartbeat</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                  {filteredPresenceRows.map((u) => (
+                    <tr key={u.id} className="text-slate-800 dark:text-slate-200">
+                      <td className="px-4 py-2">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={[
+                              "inline-block h-2.5 w-2.5 shrink-0 rounded-full",
+                              u.isOnline ? "bg-emerald-500 shadow-sm shadow-emerald-500/40" : "bg-slate-300 dark:bg-slate-600"
+                            ].join(" ")}
+                            aria-hidden
+                          />
+                          <span className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                            {u.isOnline ? "Online" : "Offline"}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-2 font-mono text-xs">{u.email}</td>
+                      <td className="px-4 py-2">{u.role}</td>
+                      <td className="px-4 py-2">{u.director?.name || "—"}</td>
+                      <td className="px-4 py-2 tabular-nums">
+                        {u.isOnline && u.onlineDurationSec != null ? formatUptime(u.onlineDurationSec) : "—"}
+                      </td>
+                      <td className="px-4 py-2 tabular-nums">
+                        {!u.isOnline && u.offlineDurationSec != null
+                          ? formatUptime(u.offlineDurationSec)
+                          : !u.isOnline && u.offlineDurationSec == null
+                            ? "Never"
+                            : "—"}
+                      </td>
+                      <td className="px-4 py-2 text-xs text-slate-600 dark:text-slate-400">
+                        {u.lastHeartbeatAt ? fmtDate(u.lastHeartbeatAt) : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {!filteredPresenceRows.length ? (
+                <div className="px-4 py-6 text-center text-sm text-slate-500 dark:text-slate-400">No users match this filter.</div>
+              ) : null}
+            </div>
+          )}
         </section>
       ) : null}
 

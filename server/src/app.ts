@@ -39,6 +39,7 @@ import chatRoutes, { serveChatAttachmentDownload } from "./routes/chat.js";
 import internalFormsRoutes from "./routes/internalForms.js";
 import invoicesRoutes from "./routes/invoices.js";
 import clientsRoutes from "./routes/clients.js";
+import presenceRoutes from "./routes/presence.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const openapiDocument = JSON.parse(readFileSync(join(__dirname, "openapi.json"), "utf8")) as Record<string, unknown>;
@@ -151,6 +152,7 @@ export function createApp(): express.Express {
   app.use("/api/search", searchRoutes);
   app.use("/api/admin", adminExportRoutes);
   app.use("/api/integrations", integrationsRoutes);
+  app.use("/api/presence", presenceRoutes);
 
   app.use((_req, res) => res.status(404).json(apiError("Not found")));
 

@@ -4,10 +4,13 @@ import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 import OnboardingModal from "./OnboardingModal";
 import { useMe } from "../hooks/useMe";
+import { usePresenceHeartbeat } from "../hooks/usePresenceHeartbeat";
 
 export default function Layout() {
   const token = localStorage.getItem("zweck_token");
-  const qMe = useMe(Boolean(token));
+  const authDisabled = import.meta.env.VITE_AUTH_DISABLED === "true";
+  const qMe = useMe(authDisabled || Boolean(token));
+  usePresenceHeartbeat(authDisabled || Boolean(token));
   const showOnboarding = Boolean(token) && qMe.isSuccess && qMe.data && qMe.data.onboardingCompletedAt == null;
   const location = useLocation();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);

@@ -40,6 +40,10 @@ model User {
   directorId Int?      @unique
   director   Director? @relation(fields: [directorId], references: [id])
   lastLoginAt DateTime?
+  /** Last app heartbeat while the user has a session (used for online/offline presence). */
+  lastHeartbeatAt DateTime?
+  /** Start of the current “online” session (reset after offline gap). */
+  presenceSessionStartedAt DateTime?
   /** When true, user may receive meeting reminder emails (admins, directors, and meeting creator). */
   emailMeetingReminders Boolean @default(true)
   /** When true, user receives in-app notifications for meeting reminders (same audience rules as email). */
