@@ -9,7 +9,12 @@ function buildLinks(role) {
   const dashboardTo = isUserRole(role) ? "/user" : isSecretaryRole(role) ? "/secretary" : "/dashboard";
   return [
     { to: dashboardTo, label: "Dashboard", icon: "dashboard" },
-    ...(isSecretaryRole(role) ? [{ to: "/crm", label: "Contacts", icon: "contacts" }] : []),
+    ...(isSecretaryRole(role)
+      ? [
+          { to: "/crm", label: "Contacts", icon: "contacts" },
+          { to: "/secretary/tasks", label: "Tasks", icon: "workflow" }
+        ]
+      : []),
     ...(canAccessReports(role) ? [{ to: "/reports", label: "Reports", icon: "reports" }] : []),
     { to: "/meetings", label: "Meetings", icon: "meetings" },
     { to: "/chat", label: "Chat", icon: "chat" },
@@ -45,6 +50,14 @@ function NavIcon({ name }) {
           <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
           <circle cx="9" cy="7" r="4" />
           <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+        </svg>
+      );
+    case "workflow":
+      return (
+        <svg {...common}>
+          <rect x="3" y="4" width="5" height="16" rx="1" opacity="0.9" />
+          <rect x="9.5" y="4" width="5" height="10" rx="1" opacity="0.9" />
+          <rect x="16" y="4" width="5" height="13" rx="1" opacity="0.9" />
         </svg>
       );
     case "dashboard":

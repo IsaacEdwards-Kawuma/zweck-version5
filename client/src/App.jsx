@@ -17,6 +17,7 @@ const Dashboard = lazy(() => import("./pages/Dashboard"));
 const UserDashboard = lazy(() => import("./pages/UserDashboard"));
 const SecretaryDashboard = lazy(() => import("./pages/SecretaryDashboard"));
 const CrmContacts = lazy(() => import("./pages/CrmContacts"));
+const SecretaryTasks = lazy(() => import("./pages/SecretaryTasks"));
 const PostTransaction = lazy(() => import("./pages/PostTransaction"));
 const Ledger = lazy(() => import("./pages/Ledger"));
 const Reconciliation = lazy(() => import("./pages/Reconciliation"));
@@ -67,6 +68,7 @@ export default function App() {
             </Route>
             <Route element={<RequireSecretaryRole />}>
               <Route path="/secretary" element={<SecretaryDashboard />} />
+              <Route path="/secretary/tasks" element={<SecretaryTasks />} />
               <Route path="/crm" element={<CrmContacts />} />
               <Route path="/crm/:contactId" element={<CrmContacts />} />
             </Route>

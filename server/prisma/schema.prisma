@@ -124,6 +124,10 @@ model User {
   crmContactsCreated    CrmContact[]    @relation("CrmContactCreator")
   crmInteractionsLogged CrmInteraction[] @relation("CrmInteractionCreator")
   crmRemindersCreated   CrmReminder[]   @relation("CrmReminderCreator")
+
+  secretaryTasksAssigned  SecretaryWorkflowTask[] @relation("SecretaryTaskAssignee")
+  secretaryTasksCreated   SecretaryWorkflowTask[] @relation("SecretaryTaskCreator")
+  secretaryTasksApproving SecretaryWorkflowTask[] @relation("SecretaryTaskApprover")
 }
 
 model UserBlock {
@@ -358,6 +362,29 @@ enum TaskStatus {
   BLOCKED
 }
 
+/** Secretary office / workflow board (not project tasks). */
+enum SecretaryTaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+  BLOCKED
+}
+
+enum SecretaryTaskApprovalStatus {
+  NOT_REQUIRED
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum SecretaryTaskRecurrence {
+  NONE
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
 enum ProjectKind {
   GENERAL
   MMF
@@ -414,6 +441,35 @@ model ProjectTask {
   creator            User            @relation("TaskCreator", fields: [createdById], references: [id])
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
+}
+
+model SecretaryWorkflowTask {
+  id              Int                         @id @default(autoincrement())
+  title           String                      @db.VarChar(300)
+  description     String?
+  status          SecretaryTaskStatus         @default(TODO)
+  priority        ProjectPriority             @default(MEDIUM)
+  dueDate         DateTime?
+  assigneeUserId  Int?
+  assignee        User?                       @relation("SecretaryTaskAssignee", fields: [assigneeUserId], references: [id], onDelete: SetNull)
+  createdById     Int
+  creator         User                        @relation("SecretaryTaskCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  dependsOnTaskId Int?
+  dependsOn       SecretaryWorkflowTask?      @relation("SecretaryTaskDependency", fields: [dependsOnTaskId], references: [id], onDelete: SetNull)
+  dependentTasks  SecretaryWorkflowTask[]     @relation("SecretaryTaskDependency")
+  approvalStatus  SecretaryTaskApprovalStatus @default(NOT_REQUIRED)
+  approverUserId  Int?
+  approver        User?                       @relation("SecretaryTaskApprover", fields: [approverUserId], references: [id], onDelete: SetNull)
+  approvedAt      DateTime?
+  recurrence      SecretaryTaskRecurrence     @default(NONE)
+  recurrenceUntil DateTime?
+  columnOrder     Int                         @default(0)
+  createdAt       DateTime                    @default(now())
+  updatedAt       DateTime                    @updatedAt
+
+  @@index([status, columnOrder])
+  @@index([assigneeUserId])
+  @@index([dueDate])
 }
 
 enum DocumentStatus {
