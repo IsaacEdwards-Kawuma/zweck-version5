@@ -15,6 +15,13 @@ import {
 const CATEGORIES = ["Governance", "Legal", "Finance", "Director Transaction Receipt", "HR", "Operations", "Other"];
 const STATUS = ["ACTIVE", "UNDER_REVIEW", "ARCHIVED"];
 
+function pdfErrorMessage(err) {
+  const d = err?.response?.data;
+  if (typeof d === "string") return d;
+  if (d && typeof d.message === "string") return d.message;
+  return err?.message || "Could not open PDF";
+}
+
 const EMPTY_FORM = {
   title: "",
   category: "Governance",

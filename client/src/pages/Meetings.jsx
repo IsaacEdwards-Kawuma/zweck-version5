@@ -146,6 +146,7 @@ export default function Meetings() {
     });
   }, [allUsers, form.meetingType, attendeeFilter]);
 
+  /* eslint-disable react-hooks/set-state-in-effect -- keep attendee picker in sync with meeting type */
   useEffect(() => {
     if (editingId != null) return;
     if (form.meetingType === "Board") {
@@ -154,6 +155,7 @@ export default function Meetings() {
       setSelectedAttendeeIds([]);
     }
   }, [form.meetingType, allUsers, editingId]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const mCreate = useMutation({
     mutationFn: (payload) => createMeeting(payload),

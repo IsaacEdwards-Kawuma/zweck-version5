@@ -8,7 +8,11 @@ const { findFirstMock } = vi.hoisted(() => ({
 vi.mock("../src/lib/prisma.js", () => ({
   prisma: {
     user: {
-      findFirst: findFirstMock
+      findFirst: findFirstMock,
+      findMany: vi.fn().mockResolvedValue([])
+    },
+    notification: {
+      createMany: vi.fn().mockResolvedValue({ count: 0 })
     },
     meeting: {
       findMany: vi.fn().mockResolvedValue([

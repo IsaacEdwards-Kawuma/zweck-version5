@@ -201,6 +201,7 @@ export default function SecretaryDashboard() {
 
   const meetings = useMemo(() => (Array.isArray(qMeetings.data) ? qMeetings.data : []), [qMeetings.data]);
   const upcomingMeetings = useMemo(() => {
+    /* eslint-disable-next-line react-hooks/purity -- "now" anchor for upcoming window */
     const now = Date.now();
     const rows = meetings
       .filter((m) => m?.status !== "CANCELLED")
@@ -615,7 +616,10 @@ export default function SecretaryDashboard() {
       <div>
         <SectionTitle icon={IconSparkles}>Quick access</SectionTitle>
         <ul className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {QUICK.map(({ to, label, desc, icon: Icon, accent }) => (
+          {QUICK.map((item) => {
+            const { to, label, desc, accent } = item;
+            const Icon = item.icon;
+            return (
             <li key={to} className="secretary-stagger-in">
               <Link to={to} className={`secretary-quick-card group block h-full bg-gradient-to-br p-4 ${accent}`}>
                 <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-brand-600 to-sky-600 text-white shadow-md shadow-brand-600/20 transition group-hover:scale-105">
@@ -625,7 +629,8 @@ export default function SecretaryDashboard() {
                 <span className="mt-1 block text-xs leading-snug text-slate-600 dark:text-slate-400">{desc}</span>
               </Link>
             </li>
-          ))}
+            );
+          })}
         </ul>
       </div>
 

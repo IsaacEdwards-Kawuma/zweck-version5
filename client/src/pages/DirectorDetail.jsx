@@ -13,6 +13,7 @@ import { listDirectorReceiptsV2, markDirectorReceiptViewedV2 } from "../api/dire
 import { eur, eurCompact, fmtDate, formatMoney, formatTxRef } from "../lib/format";
 import { TX_ACCOUNT_MAP } from "../lib/transactionTypes";
 import { downloadTransactionsCsv } from "../lib/reportsAnalytics";
+import { getDirectorFinancialOverview } from "../api/transactions";
 import { hasAdminPrivileges, hasDirectorPrivileges } from "../lib/roles";
 import { TX_TYPE_LABELS } from "../lib/dashboardAnalytics";
 import { downloadPdf, openPdfInNewTab } from "../lib/openPdf";
@@ -123,6 +124,24 @@ export default function DirectorDetail() {
     }
   });
 
+  const receiptUnviewedCount = useMemo(() => {
+    void seenVersion;
+    const rows = qReceipts.data || [];
+    return rows.filter((r) => !r.isViewed).length;
+  }, [qReceipts.data, seenVersion]);
+
+  const markReceiptSeenAndRefresh = useCallback(
+    async (receiptId) => {
+      try {
+        await markDirectorReceiptViewedV2(receiptId);
+      } finally {
+        setSeenVersion((v) => v + 1);
+        qc.invalidateQueries({ queryKey: ["director_receipts_v2", directorIdNum] }).catch(() => {});
+      }
+    },
+    [directorIdNum, qc]
+  );
+
   if (qProfile.isLoading || qTotals.isLoading) return <Loading label="Loading director..." />;
   if (qProfile.error) return <ErrorBanner error={qProfile.error} />;
   if (qTotals.error) return <ErrorBanner error={qTotals.error} />;
@@ -159,24 +178,6 @@ export default function DirectorDetail() {
   function receiptApiPath(id) {
     return `/director-receipts-v2/${id}/pdf`;
   }
-
-  const receiptUnviewedCount = useMemo(() => {
-    void seenVersion;
-    const rows = qReceipts.data || [];
-    return rows.filter((r) => !r.isViewed).length;
-  }, [qReceipts.data, directorIdNum, seenVersion]);
-
-  const markReceiptSeenAndRefresh = useCallback(
-    async (receiptId) => {
-      try {
-        await markDirectorReceiptViewedV2(receiptId);
-      } finally {
-        setSeenVersion((v) => v + 1);
-        qc.invalidateQueries({ queryKey: ["director_receipts_v2", directorIdNum] }).catch(() => {});
-      }
-    },
-    [directorIdNum, qc]
-  );
 
   function receiptTypeLabel(type) {
     return TX_TYPE_LABELS[type] || String(type || "—").replace(/_/g, " ");

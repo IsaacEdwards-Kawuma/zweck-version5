@@ -35,12 +35,14 @@ export default function Ledger() {
   const [page, setPage] = useState(1);
   const pageSize = 20;
 
+  /* eslint-disable react-hooks/set-state-in-effect -- sync default sort when account filter scope changes */
   useEffect(() => {
     const prev = prevAccountKeyRef.current;
     if (!prev && accountKey) setSortOrder("oldest");
     if (prev && !accountKey) setSortOrder("newest");
     prevAccountKeyRef.current = accountKey;
   }, [accountKey]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const filters = useMemo(() => {
     const f = {

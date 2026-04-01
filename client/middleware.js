@@ -2,6 +2,7 @@
  * Same as repo-root `middleware.js` — use when Vercel "Root Directory" is `client`.
  * Proxies /api/* → Render (RENDER_API_URL).
  */
+/* global process */
 
 function resolveRenderBaseUrl() {
   const raw =

@@ -73,6 +73,7 @@ const STEPS = [
 
 export default function OnboardingModal() {
   const [step, setStep] = useState(0);
+  const nav = useNavigate();
   const qc = useQueryClient();
   const m = useMutation({
     mutationFn: completeOnboarding,

@@ -364,7 +364,6 @@ export default function ChatRoom() {
 
     socket.emit("chat:join", { roomId: numericRoomId }, (ack) => {
       if (!ack?.ok) {
-        // eslint-disable-next-line no-console
         console.warn("chat join failed", ack);
       }
     });
@@ -1678,7 +1677,6 @@ export default function ChatRoom() {
             },
             (ack) => {
               if (!ack?.ok) {
-                // eslint-disable-next-line no-console
                 console.warn("send failed", ack);
               }
             }
@@ -1736,7 +1734,6 @@ export default function ChatRoom() {
                 },
                 (ack) => {
                   if (!ack?.ok) {
-                    // eslint-disable-next-line no-console
                     console.warn("send failed", ack);
                   }
                 }
@@ -1745,7 +1742,6 @@ export default function ChatRoom() {
               setReplyTo(null);
               emitTyping(false);
             } catch (err) {
-              // eslint-disable-next-line no-console
               console.warn("upload failed", err);
             }
           }}

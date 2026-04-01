@@ -7,10 +7,10 @@ import { isSecretaryRole, isTreasurerRole, isUserRole } from "../lib/roles";
 const authDisabled = import.meta.env.VITE_AUTH_DISABLED === "true";
 
 export default function HomeRedirect() {
-  if (authDisabled) return <Navigate to="/dashboard" replace />;
-
   const token = localStorage.getItem("zweck_token");
-  const qMe = useMe(Boolean(token));
+  const qMe = useMe(!authDisabled && Boolean(token));
+
+  if (authDisabled) return <Navigate to="/dashboard" replace />;
 
   if (!token) return <Navigate to="/login" replace />;
   if (qMe.isLoading) return <Loading label="Loading..." />;

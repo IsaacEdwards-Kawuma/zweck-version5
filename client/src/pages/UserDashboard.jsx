@@ -1,5 +1,5 @@
 import { Link, useNavigate, useOutletContext } from "react-router-dom";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import PageHero from "../components/PageHero";
 import Loading from "../components/Loading";
@@ -213,6 +213,7 @@ export default function UserDashboard() {
 
   const meetings = useMemo(() => (Array.isArray(qMeetings.data) ? qMeetings.data : []), [qMeetings.data]);
   const upcomingMeetings = useMemo(() => {
+    /* eslint-disable-next-line react-hooks/purity -- "now" anchor for upcoming window */
     const now = Date.now();
     const rows = meetings
       .filter((m) => m?.status !== "CANCELLED")
