@@ -1,5 +1,6 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMe } from "../hooks/useMe";
 import Loading from "../components/Loading";
@@ -76,6 +77,7 @@ function requesterName(row) {
 export default function Forms() {
   const qc = useQueryClient();
   const qMe = useMe(true);
+  const location = useLocation();
   const role = qMe.data?.role;
   const canReview = hasAdminPrivileges(role) || role === "TREASURER";
   const canSeeAll =
@@ -133,6 +135,13 @@ export default function Forms() {
   if (q.error) return <ErrorBanner error={q.error} />;
 
   const rows = Array.isArray(q.data) ? q.data : [];
+
+  useEffect(() => {
+    if (location.hash !== "#forms-new") return;
+    const el = document.getElementById("forms-new");
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [location.hash]);
 
   async function submitCreate(e) {
     e.preventDefault();
@@ -196,7 +205,10 @@ export default function Forms() {
         subtitle="Submit requisitions, general requests, expense/receipt packages with a receipt attachment, or a formal acknowledgement. The treasurer or an admin approves; CEO, secretary, and operational manager can see the full queue. After approval, print or download a record for your files."
       />
 
-      <section className="rounded-2xl border border-slate-200/90 bg-white/90 p-5 shadow-sm dark:border-slate-700/80 dark:bg-slate-900/60">
+      <section
+        id="forms-new"
+        className="rounded-2xl border border-slate-200/90 bg-white/90 p-5 shadow-sm dark:border-slate-700/80 dark:bg-slate-900/60"
+      >
         <SectionTitle>New request</SectionTitle>
         <form className="mt-4 grid gap-4" onSubmit={submitCreate}>
           <div className="grid gap-2 sm:grid-cols-2">
