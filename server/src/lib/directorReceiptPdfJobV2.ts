@@ -92,6 +92,31 @@ export async function generateDirectorReceiptPdfNowV2(receiptId: number): Promis
     where: { id: receipt.id },
     data: { pdfUrl: publicUrl }
   });
+
+  // Ensure the receipt is searchable/downloadable from Documents module.
+  // We create the register row at PDF creation time so `url` points to the stored file (local/S3).
+  const existing = await prisma.documentRegister.findFirst({
+    where: { receiptReference: receipt.referenceNumber }
+  });
+  const docData = {
+    title: `Director Transaction Receipt — ${receipt.referenceNumber}`,
+    category: "Director Transaction Receipt",
+    reference: receipt.glReference || receipt.referenceNumber,
+    owner: "Finance",
+    confidentiality: "Internal",
+    status: "ACTIVE",
+    url: publicUrl,
+    directorId: receipt.directorId,
+    transactionId: receipt.transactionId,
+    receiptReference: receipt.referenceNumber,
+    createdById: receipt.createdBy,
+    updatedById: receipt.createdBy
+  };
+  if (existing) {
+    await prisma.documentRegister.update({ where: { id: existing.id }, data: docData });
+  } else {
+    await prisma.documentRegister.create({ data: docData });
+  }
 }
 
 export async function generateDirectorReceiptPdfForReferenceV2(referenceNumber: string): Promise<void> {
