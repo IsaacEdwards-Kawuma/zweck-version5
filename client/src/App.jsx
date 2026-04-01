@@ -68,6 +68,12 @@ export default function App() {
               <Route path="/directors" element={<Directors />} />
               <Route path="/directors/:id" element={<DirectorDetail />} />
               <Route path="/portfolio" element={<Portfolio />} />
+              <Route path="/projects" element={<ProjectsLayout />}>
+                <Route index element={<Projects />} />
+              </Route>
+              <Route path="/project/:id" element={<ProjectDetail />} />
+              <Route path="/mmf" element={<Navigate to="/projects" replace />} />
+              <Route path="/ypa" element={<Navigate to="/projects" replace />} />
             </Route>
 
             <Route path="/meetings" element={<Meetings />} />
@@ -89,12 +95,6 @@ export default function App() {
             <Route path="/invoices/new" element={<InvoiceCreate />} />
             <Route path="/invoices/clients" element={<ClientRegister />} />
             <Route path="/invoices/:id" element={<InvoiceDetail />} />
-            <Route path="/projects" element={<ProjectsLayout />}>
-              <Route index element={<Projects />} />
-            </Route>
-            <Route path="/project/:id" element={<ProjectDetail />} />
-            <Route path="/mmf" element={<Navigate to="/projects" replace />} />
-            <Route path="/ypa" element={<Navigate to="/projects" replace />} />
             <Route path="*" element={<NotFound />} />
           </Route>
         </Route>

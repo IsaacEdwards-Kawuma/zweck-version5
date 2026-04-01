@@ -20,7 +20,7 @@ function buildLinks(role) {
     ...(staff ? [{ to: "/directors", label: "Directors", icon: "directors" }] : []),
     ...(staff ? [{ to: "/portfolio", label: "Portfolio", icon: "portfolio" }] : []),
     { to: "/invoices", label: "Invoices", icon: "invoices" },
-    { to: "/projects", label: "Projects", icon: "projects" },
+    ...(staff ? [{ to: "/projects", label: "Projects", icon: "projects" }] : []),
     { to: "/help", label: "Help & guides", icon: "help" },
     { to: "/settings", label: "Settings", icon: "settings" }
   ];
