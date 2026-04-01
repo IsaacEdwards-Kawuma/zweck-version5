@@ -44,6 +44,17 @@ const EMPTY = {
   vendor: ""
 };
 
+const DRAFT_KEY = "zweck_forms_draft_v1";
+
+function safeParseJson(raw, fallback) {
+  try {
+    const v = raw ? JSON.parse(raw) : fallback;
+    return v ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 function kindLabel(k) {
   if (k === "REQUISITION") return "Requisition";
   if (k === "GENERAL_REQUEST") return "General";
@@ -143,6 +154,50 @@ export default function Forms() {
     el.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [location.hash]);
 
+  // Load draft once (only if the form is still empty).
+  useEffect(() => {
+    const isEmpty =
+      form.kind === EMPTY.kind &&
+      !String(form.title || "").trim() &&
+      !String(form.description || "").trim() &&
+      !String(form.amount || "").trim() &&
+      String(form.currency || "") === EMPTY.currency &&
+      !String(form.purpose || "").trim() &&
+      !String(form.vendor || "").trim();
+    if (!isEmpty) return;
+    const draft = safeParseJson(localStorage.getItem(DRAFT_KEY), null);
+    if (!draft || typeof draft !== "object") return;
+    setForm((f) => ({
+      ...f,
+      kind: typeof draft.kind === "string" ? draft.kind : f.kind,
+      title: typeof draft.title === "string" ? draft.title : f.title,
+      description: typeof draft.description === "string" ? draft.description : f.description,
+      amount: typeof draft.amount === "string" || typeof draft.amount === "number" ? String(draft.amount) : f.amount,
+      currency: typeof draft.currency === "string" ? draft.currency : f.currency,
+      purpose: typeof draft.purpose === "string" ? draft.purpose : f.purpose,
+      vendor: typeof draft.vendor === "string" ? draft.vendor : f.vendor
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional one-time load when empty
+  }, []);
+
+  // Autosave draft (debounced).
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      const payload = {
+        kind: form.kind,
+        title: form.title,
+        description: form.description,
+        amount: form.amount,
+        currency: form.currency,
+        purpose: form.purpose,
+        vendor: form.vendor,
+        savedAt: new Date().toISOString()
+      };
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
+    }, 500);
+    return () => window.clearTimeout(t);
+  }, [form]);
+
   async function submitCreate(e) {
     e.preventDefault();
     const title = form.title.trim();
@@ -209,7 +264,23 @@ export default function Forms() {
         id="forms-new"
         className="rounded-2xl border border-slate-200/90 bg-white/90 p-5 shadow-sm dark:border-slate-700/80 dark:bg-slate-900/60"
       >
-        <SectionTitle>New request</SectionTitle>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <SectionTitle>New request</SectionTitle>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              className="ui-btn-outline-xs"
+              onClick={() => {
+                localStorage.removeItem(DRAFT_KEY);
+                setForm(EMPTY);
+                if (receiptFileRef.current) receiptFileRef.current.value = "";
+              }}
+              title="Clear saved draft"
+            >
+              Clear draft
+            </button>
+          </div>
+        </div>
         <form className="mt-4 grid gap-4" onSubmit={submitCreate}>
           <div className="grid gap-2 sm:grid-cols-2">
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
