@@ -158,6 +158,7 @@ function Kpi({
 }
 
 const QUICK = [
+  { to: "/crm", label: "Contacts CRM", desc: "Clients & relationships", icon: IconUsers, accent: "from-indigo-500/15 to-transparent" },
   { to: "/meetings", label: "Meetings", desc: "Agendas & board packs", icon: IconCalendar, accent: "from-amber-500/15 to-transparent" },
   { to: "/documents", label: "Documents", desc: "Registers & filings", icon: IconClipboard, accent: "from-emerald-500/12 to-transparent" },
   { to: "/forms", label: "Forms", desc: "Internal requests", icon: IconPostTx, accent: "from-violet-500/12 to-transparent" },

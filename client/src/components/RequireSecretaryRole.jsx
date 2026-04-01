@@ -6,18 +6,24 @@ import { isSecretaryRole } from "../lib/roles";
 
 const authDisabled = import.meta.env.VITE_AUTH_DISABLED === "true";
 
-/** Secretary workspace at `/secretary` is only for role SECRETARY. */
+/**
+ * `/secretary`, `/crm`, etc. — only role SECRETARY may access (no auth-disabled bypass).
+ */
 export default function RequireSecretaryRole() {
   const location = useLocation();
-  if (authDisabled) return <Outlet />;
-
   const token = localStorage.getItem("zweck_token");
-  const qMe = useMe(Boolean(token));
+  const qMe = useMe(authDisabled || Boolean(token));
 
-  if (!token) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  if (!authDisabled && !token) {
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  }
+
   if (qMe.isLoading) return <Loading label="Checking access..." />;
   if (qMe.isError) return <ErrorBanner error={qMe.error} />;
 
-  if (!isSecretaryRole(qMe.data?.role)) return <Navigate to="/dashboard" replace />;
+  if (!isSecretaryRole(qMe.data?.role)) {
+    return <Navigate to="/forbidden" replace state={{ from: location.pathname }} />;
+  }
+
   return <Outlet />;
 }

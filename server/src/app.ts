@@ -39,6 +39,7 @@ import chatRoutes, { serveChatAttachmentDownload } from "./routes/chat.js";
 import internalFormsRoutes from "./routes/internalForms.js";
 import invoicesRoutes from "./routes/invoices.js";
 import clientsRoutes from "./routes/clients.js";
+import crmRoutes from "./routes/crm.js";
 import presenceRoutes from "./routes/presence.js";
 import directorReceiptsRoutes from "./routes/directorReceipts.js";
 import directorReceiptsV2Routes from "./routes/directorReceiptsV2.js";
@@ -146,6 +147,7 @@ export function createApp(): express.Express {
   app.use("/api/documents", documentsRoutes);
   app.use("/api/invoices", invoicesRoutes);
   app.use("/api/clients", clientsRoutes);
+  app.use("/api/crm", crmRoutes);
   app.use("/api/reconciliation", reconciliationRoutes);
   app.use("/api/reports", reportsRoutes);
   app.use("/api/chat", chatRoutes);

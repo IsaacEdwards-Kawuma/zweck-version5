@@ -112,6 +112,10 @@ model User {
   invoicesCreated Invoice[]        @relation("UserCreatedInvoices")
   paymentsCreated InvoicePayment[] @relation("UserCreatedInvoicePayments")
   clientsCreated  Client[]         @relation("UserCreatedClients")
+
+  crmContactsCreated    CrmContact[]    @relation("CrmContactCreator")
+  crmInteractionsLogged CrmInteraction[] @relation("CrmInteractionCreator")
+  crmRemindersCreated   CrmReminder[]   @relation("CrmReminderCreator")
 }
 
 model UserBlock {
@@ -907,6 +911,7 @@ model Meeting {
   reminderSent MeetingReminderSent?
 
   chatRooms ChatRoom[] @relation("MeetingChatRooms")
+  crmInteractions CrmInteraction[]
 
   @@index([date])
   @@index([status])
@@ -951,6 +956,95 @@ model DocumentRegister {
   @@index([directorId])
   @@index([transactionId])
   @@index([receiptReference])
+
+  crmContactLinks CrmContactDocument[]
+}
+
+/// Company secretary mini-CRM: contacts, interactions, reminders, document links.
+enum CrmInteractionType {
+  CALL
+  EMAIL
+  MEETING
+  NOTE
+  OTHER
+}
+
+model CrmContact {
+  id      Int     @id @default(autoincrement())
+  name    String  @db.VarChar(200)
+  company String? @db.VarChar(200)
+  phone   String? @db.VarChar(50)
+  email   String? @db.VarChar(200)
+  address String? @db.VarChar(500)
+  notes   String?
+
+  /// JSON array of tag strings, e.g. ["VIP","supplier","partner"]
+  tags Json @default("[]")
+
+  isDeleted Boolean @default(false)
+
+  createdById Int
+  creator     User   @relation("CrmContactCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  interactions  CrmInteraction[]
+  reminders       CrmReminder[]
+  documentLinks CrmContactDocument[]
+
+  @@index([isDeleted, updatedAt])
+  @@index([name])
+}
+
+model CrmInteraction {
+  id        Int              @id @default(autoincrement())
+  contactId Int
+  contact   CrmContact       @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  type      CrmInteractionType
+  title     String?          @db.VarChar(300)
+  notes     String?          @db.Text
+  occurredAt DateTime        @default(now())
+  meetingId Int?
+  meeting   Meeting?         @relation(fields: [meetingId], references: [id], onDelete: SetNull)
+
+  createdById Int?
+  creator     User? @relation("CrmInteractionCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+
+  @@index([contactId, occurredAt])
+  @@index([meetingId])
+}
+
+model CrmReminder {
+  id        Int        @id @default(autoincrement())
+  contactId Int
+  contact   CrmContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  title     String     @db.VarChar(300)
+  notes     String?    @db.Text
+  dueAt     DateTime
+  done      Boolean    @default(false)
+  doneAt    DateTime?
+
+  createdById Int
+  creator     User   @relation("CrmReminderCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([contactId, dueAt])
+  @@index([done, dueAt])
+}
+
+model CrmContactDocument {
+  id         Int @id @default(autoincrement())
+  contactId  Int
+  contact    CrmContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  documentId Int
+  document   DocumentRegister @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  note       String? @db.VarChar(500)
+  createdAt  DateTime @default(now())
+
+  @@unique([contactId, documentId])
+  @@index([documentId])
 }
 
 model ReconciliationNote {
