@@ -11,7 +11,7 @@ vi.mock("../src/lib/prisma.js", () => ({
   prisma: {
     user: { findFirst: mocks.findFirstUser },
     documentRegister: { findMany: mocks.docsFindMany },
-    directorReceipt: { findMany: mocks.receiptsFindMany }
+    directorReceiptLegacy: { findMany: mocks.receiptsFindMany }
   }
 }));
 

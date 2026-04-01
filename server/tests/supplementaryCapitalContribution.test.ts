@@ -40,7 +40,7 @@ vi.mock("../src/middleware/auth.js", async (importOriginal) => {
 vi.mock("../src/lib/prisma.js", () => ({
   prisma: {
     director: { findUnique: prismaMocks.directorFindUnique },
-    directorReceipt: { findUnique: vi.fn(async () => ({ id: 1 })) },
+    directorReceiptLegacy: { findUnique: vi.fn(async () => ({ id: 1 })) },
     $transaction: prismaMocks.txOuter
   }
 }));
@@ -64,7 +64,7 @@ describe("POST /api/transactions (SUPPLEMENTARY_CAPITAL_CONTRIBUTION)", () => {
       const fakeTx: any = {
         directorTransactionBatch: { create: prismaMocks.batchCreate.mockResolvedValue({ id: 10 }) },
         transaction: { create: prismaMocks.txCreate.mockResolvedValue({ id: 99 }) },
-        directorReceipt: { create: prismaMocks.receiptCreate.mockResolvedValue({ id: 77 }) },
+        directorReceiptLegacy: { create: prismaMocks.receiptCreate.mockResolvedValue({ id: 77 }) },
         auditLog: { create: prismaMocks.auditCreate.mockResolvedValue({ id: 1 }) },
         documentRegister: { create: prismaMocks.docCreate.mockResolvedValue({ id: 1 }) }
       };

@@ -1,5 +1,5 @@
 import type {
-  DirectorReceipt,
+  DirectorReceiptLegacy,
   DirectorTransactionBatch,
   DirectorTransactionLine,
   Transaction
@@ -37,7 +37,7 @@ function watermark(doc: any, label: string) {
 }
 
 export type ReceiptModel = {
-  receipt: DirectorReceipt;
+  receipt: DirectorReceiptLegacy;
   /** When provided, narrative meta is merged with batch data and ledger rows are printed. */
   transactionBatch?: DirectorTransactionBatch & {
     transactions?: Transaction[];
@@ -91,7 +91,7 @@ const TYPE_KEY_TO_RECEIPT_TITLE: Record<string, string> = {
  * reflects posted amounts even if receipt.meta was incomplete.
  */
 export function mergeReceiptMeta(
-  receipt: DirectorReceipt,
+  receipt: DirectorReceiptLegacy,
   batch?: DirectorTransactionBatch & { transactions?: Transaction[]; lines?: DirectorTransactionLine[] }
 ): Record<string, unknown> {
   const fromReceipt = (receipt.meta && typeof receipt.meta === "object" ? receipt.meta : {}) as Record<string, unknown>;
@@ -169,7 +169,7 @@ function receiptTypeLabel(meta: any): string {
   return String(meta?.receiptType || meta?.type || "Director Transaction Receipt");
 }
 
-function confirmationMessage(meta: any, receipt: DirectorReceipt): string {
+function confirmationMessage(meta: any, receipt: DirectorReceiptLegacy): string {
   const currency = String(meta?.currency || "EUR");
   const amount = Number(meta?.amount ?? meta?.totalAmount ?? 0);
   const dt = receipt.transactionDate;

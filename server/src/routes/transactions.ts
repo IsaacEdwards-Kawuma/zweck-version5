@@ -1131,7 +1131,7 @@ router.post("/", validateBody(postSchema), async (req, res) => {
         }
       });
 
-      const receipt = await tx.directorReceipt.create({
+      const receipt = await tx.directorReceiptLegacy.create({
         data: {
           directorId: body.directorId!,
           transactionBatchId: batch.id,
@@ -1196,7 +1196,7 @@ router.post("/", validateBody(postSchema), async (req, res) => {
       "/ledger"
     );
 
-    void prisma.directorReceipt
+    void prisma.directorReceiptLegacy
       .findUnique({ where: { receiptReference: receiptRef }, select: { id: true } })
       .then((r) => (r ? generateDirectorReceiptPdfNow(r.id) : undefined))
       .catch(() => {});
@@ -1274,7 +1274,7 @@ router.post("/", validateBody(postSchema), async (req, res) => {
         }
       });
 
-      await tx.directorReceipt.create({
+      await tx.directorReceiptLegacy.create({
         data: {
           directorId: body.directorId!,
           transactionBatchId: batch.id,
@@ -1330,7 +1330,7 @@ router.post("/", validateBody(postSchema), async (req, res) => {
     );
 
     // Non-blocking: generate receipt PDF (retry via cron job if it fails).
-    void prisma.directorReceipt
+    void prisma.directorReceiptLegacy
       .findUnique({ where: { receiptReference: receiptRef }, select: { id: true } })
       .then((r) => (r ? generateDirectorReceiptPdfNow(r.id) : undefined))
       .catch(() => {});
@@ -1365,7 +1365,7 @@ router.post("/", validateBody(postSchema), async (req, res) => {
           directorTransactionBatchId: batch.id
         }
       });
-      const receipt = await tx.directorReceipt.create({
+      const receipt = await tx.directorReceiptLegacy.create({
         data: {
           directorId: body.directorId!,
           transactionBatchId: batch.id,
@@ -1417,7 +1417,7 @@ router.post("/", validateBody(postSchema), async (req, res) => {
       `Reference ${ref} · ${body.amount} ${body.currency}`,
       "/ledger"
     );
-    void prisma.directorReceipt
+    void prisma.directorReceiptLegacy
       .findUnique({ where: { receiptReference: ref }, select: { id: true } })
       .then((r) => (r ? generateDirectorReceiptPdfNow(r.id) : undefined))
       .catch(() => {});
@@ -1452,7 +1452,7 @@ router.post("/", validateBody(postSchema), async (req, res) => {
           description: body.reason?.trim() || body.description || null
         }
       });
-      const receipt = await tx.directorReceipt.create({
+      const receipt = await tx.directorReceiptLegacy.create({
         data: {
           directorId: body.directorId!,
           transactionBatchId: batch.id,
@@ -1505,7 +1505,7 @@ router.post("/", validateBody(postSchema), async (req, res) => {
       `Reference ${ref} · ${body.amount} ${body.currency}`,
       "/ledger"
     );
-    void prisma.directorReceipt
+    void prisma.directorReceiptLegacy
       .findUnique({ where: { receiptReference: ref }, select: { id: true } })
       .then((r) => (r ? generateDirectorReceiptPdfNow(r.id) : undefined))
       .catch(() => {});
@@ -1572,7 +1572,7 @@ router.post("/", validateBody(postSchema), async (req, res) => {
         data: { transactionBatchId: batch.id, primaryTransactionId: trow.id }
       });
 
-      const receipt = await tx.directorReceipt.create({
+      const receipt = await tx.directorReceiptLegacy.create({
         data: {
           directorId: body.directorId!,
           transactionBatchId: batch.id,
@@ -1629,7 +1629,7 @@ router.post("/", validateBody(postSchema), async (req, res) => {
       `Reference ${receiptRef} · ${body.amount} ${body.currency}`,
       "/ledger"
     );
-    void prisma.directorReceipt
+    void prisma.directorReceiptLegacy
       .findUnique({ where: { receiptReference: receiptRef }, select: { id: true } })
       .then((r) => (r ? generateDirectorReceiptPdfNow(r.id) : undefined))
       .catch(() => {});
@@ -1717,7 +1717,7 @@ router.post("/", validateBody(postSchema), async (req, res) => {
           status: nextStatus
         }
       });
-      const receipt = await tx.directorReceipt.create({
+      const receipt = await tx.directorReceiptLegacy.create({
         data: {
           directorId,
           transactionBatchId: batch.id,
@@ -1773,7 +1773,7 @@ router.post("/", validateBody(postSchema), async (req, res) => {
       `Reference ${ref} · ${body.amount} ${body.currency}`,
       "/ledger"
     );
-    void prisma.directorReceipt
+    void prisma.directorReceiptLegacy
       .findUnique({ where: { receiptReference: ref }, select: { id: true } })
       .then((r) => (r ? generateDirectorReceiptPdfNow(r.id) : undefined))
       .catch(() => {});
@@ -1877,7 +1877,7 @@ router.post("/", validateBody(postSchema), async (req, res) => {
         where: { id: loan.id },
         data: { primaryTransactionId: trow.id, transactionBatchId: batch.id }
       });
-      const receipt = await tx.directorReceipt.create({
+      const receipt = await tx.directorReceiptLegacy.create({
         data: {
           directorId,
           transactionBatchId: batch.id,
@@ -1932,7 +1932,7 @@ router.post("/", validateBody(postSchema), async (req, res) => {
       `Reference ${ref} · ${body.amount} ${body.currency}`,
       "/ledger"
     );
-    void prisma.directorReceipt
+    void prisma.directorReceiptLegacy
       .findUnique({ where: { receiptReference: ref }, select: { id: true } })
       .then((r) => (r ? generateDirectorReceiptPdfNow(r.id) : undefined))
       .catch(() => {});
@@ -2038,7 +2038,7 @@ router.post("/", validateBody(postSchema), async (req, res) => {
           status: nextStatus
         }
       });
-      const receipt = await tx.directorReceipt.create({
+      const receipt = await tx.directorReceiptLegacy.create({
         data: {
           directorId,
           transactionBatchId: batch.id,
@@ -2095,7 +2095,7 @@ router.post("/", validateBody(postSchema), async (req, res) => {
       `Loan repayment recorded · receipt ${ref}`,
       "/ledger"
     );
-    void prisma.directorReceipt
+    void prisma.directorReceiptLegacy
       .findUnique({ where: { receiptReference: ref }, select: { id: true } })
       .then((r) => (r ? generateDirectorReceiptPdfNow(r.id) : undefined))
       .catch(() => {});
@@ -2135,7 +2135,7 @@ router.post("/", validateBody(postSchema), async (req, res) => {
           directorTransactionBatchId: batch.id
         }
       });
-      const receipt = await tx.directorReceipt.create({
+      const receipt = await tx.directorReceiptLegacy.create({
         data: {
           directorId: body.directorId!,
           transactionBatchId: batch.id,
@@ -2177,7 +2177,7 @@ router.post("/", validateBody(postSchema), async (req, res) => {
       `Reference ${receiptRef} · ${body.amount} ${body.currency}`,
       "/ledger"
     );
-    void prisma.directorReceipt
+    void prisma.directorReceiptLegacy
       .findUnique({ where: { receiptReference: receiptRef }, select: { id: true } })
       .then((r) => (r ? generateDirectorReceiptPdfNow(r.id) : undefined))
       .catch(() => {});
@@ -2217,7 +2217,7 @@ router.post("/", validateBody(postSchema), async (req, res) => {
           directorTransactionBatchId: batch.id
         }
       });
-      const receipt = await tx.directorReceipt.create({
+      const receipt = await tx.directorReceiptLegacy.create({
         data: {
           directorId: body.directorId!,
           transactionBatchId: batch.id,
@@ -2259,7 +2259,7 @@ router.post("/", validateBody(postSchema), async (req, res) => {
       `Reference ${receiptRef} · ${body.amount} ${body.currency}`,
       "/ledger"
     );
-    void prisma.directorReceipt
+    void prisma.directorReceiptLegacy
       .findUnique({ where: { receiptReference: receiptRef }, select: { id: true } })
       .then((r) => (r ? generateDirectorReceiptPdfNow(r.id) : undefined))
       .catch(() => {});
@@ -2299,7 +2299,7 @@ router.post("/", validateBody(postSchema), async (req, res) => {
           directorTransactionBatchId: batch.id
         }
       });
-      const receipt = await tx.directorReceipt.create({
+      const receipt = await tx.directorReceiptLegacy.create({
         data: {
           directorId: body.directorId!,
           transactionBatchId: batch.id,
@@ -2341,7 +2341,7 @@ router.post("/", validateBody(postSchema), async (req, res) => {
       `Reference ${receiptRef} · ${body.amount} ${body.currency}`,
       "/ledger"
     );
-    void prisma.directorReceipt
+    void prisma.directorReceiptLegacy
       .findUnique({ where: { receiptReference: receiptRef }, select: { id: true } })
       .then((r) => (r ? generateDirectorReceiptPdfNow(r.id) : undefined))
       .catch(() => {});

@@ -42,7 +42,7 @@ export type DirectorReceiptPdfJobResult = {
 };
 
 export async function generateDirectorReceiptPdfNow(receiptId: number): Promise<void> {
-  const receipt = await prisma.directorReceipt.findUnique({
+  const receipt = await prisma.directorReceiptLegacy.findUnique({
     where: { id: receiptId },
     include: {
       director: true,
@@ -113,7 +113,7 @@ export async function generateDirectorReceiptPdfNow(receiptId: number): Promise<
     fs.writeFileSync(abs, buffer);
   }
 
-  await prisma.directorReceipt.update({
+  await prisma.directorReceiptLegacy.update({
     where: { id: receipt.id },
     data: {
       pdfUrl: publicUrl,
@@ -142,7 +142,7 @@ export async function runDirectorReceiptPdfRetryJob(options?: {
   const maxAttempts = Math.max(1, Math.min(20, options?.maxAttempts ?? 5));
   const errors: string[] = [];
 
-  const rows = await prisma.directorReceipt.findMany({
+  const rows = await prisma.directorReceiptLegacy.findMany({
     where: {
       deletedAt: null,
       pdfStatus: { in: ["PENDING", "FAILED"] },
@@ -165,7 +165,7 @@ export async function runDirectorReceiptPdfRetryJob(options?: {
       const msg = e instanceof Error ? e.message : String(e);
       errors.push(`receipt ${r.id}: ${msg}`);
       logger.error(e, `[director-receipts] pdf generation failed (receipt ${r.id})`);
-      await prisma.directorReceipt.update({
+      await prisma.directorReceiptLegacy.update({
         where: { id: r.id },
         data: {
           pdfStatus: "FAILED",

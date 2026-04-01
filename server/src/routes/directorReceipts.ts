@@ -12,7 +12,7 @@ router.get("/", requireRole("DIRECTOR"), async (req, res) => {
   if (!Number.isFinite(directorId)) return res.status(400).json(apiError("Invalid directorId"));
   const viewer = { role: req.user!.role, directorId: req.user!.directorId ?? null };
   if (!canViewDirectorFinancials(viewer, directorId)) return res.status(403).json(apiError("Forbidden"));
-  const rows = await prisma.directorReceipt.findMany({
+  const rows = await prisma.directorReceiptLegacy.findMany({
     where: { directorId, deletedAt: null },
     orderBy: { transactionDate: "desc" },
     select: {
@@ -34,7 +34,7 @@ router.get("/:id/pdf", requireRole("DIRECTOR"), async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) return res.status(400).json(apiError("Invalid receipt id"));
 
-  const receipt = await prisma.directorReceipt.findUnique({
+  const receipt = await prisma.directorReceiptLegacy.findUnique({
     where: { id },
     include: {
       director: true,
