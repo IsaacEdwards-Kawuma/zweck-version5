@@ -2,12 +2,13 @@ import { Link, NavLink } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import DirectorAvatar from "./DirectorAvatar";
 import { logout as logoutApi } from "../api/auth";
-import { hasAdminPrivileges, isStaffRole } from "../lib/roles";
+import { hasAdminPrivileges, isStaffRole, isUserRole } from "../lib/roles";
 
 function buildLinks(role) {
   const staff = isStaffRole(role);
+  const dashboardTo = isUserRole(role) ? "/user" : "/dashboard";
   return [
-    { to: staff ? "/dashboard" : "/user", label: "Dashboard", icon: "dashboard" },
+    { to: dashboardTo, label: "Dashboard", icon: "dashboard" },
     ...(staff ? [{ to: "/reports", label: "Reports", icon: "reports" }] : []),
     { to: "/meetings", label: "Meetings", icon: "meetings" },
     { to: "/chat", label: "Chat", icon: "chat" },

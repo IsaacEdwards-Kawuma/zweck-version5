@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import Loading from "../components/Loading";
 import { getSettings } from "../api/settings";
-import { hasAdminPrivileges, isStaffRole } from "../lib/roles";
+import { hasAdminPrivileges, isStaffRole, isUserRole } from "../lib/roles";
 
 const TOC_STAFF = [
   { id: "start", label: "Getting started" },
@@ -29,6 +29,18 @@ const TOC_MEMBER = [
   { id: "tips", label: "Tips" }
 ];
 
+/** Non-staff roles that are not USER (e.g. director): home is `/dashboard`, not `/user`. */
+const TOC_MEMBER_OTHER = [
+  { id: "start", label: "Getting started" },
+  { id: "home-overview", label: "Dashboard overview" },
+  { id: "meetings-docs", label: "Meetings & documents" },
+  { id: "forms", label: "Forms" },
+  { id: "invoices", label: "Invoices" },
+  { id: "chat-notify", label: "Chat & notifications" },
+  { id: "settings-roles", label: "Settings & profile" },
+  { id: "tips", label: "Tips" }
+];
+
 function Section({ id, title, children }) {
   return (
     <section id={id} className="scroll-mt-24">
@@ -42,8 +54,9 @@ export default function HelpGuides() {
   const qSettings = useQuery({ queryKey: ["settings"], queryFn: getSettings });
   const role = qSettings.data?.session?.role;
   const staff = isStaffRole(role);
+  const isUser = isUserRole(role);
   const isAdmin = hasAdminPrivileges(role);
-  const toc = staff ? TOC_STAFF : TOC_MEMBER;
+  const toc = staff ? TOC_STAFF : isUser ? TOC_MEMBER : TOC_MEMBER_OTHER;
 
   if (qSettings.isLoading) {
     return <Loading label="Loading help…" />;
@@ -102,12 +115,12 @@ export default function HelpGuides() {
                 (outside of text fields) to focus global search from anywhere.
               </p>
               <p>
-                Your role (for example admin, treasurer, or operational manager) controls which pages you see and what you
-                can change. Admins manage users and many org-wide settings; other roles can still post and view data they
-                are allowed to access.
+                Your role (for example admin, treasurer, director, CEO, or operational manager) controls which pages you
+                see and what you can change. Admins manage users and many org-wide settings; other roles can still post
+                and view data they are allowed to access.
               </p>
             </>
-          ) : (
+          ) : isUser ? (
             <>
               <p>
                 The first time you sign in, a short welcome walkthrough may appear; you can skip it or use{" "}
@@ -131,6 +144,32 @@ export default function HelpGuides() {
               <p>
                 Financial reporting, posting, ledger, and similar tools are available only to designated staff. If you need
                 access, ask your administrator.
+              </p>
+            </>
+          ) : (
+            <>
+              <p>
+                The first time you sign in, a short welcome walkthrough may appear; you can skip it or use{" "}
+                <Link className="font-medium text-brand-700 underline hover:text-brand-800 dark:text-brand-300" to="/help">
+                  Help &amp; guides
+                </Link>{" "}
+                anytime.
+              </p>
+              <p>
+                After you sign in, the{" "}
+                <Link className="font-medium text-brand-700 underline hover:text-brand-800 dark:text-brand-300" to="/dashboard">
+                  Dashboard
+                </Link>{" "}
+                summarizes organization figures and recent activity available to your role. The sidebar lists the areas
+                your organization has enabled. Use{" "}
+                <kbd className="rounded border border-slate-300 bg-slate-100 px-1 font-mono text-xs dark:border-slate-600 dark:bg-slate-800">
+                  /
+                </kbd>{" "}
+                (outside of text fields) to focus global search from anywhere.
+              </p>
+              <p>
+                Financial posting, ledger, projects, and similar staff workflows are available only to designated staff
+                roles. If you need access, ask your administrator.
               </p>
             </>
           )}
@@ -213,7 +252,7 @@ export default function HelpGuides() {
               </p>
             </Section>
           </>
-        ) : (
+        ) : isUser ? (
           <Section id="user-dashboard" title="Your dashboard">
             <p>
               <Link className="font-medium text-brand-700 underline dark:text-brand-300" to="/user">
@@ -228,6 +267,24 @@ export default function HelpGuides() {
                 Notifications
               </Link>{" "}
               page from the bell or from unread counts when shown.
+            </p>
+          </Section>
+        ) : (
+          <Section id="home-overview" title="Dashboard overview">
+            <p>
+              The{" "}
+              <Link className="font-medium text-brand-700 underline dark:text-brand-300" to="/dashboard">
+                Dashboard
+              </Link>{" "}
+              is your home page for balances and activity summaries shown to your role, with shortcuts elsewhere in the
+              app.
+            </p>
+            <p>
+              Open{" "}
+              <Link className="font-medium text-brand-700 underline dark:text-brand-300" to="/notifications">
+                Notifications
+              </Link>{" "}
+              from the bell for the full list when available.
             </p>
           </Section>
         )}

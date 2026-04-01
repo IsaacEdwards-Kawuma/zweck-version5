@@ -9,13 +9,16 @@ export function hasDirectorPrivileges(role) {
 }
 
 /**
- * Staff roles allowed to access the current "staff dashboard" and accounting workflows.
- * Keep this explicit to avoid unintentionally granting new roles access.
+ * Staff / leadership roles: main financial dashboard (`/dashboard`), same nav as admins,
+ * and accounting routes behind `RequireStaff`. Excludes `USER` (member home at `/user`).
+ * ADMIN, ADMIN_DIRECTOR, CEO, and DIRECTOR are included alongside treasury and operations.
  */
 export function isStaffRole(role) {
   return (
     role === "ADMIN" ||
     role === "ADMIN_DIRECTOR" ||
+    role === "CEO" ||
+    role === "DIRECTOR" ||
     role === "TREASURER" ||
     // "Project manager" role in this codebase maps closest to OPERATIONAL_MANAGER.
     role === "OPERATIONAL_MANAGER"

@@ -4,6 +4,7 @@ import Protected from "./components/Protected";
 import Layout from "./components/Layout";
 import Loading from "./components/Loading";
 import RequireStaff from "./components/RequireStaff";
+import RequireUserRole from "./components/RequireUserRole";
 import RequireAdmin from "./components/RequireAdmin";
 import HomeRedirect from "./components/HomeRedirect";
 
@@ -57,7 +58,9 @@ export default function App() {
           <Route element={<Layout />}>
             <Route index element={<HomeRedirect />} />
             <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/user" element={<UserDashboard />} />
+            <Route element={<RequireUserRole />}>
+              <Route path="/user" element={<UserDashboard />} />
+            </Route>
 
             <Route element={<RequireStaff />}>
               <Route path="/reports" element={<Reports />} />

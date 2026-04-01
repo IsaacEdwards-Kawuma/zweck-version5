@@ -2,7 +2,7 @@ import { Navigate } from "react-router-dom";
 import Loading from "./Loading";
 import ErrorBanner from "./ErrorBanner";
 import { useMe } from "../hooks/useMe";
-import { isStaffRole } from "../lib/roles";
+import { isUserRole } from "../lib/roles";
 
 const authDisabled = import.meta.env.VITE_AUTH_DISABLED === "true";
 
@@ -16,6 +16,7 @@ export default function HomeRedirect() {
   if (qMe.isLoading) return <Loading label="Loading..." />;
   if (qMe.isError) return <ErrorBanner error={qMe.error} />;
 
-  return <Navigate to={isStaffRole(qMe.data?.role) ? "/dashboard" : "/user"} replace />;
+  /** Only the USER role uses the member home at `/user`; everyone else (e.g. directors) lands on `/dashboard`. */
+  return <Navigate to={isUserRole(qMe.data?.role) ? "/user" : "/dashboard"} replace />;
 }
 
