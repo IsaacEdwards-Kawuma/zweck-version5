@@ -554,7 +554,7 @@ router.get("/director-distributions", requireRole("DIRECTOR"), async (req, res) 
   if (!Number.isFinite(directorId)) return res.status(400).json(apiError("Invalid directorId"));
   const viewer = { role: req.user!.role, directorId: req.user!.directorId ?? null };
   if (!canViewDirectorFinancials(viewer, directorId)) return res.status(403).json(apiError("Forbidden"));
-  const rows = await prisma.directorCapitalDistribution.findMany({
+  const rows = await prisma.directorDistribution.findMany({
     where: { directorId, status: { in: ["OPEN", "PARTIALLY_REINSTATED"] } },
     orderBy: { distributionDate: "desc" },
     select: {
@@ -1653,7 +1653,7 @@ router.post("/", validateBody(postSchema), async (req, res) => {
 
   if (body.type === "CAPITAL_REINSTATEMENT" && body.directorId != null && body.distributionId && !hasManualPosting) {
     const directorId = body.directorId;
-    const dist = await prisma.directorCapitalDistribution.findUnique({ where: { id: body.distributionId } });
+    const dist = await prisma.directorDistribution.findUnique({ where: { id: body.distributionId } });
     if (!dist || dist.directorId !== directorId) {
       return res.status(400).json(apiError("Invalid distribution selection", "distributionId"));
     }
@@ -1665,6 +1665,8 @@ router.post("/", validateBody(postSchema), async (req, res) => {
     const ref = await allocateNextDirectorReceiptReference({ prefix: "CCR", date: dt });
     const bankKey = body.currency === "UGX" ? "bank_ugx" : body.currency === "USD" ? "bank_usd" : "bank_eur";
     const clearKey = `director_capital_distributions_clearing_${directorId}`;
+    const capitalKey = `director_capital_${directorId}`;
+    const refCapital = await allocateNextReferenceNumber();
 
     const reinstated = new Prisma.Decimal(body.amount);
     const nextOutstanding = new Prisma.Decimal(dist.outstandingBalance).minus(reinstated);
@@ -1699,6 +1701,24 @@ router.post("/", validateBody(postSchema), async (req, res) => {
           createdBy: req.user!.id
         }
       });
+
+      // Step 1: cash received to director capital
+      await tx.transaction.create({
+        data: {
+          ...commonData,
+          referenceNumber: refCapital,
+          type: "CAPITAL_REINSTATEMENT",
+          date: dt,
+          amount: body.amount,
+          directorId,
+          directorTransactionBatchId: batch.id,
+          manualDebitAccountKey: bankKey,
+          manualCreditAccountKey: capitalKey,
+          description: body.description ?? `Capital reinstatement (bank → capital) against distribution #${dist.id}`
+        }
+      });
+
+      // Step 2: reduce distribution clearing outstanding (clearing → capital)
       const trow = await tx.transaction.create({
         data: {
           ...commonData,
@@ -1708,24 +1728,13 @@ router.post("/", validateBody(postSchema), async (req, res) => {
           amount: body.amount,
           directorId,
           directorTransactionBatchId: batch.id,
-          manualDebitAccountKey: bankKey,
-          manualCreditAccountKey: clearKey,
-          description: body.description ?? `Capital reinstatement against distribution #${dist.id}`
+          manualDebitAccountKey: clearKey,
+          manualCreditAccountKey: capitalKey,
+          description: body.description ?? `Capital reinstatement (clearing → capital) against distribution #${dist.id}`
         }
       });
-      await tx.directorCapitalReinstatement.create({
-        data: {
-          directorId,
-          distributionId: dist.id,
-          date: dt,
-          amount: reinstated,
-          currency: body.currency,
-          transactionBatchId: batch.id,
-          primaryTransactionId: trow.id,
-          createdBy: req.user!.id
-        }
-      });
-      await tx.directorCapitalDistribution.update({
+
+      await tx.directorDistribution.update({
         where: { id: dist.id },
         data: {
           outstandingBalance: nextOutstanding,
@@ -1772,7 +1781,7 @@ router.post("/", validateBody(postSchema), async (req, res) => {
         data: {
           userId: req.user!.id,
           action: "CREATE_CAPITAL_REINSTATEMENT",
-          entityType: "DirectorCapitalDistribution",
+          entityType: "DirectorDistribution",
           entityId: dist.id,
           before: { outstandingBalance: dist.outstandingBalance, status: dist.status } as any,
           after: { outstandingBalance: nextOutstanding, status: nextStatus, ref } as any

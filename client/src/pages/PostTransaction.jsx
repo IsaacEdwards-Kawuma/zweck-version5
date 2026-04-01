@@ -723,7 +723,7 @@ export default function PostTransaction() {
                 <option value="">{qDists.isLoading ? "Loading distributions..." : "Select distribution..."}</option>
                 {(qDists.data || []).map((d) => (
                   <option key={d.id} value={d.id}>
-                    #{d.id} · {String(d.distributionDate).slice(0, 10)} · Outstanding {Number(d.outstandingBalance || 0)} {d.currency}
+                    #{d.id} · {String(d.distributionDate).slice(0, 10)} · Outstanding {formatMoney(Number(d.outstandingBalance || 0), d.currency)}
                   </option>
                 ))}
               </select>
