@@ -7,6 +7,16 @@ import type {
 import PDFDocument from "pdfkit";
 import { monthYearLabelUtc } from "./directorPosting.js";
 
+/** Matches `PrintStatementHeader.jsx` (statement print layouts). */
+const STATEMENT = {
+  navy: "#0b2547",
+  blue: "#1d4e89",
+  gold: "#c9a227",
+  eyebrow: "#dbeafe",
+  meta: "#bfdbfe",
+  white: "#ffffff"
+} as const;
+
 function fmtDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
@@ -125,7 +135,7 @@ function appendPostingRecord(doc: any, model: ReceiptModel, currency: string) {
   const batch = model.transactionBatch;
   if (!batch) return;
 
-  doc.fontSize(11).font("Helvetica-Bold").fillColor("#0f172a").text("Posting record (from ledger)");
+  doc.fontSize(11).font("Helvetica-Bold").fillColor(STATEMENT.navy).text("Posting record (from ledger)");
   doc.fontSize(8.5).font("Helvetica").fillColor("#64748b").text(
     "Figures below are taken from the posted director transaction batch and related transactions in the system.",
     { lineGap: 2 }
@@ -138,7 +148,7 @@ function appendPostingRecord(doc: any, model: ReceiptModel, currency: string) {
 
   const txns = batch.transactions || [];
   if (txns.length > 0) {
-    doc.fontSize(10).font("Helvetica-Bold").fillColor("#0f172a").text("Transactions");
+    doc.fontSize(10).font("Helvetica-Bold").fillColor(STATEMENT.navy).text("Transactions");
     doc.fontSize(8.5).font("Helvetica").fillColor("#334155");
     for (const t of txns) {
       const desc = truncate(String(t.description || ""), 88);
@@ -152,7 +162,7 @@ function appendPostingRecord(doc: any, model: ReceiptModel, currency: string) {
 
   const lines = batch.lines || [];
   if (lines.length > 0) {
-    doc.fontSize(10).font("Helvetica-Bold").fillColor("#0f172a").text("GL lines");
+    doc.fontSize(10).font("Helvetica-Bold").fillColor(STATEMENT.navy).text("GL lines");
     doc.fontSize(8.5).font("Helvetica").fillColor("#334155");
     for (const L of lines) {
       doc.text(
@@ -346,21 +356,46 @@ export function buildDirectorReceiptPdfBuffer(model: ReceiptModel): Promise<Buff
     const meta = mergeReceiptMeta(model.receipt, model.transactionBatch) as any;
     const currency = String(meta.currency || model.transactionBatch?.currency || "EUR");
 
-    doc.fontSize(18).font("Helvetica-Bold").fillColor("#0f172a").text(model.companyName, { align: "center" });
-    doc.moveDown(0.25);
-    doc.fontSize(10).font("Helvetica").fillColor("#334155").text("Official Director Transaction Receipt", {
-      align: "center"
-    });
-    doc.moveDown(1);
+    const m = doc.page.margins.left;
+    const contentW = doc.page.width - m - doc.page.margins.right;
+    const headerTopY = doc.y;
+    const headerH = 88;
+    const headerRx = 10;
 
-    doc.fontSize(12).font("Helvetica-Bold").fillColor("#0f172a").text(receiptTypeLabel(meta));
-    doc.moveDown(0.3);
-    doc.fontSize(10).font("Helvetica").fillColor("#334155");
-    doc.text(`Receipt Reference: ${model.receipt.receiptReference}`);
-    doc.text(`Transaction Date: ${fmtDate(model.receipt.transactionDate)}`);
-    doc.moveDown(0.8);
+    doc.save();
+    doc.roundedRect(m, headerTopY, contentW, headerH, headerRx);
+    const gh = doc.linearGradient(m, headerTopY, m + contentW, headerTopY + headerH);
+    gh.stop(0, STATEMENT.navy);
+    gh.stop(0.62, STATEMENT.blue);
+    gh.stop(1, STATEMENT.gold);
+    doc.fill(gh);
+    doc.restore();
 
-    doc.fontSize(11).font("Helvetica-Bold").fillColor("#0f172a").text("Director");
+    const tx = m + 16;
+    const rightW = 128;
+    const rightX = m + contentW - 16 - rightW;
+    doc.fillColor(STATEMENT.eyebrow);
+    doc.font("Helvetica-Bold").fontSize(8.5).text(`${model.companyName} · Kampala`, tx, headerTopY + 12, { width: contentW - 32 });
+    doc.fillColor(STATEMENT.white);
+    doc.font("Helvetica-Bold").fontSize(18).text("Director Transaction Receipt", tx, headerTopY + 28, { width: contentW - 32 });
+    doc.fillColor(STATEMENT.meta);
+    doc.font("Helvetica").fontSize(9.5).text(receiptTypeLabel(meta), tx, headerTopY + 50, { width: contentW * 0.62 });
+    doc.font("Helvetica").fontSize(8.5).text(`REF: ${model.receipt.receiptReference}`, rightX, headerTopY + 26, { width: rightW, align: "right" });
+    doc.font("Helvetica").fontSize(8.5).text(`Date: ${fmtDate(model.receipt.transactionDate)}`, rightX, headerTopY + 40, { width: rightW, align: "right" });
+
+    const accentY = headerTopY + headerH + 6;
+    doc.save();
+    doc.rect(m, accentY, contentW, 4);
+    const ag = doc.linearGradient(m, accentY, m + contentW, accentY);
+    ag.stop(0, STATEMENT.navy);
+    ag.stop(0.6, STATEMENT.blue);
+    ag.stop(1, STATEMENT.gold);
+    doc.fill(ag);
+    doc.restore();
+
+    doc.y = accentY + 4 + 16;
+
+    doc.fontSize(11).font("Helvetica-Bold").fillColor(STATEMENT.navy).text("Director");
     doc.fontSize(9.5).font("Helvetica").fillColor("#334155");
     doc.text(`Name: ${model.director.name}`);
     doc.text(`Email: ${model.director.email || "—"}`);
@@ -373,15 +408,15 @@ export function buildDirectorReceiptPdfBuffer(model: ReceiptModel): Promise<Buff
 
     appendPostingRecord(doc, model, currency);
 
-    doc.fontSize(11).font("Helvetica-Bold").fillColor("#0f172a").text("Confirmation");
+    doc.fontSize(11).font("Helvetica-Bold").fillColor(STATEMENT.navy).text("Confirmation");
     doc.fontSize(9.5).font("Helvetica").fillColor("#334155").text(confirmationMessage(meta, model.receipt), {
       lineGap: 2
     });
     doc.moveDown(0.8);
 
-    doc.fontSize(11).font("Helvetica-Bold").fillColor("#0f172a").text("GL reference");
+    doc.fontSize(11).font("Helvetica-Bold").fillColor(STATEMENT.navy).text("GL reference");
     doc.fontSize(9.5).font("Helvetica").fillColor("#334155");
-    doc.rect(doc.x, doc.y, doc.page.width - doc.page.margins.left - doc.page.margins.right, 28).fill("#f1f5f9");
+    doc.rect(doc.x, doc.y, doc.page.width - doc.page.margins.left - doc.page.margins.right, 28).fill("#eff6ff");
     doc.fillColor("#334155").text(
       `GL Reference: ${meta.glReference || "—"}    Receipt Reference: ${model.receipt.receiptReference}    Currency: ${currency}    Period: ${monthYearLabelUtc(
         model.receipt.transactionDate
@@ -400,7 +435,7 @@ export function buildDirectorReceiptPdfBuffer(model: ReceiptModel): Promise<Buff
     );
     doc.moveDown(1.2);
 
-    doc.fontSize(9.5).font("Helvetica-Bold").fillColor("#0f172a").text("Posted by");
+    doc.fontSize(9.5).font("Helvetica-Bold").fillColor(STATEMENT.navy).text("Posted by");
     doc.fontSize(9.5).font("Helvetica").fillColor("#334155").text(model.postedBy || "—");
 
     doc.end();

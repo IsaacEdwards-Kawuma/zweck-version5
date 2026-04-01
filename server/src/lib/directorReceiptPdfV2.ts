@@ -27,12 +27,23 @@ function truncate(s: string, max: number): string {
   return `${t.slice(0, max - 1)}…`;
 }
 
+/** Matches `PrintStatementHeader.jsx` (statement print / PDF letterhead). */
+const STATEMENT = {
+  navy: "#0b2547",
+  blue: "#1d4e89",
+  gold: "#c9a227",
+  eyebrow: "#dbeafe",
+  subtitle: "#dbeafe",
+  meta: "#bfdbfe",
+  white: "#ffffff"
+} as const;
+
 function watermarkPosted(doc: any) {
   const cx = doc.page.width / 2;
   const cy = doc.page.height / 2;
   doc.save();
   doc.opacity(0.07);
-  doc.fillColor("#B78E2D").fontSize(88).font("Helvetica-Bold");
+  doc.fillColor(STATEMENT.gold).fontSize(88).font("Helvetica-Bold");
   doc.translate(cx, cy);
   doc.rotate(-28);
   const w = doc.widthOfString("POSTED");
@@ -368,11 +379,12 @@ function amountBreakdownRows(kind: Kind, receipt: DirectorReceipt, additional: a
   return [{ label: "Total", value: fmtMoney(total, currency), isTotal: true }];
 }
 
-function drawGradientBar(doc: any, x: number, y: number, w: number, h: number) {
+/** 90deg accent bar — matches `bg-[linear-gradient(90deg,#0b2547_0%,#1d4e89_60%,#c9a227_100%)]` */
+function fillStatementHorizontalAccent(doc: any, x: number, y: number, w: number, h: number) {
   const g = doc.linearGradient(x, y, x + w, y);
-  g.stop(0, "#0B1B3A");
-  g.stop(0.5, "#B78E2D");
-  g.stop(1, "#0B1B3A");
+  g.stop(0, STATEMENT.navy);
+  g.stop(0.6, STATEMENT.blue);
+  g.stop(1, STATEMENT.gold);
   doc.save();
   doc.rect(x, y, w, h).fill(g);
   doc.restore();
@@ -423,51 +435,81 @@ export function buildDirectorReceiptPdfV2Buffer(model: ReceiptV2Model): Promise<
     const director = model.receipt.director;
     const additional = (receipt.additionalData && typeof receipt.additionalData === "object" ? receipt.additionalData : {}) as any;
     const kind = kindFromReceipt(receipt);
+    const companyName = String(model.companyName || "Zweck Co. Ltd").trim() || "Zweck Co. Ltd";
 
-    // Top gradient bar
-    drawGradientBar(doc, 0, 0, pageW, 5);
-    doc.moveDown(0.6);
-
-    // Header left
+    // Statement-style letterhead (matches PrintStatementHeader gradient + accent bar)
     const headerTopY = doc.y;
-    doc.fillColor("#0B1B3A");
-    doc.font("Times-Bold").fontSize(20).text("Zweck Co. Ltd", m, headerTopY, { width: contentW * 0.62 });
-    doc.moveDown(0.1);
-    doc.font("Helvetica").fontSize(9).fillColor("#334155").text("OFFICIAL DIRECTOR TRANSACTION RECEIPT", {
-      width: contentW * 0.62,
-      characterSpacing: 1.1
+    const headerH = 92;
+    const headerRx = 10;
+    const badgeText = typeBadgeLabel(kind);
+
+    doc.save();
+    roundedRect(doc, m, headerTopY, contentW, headerH, headerRx);
+    const gh = doc.linearGradient(m, headerTopY, m + contentW, headerTopY + headerH);
+    gh.stop(0, STATEMENT.navy);
+    gh.stop(0.62, STATEMENT.blue);
+    gh.stop(1, STATEMENT.gold);
+    doc.fill(gh);
+    doc.restore();
+
+    const padX = 16;
+    const tx = m + padX;
+    const rightColW = contentW * 0.36;
+    const rightX = m + contentW - padX - rightColW;
+
+    doc.fillColor(STATEMENT.eyebrow);
+    doc.font("Helvetica-Bold").fontSize(8.5).text(`${companyName} · Kampala`, tx, headerTopY + 14, {
+      width: contentW - padX * 2,
+      characterSpacing: 0.6
     });
 
-    // Header right
-    const rightX = m + contentW * 0.66;
-    const rightW = contentW * 0.34;
-    const badgeText = typeBadgeLabel(kind);
-    doc.save();
-    doc.font("Helvetica-Bold").fontSize(9).fillColor("#0B1B3A");
+    doc.fillColor(STATEMENT.white);
+    doc.font("Helvetica-Bold").fontSize(19).text("Director Transaction Receipt", tx, headerTopY + 32, { width: contentW * 0.62 - padX });
+
+    doc.fillColor(STATEMENT.meta);
+    doc.font("Helvetica").fontSize(9).text("Official posted transaction record · ZweckOS", tx, headerTopY + 56, {
+      width: contentW * 0.55
+    });
+
+    doc.fillColor(STATEMENT.meta);
+    doc.font("Helvetica").fontSize(8.8).text(`REF: ${receipt.referenceNumber}`, rightX, headerTopY + 16, {
+      width: rightColW,
+      align: "right"
+    });
+    doc.font("Helvetica").fontSize(8.8).text(`Date: ${fmtDate(receipt.transactionDate)}`, rightX, headerTopY + 30, {
+      width: rightColW,
+      align: "right"
+    });
+
     const badgePadX = 10;
-    const badgePadY = 5;
-    const badgeW = Math.min(rightW, doc.widthOfString(badgeText) + badgePadX * 2);
+    doc.font("Helvetica-Bold").fontSize(8.5);
+    const badgeW = Math.min(rightColW, doc.widthOfString(badgeText) + badgePadX * 2);
     const badgeH = 18;
-    roundedRect(doc, rightX + (rightW - badgeW), headerTopY, badgeW, badgeH, 9);
-    doc.fillAndStroke("#EEF2FF", "#CBD5E1");
-    doc.fillColor("#0B1B3A").text(badgeText, rightX + (rightW - badgeW) + badgePadX, headerTopY + 5, {
+    const badgeX = rightX + rightColW - badgeW;
+    const badgeY = headerTopY + 50;
+    doc.save();
+    roundedRect(doc, badgeX, badgeY, badgeW, badgeH, 9);
+    doc.fillOpacity(0.22);
+    doc.fillColor("#ffffff");
+    doc.fill();
+    doc.strokeOpacity(0.55);
+    doc.strokeColor("#ffffff");
+    doc.lineWidth(0.75);
+    doc.stroke();
+    doc.fillOpacity(1);
+    doc.strokeOpacity(1);
+    doc.fillColor(STATEMENT.white);
+    doc.font("Helvetica-Bold").fontSize(8.5).text(badgeText, badgeX + badgePadX, badgeY + 5, {
       width: badgeW - badgePadX * 2,
       align: "center"
     });
     doc.restore();
 
-    const refY = headerTopY + 24;
-    doc.font("Courier").fontSize(9.5).fillColor("#0F172A").text(`REF: ${receipt.referenceNumber}`, rightX, refY, {
-      width: rightW,
-      align: "right"
-    });
-    doc.font("Helvetica").fontSize(9).fillColor("#475569").text(`Date: ${fmtDate(receipt.transactionDate)}`, rightX, refY + 14, {
-      width: rightW,
-      align: "right"
-    });
+    const accentY = headerTopY + headerH + 6;
+    const accentH = 4;
+    fillStatementHorizontalAccent(doc, m, accentY, contentW, accentH);
 
-    doc.y = headerTopY + 48;
-    doc.moveDown(0.8);
+    doc.y = accentY + accentH + 16;
 
     // Director section (light background)
     const boxX = m;
@@ -477,6 +519,11 @@ export function buildDirectorReceiptPdfV2Buffer(model: ReceiptV2Model): Promise<
     doc.save();
     doc.roundedRect(boxX, boxY, boxW, boxH, 10).fill("#F8FAFC");
     doc.restore();
+    doc.save();
+    doc.roundedRect(boxX, boxY, boxW, boxH, 10);
+    doc.strokeColor(STATEMENT.blue).opacity(0.35).lineWidth(0.6).stroke();
+    doc.opacity(1);
+    doc.restore();
 
     // Left column content
     const pad = 14;
@@ -485,12 +532,12 @@ export function buildDirectorReceiptPdfV2Buffer(model: ReceiptV2Model): Promise<
     const rightChipX = boxX + boxW * 0.72;
     const rightChipW = boxW * 0.28 - pad;
 
-    doc.fillColor("#0B1B3A");
+    doc.fillColor(STATEMENT.navy);
     doc.font("Times-Bold").fontSize(14).text(director.name || `Director ${director.id}`, leftX, boxY + 14, {
       width: leftW
     });
 
-    const iconColor = "#B78E2D";
+    const iconColor = STATEMENT.gold;
     const labelColor = "#334155";
     const monoColor = "#0F172A";
     const infoY = boxY + 38;
@@ -541,7 +588,7 @@ export function buildDirectorReceiptPdfV2Buffer(model: ReceiptV2Model): Promise<
     const labelW = tableW * 0.68;
     const valueW = tableW * 0.32;
 
-    doc.font("Helvetica-Bold").fontSize(11).fillColor("#0B1B3A").text("Amount breakdown", tableX, startY);
+    doc.font("Helvetica-Bold").fontSize(11).fillColor(STATEMENT.navy).text("Amount breakdown", tableX, startY);
     doc.y = startY + 16;
 
     let y = doc.y;
@@ -591,7 +638,7 @@ export function buildDirectorReceiptPdfV2Buffer(model: ReceiptV2Model): Promise<
 
     // Closing message (italic) + gold decorative line
     doc.save();
-    doc.strokeColor("#B78E2D").lineWidth(2);
+    doc.strokeColor(STATEMENT.gold).lineWidth(2);
     doc.moveTo(m, doc.y).lineTo(m + 90, doc.y).stroke();
     doc.restore();
     doc.moveDown(0.6);
@@ -605,7 +652,7 @@ export function buildDirectorReceiptPdfV2Buffer(model: ReceiptV2Model): Promise<
 
     // gold triangle bottom-right
     doc.save();
-    doc.fillColor("#B78E2D").opacity(0.9);
+    doc.fillColor(STATEMENT.gold).opacity(0.9);
     const triSize = 26;
     doc.moveTo(pageW - m, pageH - m);
     doc.lineTo(pageW - m - triSize, pageH - m);
