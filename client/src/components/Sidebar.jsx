@@ -2,26 +2,29 @@ import { Link, NavLink } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import DirectorAvatar from "./DirectorAvatar";
 import { logout as logoutApi } from "../api/auth";
-import { hasAdminPrivileges } from "../lib/roles";
+import { hasAdminPrivileges, isStaffRole } from "../lib/roles";
 
-const links = [
-  { to: "/", label: "Dashboard", icon: "dashboard" },
-  { to: "/reports", label: "Reports", icon: "reports" },
-  { to: "/meetings", label: "Meetings", icon: "meetings" },
-  { to: "/chat", label: "Chat", icon: "chat" },
-  { to: "/documents", label: "Documents", icon: "documents" },
-  { to: "/forms", label: "Forms", icon: "forms" },
-  { to: "/post", label: "Post Transaction", icon: "post" },
-  { to: "/ledger", label: "Ledger", icon: "ledger" },
-  { to: "/reconciliation", label: "Reconciliation", icon: "reconcile" },
-  { to: "/accounts", label: "Chart of Accounts", icon: "accounts" },
-  { to: "/directors", label: "Directors", icon: "directors" },
-  { to: "/portfolio", label: "Portfolio", icon: "portfolio" },
-  { to: "/invoices", label: "Invoices", icon: "invoices" },
-  { to: "/projects", label: "Projects", icon: "projects" },
-  { to: "/help", label: "Help & guides", icon: "help" },
-  { to: "/settings", label: "Settings", icon: "settings" }
-];
+function buildLinks(role) {
+  const staff = isStaffRole(role);
+  return [
+    { to: staff ? "/dashboard" : "/user", label: "Dashboard", icon: "dashboard" },
+    ...(staff ? [{ to: "/reports", label: "Reports", icon: "reports" }] : []),
+    { to: "/meetings", label: "Meetings", icon: "meetings" },
+    { to: "/chat", label: "Chat", icon: "chat" },
+    { to: "/documents", label: "Documents", icon: "documents" },
+    { to: "/forms", label: "Forms", icon: "forms" },
+    ...(staff ? [{ to: "/post", label: "Post Transaction", icon: "post" }] : []),
+    { to: "/ledger", label: "Ledger", icon: "ledger" },
+    { to: "/reconciliation", label: "Reconciliation", icon: "reconcile" },
+    ...(staff ? [{ to: "/accounts", label: "Chart of Accounts", icon: "accounts" }] : []),
+    ...(staff ? [{ to: "/directors", label: "Directors", icon: "directors" }] : []),
+    ...(staff ? [{ to: "/portfolio", label: "Portfolio", icon: "portfolio" }] : []),
+    { to: "/invoices", label: "Invoices", icon: "invoices" },
+    { to: "/projects", label: "Projects", icon: "projects" },
+    { to: "/help", label: "Help & guides", icon: "help" },
+    { to: "/settings", label: "Settings", icon: "settings" }
+  ];
+}
 
 function NavIcon({ name }) {
   const common = {
@@ -163,6 +166,7 @@ function NavIcon({ name }) {
 
 export default function Sidebar({ mobileOpen, onClose, me }) {
   const nav = useNavigate();
+  const links = buildLinks(me?.role);
   const profileName = me?.director?.name || (me?.email ? String(me.email).split("@")[0] : "Signed in user");
   const profileSubtitle = me?.email || "No email";
   const avatarDirector = me?.director || { name: profileName, initials: String(profileName).slice(0, 2).toUpperCase(), avatarUrl: null };
@@ -217,7 +221,7 @@ export default function Sidebar({ mobileOpen, onClose, me }) {
             <NavLink
               key={l.to}
               to={l.to}
-              end={l.to === "/"}
+              end={l.to === "/dashboard" || l.to === "/user"}
               onClick={onClose}
               className={({ isActive }) =>
                 [

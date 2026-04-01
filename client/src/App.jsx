@@ -3,11 +3,15 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import Protected from "./components/Protected";
 import Layout from "./components/Layout";
 import Loading from "./components/Loading";
+import RequireStaff from "./components/RequireStaff";
+import RequireAdmin from "./components/RequireAdmin";
+import HomeRedirect from "./components/HomeRedirect";
 
 const Login = lazy(() => import("./pages/Login"));
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
+const UserDashboard = lazy(() => import("./pages/UserDashboard"));
 const PostTransaction = lazy(() => import("./pages/PostTransaction"));
 const Ledger = lazy(() => import("./pages/Ledger"));
 const Reconciliation = lazy(() => import("./pages/Reconciliation"));
@@ -36,6 +40,7 @@ const HelpGuides = lazy(() => import("./pages/HelpGuides"));
 const DataRights = lazy(() => import("./pages/DataRights"));
 const Chat = lazy(() => import("./pages/Chat"));
 const ChatRoom = lazy(() => import("./pages/ChatRoom"));
+const Forbidden = lazy(() => import("./pages/Forbidden"));
 
 export default function App() {
   return (
@@ -45,30 +50,39 @@ export default function App() {
         <Route path="/signup" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/forbidden" element={<Forbidden />} />
 
         <Route element={<Protected />}>
           <Route element={<Layout />}>
-            <Route index element={<Dashboard />} />
-            <Route path="/reports" element={<Reports />} />
+            <Route index element={<HomeRedirect />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/user" element={<UserDashboard />} />
+
+            <Route element={<RequireStaff />}>
+              <Route path="/reports" element={<Reports />} />
+              <Route path="/post" element={<PostTransaction />} />
+              <Route path="/accounts" element={<ChartOfAccounts />} />
+              <Route path="/directors" element={<Directors />} />
+              <Route path="/directors/:id" element={<DirectorDetail />} />
+              <Route path="/portfolio" element={<Portfolio />} />
+            </Route>
+
             <Route path="/meetings" element={<Meetings />} />
             <Route path="/documents" element={<Documents />} />
             <Route path="/forms" element={<Forms />} />
             <Route path="/chat" element={<Chat />} />
             <Route path="/chat/rooms/:roomId" element={<ChatRoom />} />
-            <Route path="/users" element={<Users />} />
-            <Route path="/audit" element={<AuditLog />} />
+            <Route element={<RequireAdmin />}>
+              <Route path="/users" element={<Users />} />
+              <Route path="/audit" element={<AuditLog />} />
+            </Route>
             <Route path="/settings" element={<Settings />} />
             <Route path="/about" element={<AboutCompany />} />
             <Route path="/help" element={<HelpGuides />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/legal/data-rights" element={<DataRights />} />
-            <Route path="/post" element={<PostTransaction />} />
             <Route path="/ledger" element={<Ledger />} />
             <Route path="/reconciliation" element={<Reconciliation />} />
-            <Route path="/accounts" element={<ChartOfAccounts />} />
-            <Route path="/directors" element={<Directors />} />
-            <Route path="/directors/:id" element={<DirectorDetail />} />
-            <Route path="/portfolio" element={<Portfolio />} />
             <Route path="/invoices" element={<Invoices />} />
             <Route path="/invoices/new" element={<InvoiceCreate />} />
             <Route path="/invoices/clients" element={<ClientRegister />} />
