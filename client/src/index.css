@@ -113,6 +113,37 @@ html.dark ::selection {
       transform: translateY(0) scale(1);
     }
   }
+
+  @keyframes secretary-float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-8px);
+    }
+  }
+
+  @keyframes secretary-shimmer {
+    0% {
+      background-position: 0% 50%;
+    }
+    100% {
+      background-position: 200% 50%;
+    }
+  }
+
+  @keyframes secretary-ring-pulse {
+    0% {
+      box-shadow: 0 0 0 0 rgba(53, 99, 174, 0.45);
+    }
+    70% {
+      box-shadow: 0 0 0 12px rgba(53, 99, 174, 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(53, 99, 174, 0);
+    }
+  }
 }
 
 /* Sidebar: always define keyframes so animation names resolve (duration still reduced via global a11y rule) */
@@ -339,6 +370,61 @@ html.dark ::selection {
     .ui-sidebar-brand-motion {
       background-size: 200% 200%;
       animation: sidebar-gradient-shift 18s ease-in-out infinite;
+    }
+
+    .secretary-hero-art-float {
+      animation: secretary-float 8s ease-in-out infinite;
+    }
+
+    .secretary-shimmer-bar {
+      background: linear-gradient(
+        90deg,
+        rgba(53, 99, 174, 0) 0%,
+        rgba(53, 99, 174, 0.15) 45%,
+        rgba(14, 165, 233, 0.2) 55%,
+        rgba(53, 99, 174, 0) 100%
+      );
+      background-size: 200% 100%;
+      animation: secretary-shimmer 5s ease-in-out infinite;
+    }
+
+    .secretary-next-ring {
+      animation: secretary-ring-pulse 2.4s ease-out infinite;
+    }
+
+    .secretary-stagger-in > * {
+      animation: fade-slide-up 0.5s ease-out both;
+    }
+    .secretary-stagger-in > *:nth-child(1) {
+      animation-delay: 0.03s;
+    }
+    .secretary-stagger-in > *:nth-child(2) {
+      animation-delay: 0.08s;
+    }
+    .secretary-stagger-in > *:nth-child(3) {
+      animation-delay: 0.13s;
+    }
+    .secretary-stagger-in > *:nth-child(4) {
+      animation-delay: 0.18s;
+    }
+    .secretary-stagger-in > *:nth-child(5) {
+      animation-delay: 0.23s;
+    }
+    .secretary-stagger-in > *:nth-child(6) {
+      animation-delay: 0.28s;
+    }
+    .secretary-stagger-in > *:nth-child(7) {
+      animation-delay: 0.33s;
+    }
+    .secretary-stagger-in > *:nth-child(8) {
+      animation-delay: 0.38s;
+    }
+
+    .secretary-quick-card {
+      @apply relative overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-sm transition-all duration-300 dark:border-slate-700 dark:bg-slate-900;
+    }
+    .secretary-quick-card:hover {
+      @apply -translate-y-1 border-brand-200 bg-brand-50 shadow-lg shadow-brand-500/10 dark:border-brand-500 dark:bg-slate-800;
     }
   }
 }
