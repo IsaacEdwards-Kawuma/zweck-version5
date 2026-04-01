@@ -2,12 +2,12 @@ import { Navigate, Outlet, useLocation } from "react-router-dom";
 import Loading from "./Loading";
 import ErrorBanner from "./ErrorBanner";
 import { useMe } from "../hooks/useMe";
-import { isSecretaryRole, isUserRole } from "../lib/roles";
+import { isSecretaryRole } from "../lib/roles";
 
 const authDisabled = import.meta.env.VITE_AUTH_DISABLED === "true";
 
-/** Member home at `/user` is only for role USER; everyone else is sent to the main dashboard. */
-export default function RequireUserRole() {
+/** Secretary workspace at `/secretary` is only for role SECRETARY. */
+export default function RequireSecretaryRole() {
   const location = useLocation();
   if (authDisabled) return <Outlet />;
 
@@ -18,8 +18,6 @@ export default function RequireUserRole() {
   if (qMe.isLoading) return <Loading label="Checking access..." />;
   if (qMe.isError) return <ErrorBanner error={qMe.error} />;
 
-  if (!isUserRole(qMe.data?.role)) {
-    return <Navigate to={isSecretaryRole(qMe.data?.role) ? "/secretary" : "/dashboard"} replace />;
-  }
+  if (!isSecretaryRole(qMe.data?.role)) return <Navigate to="/dashboard" replace />;
   return <Outlet />;
 }

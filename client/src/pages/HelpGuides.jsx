@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import Loading from "../components/Loading";
 import { getSettings } from "../api/settings";
-import { hasAdminPrivileges, isStaffRole, isUserRole } from "../lib/roles";
+import { hasAdminPrivileges, isSecretaryRole, isStaffRole, isUserRole } from "../lib/roles";
 
 const TOC_STAFF = [
   { id: "start", label: "Getting started" },
@@ -21,6 +21,17 @@ const TOC_STAFF = [
 const TOC_MEMBER = [
   { id: "start", label: "Getting started" },
   { id: "user-dashboard", label: "Your dashboard" },
+  { id: "meetings-docs", label: "Meetings & documents" },
+  { id: "forms", label: "Forms" },
+  { id: "invoices", label: "Invoices" },
+  { id: "chat-notify", label: "Chat & notifications" },
+  { id: "settings-roles", label: "Settings & profile" },
+  { id: "tips", label: "Tips" }
+];
+
+const TOC_SECRETARY = [
+  { id: "start", label: "Getting started" },
+  { id: "secretary-dashboard", label: "Secretary dashboard" },
   { id: "meetings-docs", label: "Meetings & documents" },
   { id: "forms", label: "Forms" },
   { id: "invoices", label: "Invoices" },
@@ -55,8 +66,9 @@ export default function HelpGuides() {
   const role = qSettings.data?.session?.role;
   const staff = isStaffRole(role);
   const isUser = isUserRole(role);
+  const isSecretary = isSecretaryRole(role);
   const isAdmin = hasAdminPrivileges(role);
-  const toc = staff ? TOC_STAFF : isUser ? TOC_MEMBER : TOC_MEMBER_OTHER;
+  const toc = staff ? TOC_STAFF : isUser ? TOC_MEMBER : isSecretary ? TOC_SECRETARY : TOC_MEMBER_OTHER;
 
   if (qSettings.isLoading) {
     return <Loading label="Loading help…" />;
@@ -144,6 +156,35 @@ export default function HelpGuides() {
               <p>
                 Financial reporting, posting, ledger, and similar tools are available only to designated staff. If you need
                 access, ask your administrator.
+              </p>
+            </>
+          ) : isSecretary ? (
+            <>
+              <p>
+                The first time you sign in, a short welcome walkthrough may appear; you can skip it or use{" "}
+                <Link className="font-medium text-brand-700 underline hover:text-brand-800 dark:text-brand-300" to="/help">
+                  Help &amp; guides
+                </Link>{" "}
+                anytime.
+              </p>
+              <p>
+                After you sign in, open your{" "}
+                <Link className="font-medium text-brand-700 underline hover:text-brand-800 dark:text-brand-300" to="/secretary">
+                  Secretary dashboard
+                </Link>{" "}
+                for meetings, documents, chat, and coordination. The sidebar lists the areas your organization has
+                enabled. Use{" "}
+                <kbd className="rounded border border-slate-300 bg-slate-100 px-1 font-mono text-xs dark:border-slate-600 dark:bg-slate-800">
+                  /
+                </kbd>{" "}
+                (outside of text fields) to focus global search from anywhere.
+              </p>
+              <p>
+                Financial posting, ledger, and projects are limited to designated staff roles. Use the main{" "}
+                <Link className="font-medium text-brand-700 underline dark:text-brand-300" to="/dashboard">
+                  Dashboard
+                </Link>{" "}
+                only if your administrator also assigns you a role with that access.
               </p>
             </>
           ) : (
@@ -267,6 +308,27 @@ export default function HelpGuides() {
                 Notifications
               </Link>{" "}
               page from the bell or from unread counts when shown.
+            </p>
+          </Section>
+        ) : isSecretary ? (
+          <Section id="secretary-dashboard" title="Secretary dashboard">
+            <p>
+              <Link className="font-medium text-brand-700 underline dark:text-brand-300" to="/secretary">
+                Secretary dashboard
+              </Link>{" "}
+              is your home page for meetings, documents, chat, forms, and notifications. You can refresh KPIs and jump to
+              common workflows from the quick access grid.
+            </p>
+            <p>
+              Open{" "}
+              <Link className="font-medium text-brand-700 underline dark:text-brand-300" to="/notifications">
+                Notifications
+              </Link>{" "}
+              from the bell for the full list. The main financial{" "}
+              <Link className="font-medium text-brand-700 underline dark:text-brand-300" to="/dashboard">
+                Dashboard
+              </Link>{" "}
+              remains available from the footer link if you also use a staff-capable role.
             </p>
           </Section>
         ) : (

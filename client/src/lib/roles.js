@@ -28,3 +28,8 @@ export function isStaffRole(role) {
 export function isUserRole(role) {
   return role === "USER";
 }
+
+/** Company secretary home at `/secretary` — governance, meetings, correspondence workflows. */
+export function isSecretaryRole(role) {
+  return role === "SECRETARY";
+}

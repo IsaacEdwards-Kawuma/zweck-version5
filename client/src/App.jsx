@@ -5,6 +5,7 @@ import Layout from "./components/Layout";
 import Loading from "./components/Loading";
 import RequireStaff from "./components/RequireStaff";
 import RequireUserRole from "./components/RequireUserRole";
+import RequireSecretaryRole from "./components/RequireSecretaryRole";
 import RequireAdmin from "./components/RequireAdmin";
 import HomeRedirect from "./components/HomeRedirect";
 
@@ -13,6 +14,7 @@ const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const UserDashboard = lazy(() => import("./pages/UserDashboard"));
+const SecretaryDashboard = lazy(() => import("./pages/SecretaryDashboard"));
 const PostTransaction = lazy(() => import("./pages/PostTransaction"));
 const Ledger = lazy(() => import("./pages/Ledger"));
 const Reconciliation = lazy(() => import("./pages/Reconciliation"));
@@ -60,6 +62,9 @@ export default function App() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route element={<RequireUserRole />}>
               <Route path="/user" element={<UserDashboard />} />
+            </Route>
+            <Route element={<RequireSecretaryRole />}>
+              <Route path="/secretary" element={<SecretaryDashboard />} />
             </Route>
 
             <Route element={<RequireStaff />}>

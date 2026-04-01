@@ -2,11 +2,11 @@ import { Link, NavLink } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import DirectorAvatar from "./DirectorAvatar";
 import { logout as logoutApi } from "../api/auth";
-import { hasAdminPrivileges, isStaffRole, isUserRole } from "../lib/roles";
+import { hasAdminPrivileges, isSecretaryRole, isStaffRole, isUserRole } from "../lib/roles";
 
 function buildLinks(role) {
   const staff = isStaffRole(role);
-  const dashboardTo = isUserRole(role) ? "/user" : "/dashboard";
+  const dashboardTo = isUserRole(role) ? "/user" : isSecretaryRole(role) ? "/secretary" : "/dashboard";
   return [
     { to: dashboardTo, label: "Dashboard", icon: "dashboard" },
     ...(staff ? [{ to: "/reports", label: "Reports", icon: "reports" }] : []),
@@ -222,7 +222,7 @@ export default function Sidebar({ mobileOpen, onClose, me }) {
             <NavLink
               key={l.to}
               to={l.to}
-              end={l.to === "/dashboard" || l.to === "/user"}
+              end={l.to === "/dashboard" || l.to === "/user" || l.to === "/secretary"}
               onClick={onClose}
               className={({ isActive }) =>
                 [
