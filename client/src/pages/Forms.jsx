@@ -140,13 +140,7 @@ export default function Forms() {
     }
   });
 
-  if (qMe.isLoading) return <Loading label="Loading forms..." />;
-  if (qMe.error) return <ErrorBanner error={qMe.error} />;
-  if (q.isLoading) return <Loading label="Loading requests..." />;
-  if (q.error) return <ErrorBanner error={q.error} />;
-
-  const rows = Array.isArray(q.data) ? q.data : [];
-
+  // Hooks must run before any early return (React error #310 otherwise).
   useEffect(() => {
     if (location.hash !== "#forms-new") return;
     const el = document.getElementById("forms-new");
@@ -197,6 +191,13 @@ export default function Forms() {
     }, 500);
     return () => window.clearTimeout(t);
   }, [form]);
+
+  if (qMe.isLoading) return <Loading label="Loading forms..." />;
+  if (qMe.error) return <ErrorBanner error={qMe.error} />;
+  if (q.isLoading) return <Loading label="Loading requests..." />;
+  if (q.error) return <ErrorBanner error={q.error} />;
+
+  const rows = Array.isArray(q.data) ? q.data : [];
 
   async function submitCreate(e) {
     e.preventDefault();
