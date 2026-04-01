@@ -574,7 +574,7 @@ router.get("/director-loans", requireRole("DIRECTOR"), async (req, res) => {
   if (!Number.isFinite(directorId)) return res.status(400).json(apiError("Invalid directorId"));
   const viewer = { role: req.user!.role, directorId: req.user!.directorId ?? null };
   if (!canViewDirectorFinancials(viewer, directorId)) return res.status(403).json(apiError("Forbidden"));
-  const rows = await prisma.companyLoanToDirector.findMany({
+  const rows = await prisma.directorCompanyLoan.findMany({
     where: { directorId, status: { in: ["OPEN", "PARTIALLY_REPAID"] } },
     orderBy: { loanDate: "desc" },
     select: {
@@ -626,22 +626,19 @@ router.get("/director-financial-overview", requireRole("DIRECTOR"), async (req, 
         reinstatements: { orderBy: { date: "asc" } }
       }
     }),
-    prisma.companyLoanToDirector.findMany({
+    prisma.directorCompanyLoan.findMany({
       where: { directorId },
       orderBy: { loanDate: "desc" },
       include: {
-        repayments: { orderBy: { date: "asc" } }
+        repayments: { orderBy: { repaymentDate: "asc" } }
       }
     }),
-    prisma.companyLoanToDirectorRepayment.findMany({
-      where: { directorId },
-      select: { interestPaid: true }
-    })
+    prisma.directorLoanRepayment.findMany({ where: { directorId }, select: { interestAmount: true } })
   ]);
 
   const totalCapitalContributions = contributionTxs.reduce((s, t) => s + Number(t.amount || 0), 0);
   const totalDisciplinaryLevies = levyTxs.reduce((s, t) => s + Number(t.amount || 0), 0);
-  const totalInterestPaid = repaymentInterestRows.reduce((s, r) => s + dec(r.interestPaid), 0);
+  const totalInterestPaid = repaymentInterestRows.reduce((s, r) => s + dec(r.interestAmount), 0);
 
   const totalDistributionsOutstanding = distributions
     .filter((d) => d.status !== "FULLY_REINSTATED")
@@ -684,10 +681,10 @@ router.get("/director-financial-overview", requireRole("DIRECTOR"), async (req, 
     repaymentTerms: loan.repaymentTerms,
     repayments: loan.repayments.map((r) => ({
       id: r.id,
-      date: r.date.toISOString(),
+      date: r.repaymentDate.toISOString(),
       totalReceived: dec(r.totalReceived),
-      principalPaid: dec(r.principalPaid),
-      interestPaid: dec(r.interestPaid),
+      principalPaid: dec(r.principalAmount),
+      interestPaid: dec(r.interestAmount),
       currency: r.currency
     }))
   }));
@@ -1809,7 +1806,7 @@ router.post("/", validateBody(postSchema), async (req, res) => {
     const loanDt = new Date(body.loanDate!);
     if (Number.isNaN(loanDt.getTime())) return res.status(400).json(apiError("Invalid loanDate", "loanDate"));
 
-    // Side fund sufficiency check (best-effort based on derived balances).
+    // Side fund sufficiency check: current balance of account 3200 Side Fund (derived).
     const allForDerive = await prisma.transaction.findMany({
       select: {
         type: true,
@@ -1827,11 +1824,12 @@ router.post("/", validateBody(postSchema), async (req, res) => {
     });
     const balances = deriveBalances(allForDerive as any);
     const b = balances as Record<string, number>;
-    const sideFundAvailable =
-      Number(b.side_fund || 0) +
-      Object.entries(b)
-        .filter(([k]) => /^director_side_fund_\d+$/.test(k))
-        .reduce((s, [, v]) => s + Number(v || 0), 0);
+    // 3200 includes untagged side_fund + all director-tagged side fund buckets.
+    // Derived balances treat credits as negative, so Side Fund credit balance is `-raw`.
+    const sideFundRaw = Object.entries(b)
+      .filter(([k]) => k === "side_fund" || /^director_side_fund_\d+$/.test(k))
+      .reduce((s, [, v]) => s + Number(v || 0), 0);
+    const sideFundAvailable = Math.max(0, -sideFundRaw);
 
     if (body.amount > sideFundAvailable + 1e-9) {
       return res
@@ -1848,20 +1846,6 @@ router.post("/", validateBody(postSchema), async (req, res) => {
     const loanKey = `director_loans_receivable_${directorId}`;
 
     const tx = await prisma.$transaction(async (tx) => {
-      const loan = await tx.companyLoanToDirector.create({
-        data: {
-          directorId,
-          loanDate: loanDt,
-          principalAmount: new Prisma.Decimal(body.amount),
-          currency: body.currency,
-          repaymentTerms: body.repaymentTerms!.trim(),
-          reason: (body.reason || body.description || "").trim() || null,
-          outstandingBalance: new Prisma.Decimal(body.amount),
-          totalInterestPaid: new Prisma.Decimal(0),
-          status: "OPEN",
-          createdBy: req.user!.id
-        }
-      });
       const batch = await tx.directorTransactionBatch.create({
         data: {
           directorId,
@@ -1897,9 +1881,20 @@ router.post("/", validateBody(postSchema), async (req, res) => {
           description: body.description ?? `Company loan to director (from side fund)`
         }
       });
-      await tx.companyLoanToDirector.update({
-        where: { id: loan.id },
-        data: { primaryTransactionId: trow.id, transactionBatchId: batch.id }
+      const loan = await tx.directorCompanyLoan.create({
+        data: {
+          directorId,
+          transactionId: trow.id,
+          loanDate: loanDt,
+          principalAmount: new Prisma.Decimal(body.amount),
+          currency: body.currency,
+          repaymentTerms: body.repaymentTerms!.trim(),
+          reason: (body.reason || "").trim() || null,
+          outstandingBalance: new Prisma.Decimal(body.amount),
+          totalInterestPaid: new Prisma.Decimal(0),
+          status: "OPEN",
+          createdBy: req.user!.id
+        }
       });
       const receipt = await tx.directorReceiptLegacy.create({
         data: {
@@ -1940,7 +1935,7 @@ router.post("/", validateBody(postSchema), async (req, res) => {
         data: {
           userId: req.user!.id,
           action: "CREATE_COMPANY_LOAN_TO_DIRECTOR",
-          entityType: "CompanyLoanToDirector",
+          entityType: "DirectorCompanyLoan",
           entityId: loan.id,
           before: Prisma.JsonNull,
           after: { loanId: loan.id, directorId, amount: body.amount, currency: body.currency, ref } as any
@@ -1965,7 +1960,7 @@ router.post("/", validateBody(postSchema), async (req, res) => {
 
   if (body.type === "DIRECTOR_REPAYMENT_OF_COMPANY_LOAN" && body.directorId != null && body.loanId && !hasManualPosting) {
     const directorId = body.directorId;
-    const loan = await prisma.companyLoanToDirector.findUnique({ where: { id: body.loanId } });
+    const loan = await prisma.directorCompanyLoan.findUnique({ where: { id: body.loanId } });
     if (!loan || loan.directorId !== directorId) {
       return res.status(400).json(apiError("Invalid loan selection", "loanId"));
     }
@@ -2040,21 +2035,19 @@ router.post("/", validateBody(postSchema), async (req, res) => {
           }
         });
       }
-      await tx.companyLoanToDirectorRepayment.create({
+      await tx.directorLoanRepayment.create({
         data: {
-          directorId,
           loanId: loan.id,
-          date: dt,
+          transactionId: tPrincipal.id,
+          repaymentDate: dt,
           totalReceived: new Prisma.Decimal(body.amount),
-          principalPaid: new Prisma.Decimal(principal),
-          interestPaid: new Prisma.Decimal(Math.max(0, interest)),
+          principalAmount: new Prisma.Decimal(principal),
+          interestAmount: new Prisma.Decimal(Math.max(0, interest)),
           currency: body.currency,
-          transactionBatchId: batch.id,
-          primaryTransactionId: tPrincipal.id,
           createdBy: req.user!.id
         }
       });
-      await tx.companyLoanToDirector.update({
+      await tx.directorCompanyLoan.update({
         where: { id: loan.id },
         data: {
           outstandingBalance: nextOutstanding,
@@ -2103,7 +2096,7 @@ router.post("/", validateBody(postSchema), async (req, res) => {
         data: {
           userId: req.user!.id,
           action: "CREATE_COMPANY_LOAN_REPAYMENT",
-          entityType: "CompanyLoanToDirector",
+          entityType: "DirectorCompanyLoan",
           entityId: loan.id,
           before: { outstandingBalance: loan.outstandingBalance, status: loan.status } as any,
           after: { outstandingBalance: nextOutstanding, status: nextStatus, receiptReference: ref } as any
