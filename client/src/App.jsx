@@ -61,6 +61,8 @@ export default function App() {
             <Route element={<RequireStaff />}>
               <Route path="/reports" element={<Reports />} />
               <Route path="/post" element={<PostTransaction />} />
+              <Route path="/ledger" element={<Ledger />} />
+              <Route path="/reconciliation" element={<Reconciliation />} />
               <Route path="/accounts" element={<ChartOfAccounts />} />
               <Route path="/directors" element={<Directors />} />
               <Route path="/directors/:id" element={<DirectorDetail />} />
@@ -81,8 +83,6 @@ export default function App() {
             <Route path="/help" element={<HelpGuides />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/legal/data-rights" element={<DataRights />} />
-            <Route path="/ledger" element={<Ledger />} />
-            <Route path="/reconciliation" element={<Reconciliation />} />
             <Route path="/invoices" element={<Invoices />} />
             <Route path="/invoices/new" element={<InvoiceCreate />} />
             <Route path="/invoices/clients" element={<ClientRegister />} />
