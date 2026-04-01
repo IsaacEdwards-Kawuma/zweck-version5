@@ -474,14 +474,15 @@ export default function DirectorDetail() {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-2">
             <div className="text-sm font-semibold text-slate-900">Transaction receipts</div>
-            {receiptUnviewedCount > 0 ? (
-              <span
-                className="inline-flex min-h-[1.25rem] min-w-[1.25rem] items-center justify-center rounded-full bg-rose-600 px-1.5 text-xs font-bold text-white"
-                title="Unviewed receipts"
-              >
-                {receiptUnviewedCount}
-              </span>
-            ) : null}
+            <span
+              className={[
+                "inline-flex min-h-[1.25rem] min-w-[1.25rem] items-center justify-center rounded-full px-1.5 text-xs font-bold",
+                receiptUnviewedCount > 0 ? "bg-rose-600 text-white" : "bg-slate-100 text-slate-700"
+              ].join(" ")}
+              title="Unviewed receipts"
+            >
+              {receiptUnviewedCount}
+            </span>
           </div>
           <p className="mt-0.5 text-xs text-slate-500">Sorted by date (newest first). View or download marks a receipt as seen.</p>
         </div>
