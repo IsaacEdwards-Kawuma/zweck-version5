@@ -1516,20 +1516,10 @@ router.post("/", validateBody(postSchema), async (req, res) => {
     const receiptRef = await allocateNextDirectorReceiptReference({ prefix: "WDR", date: dt });
     const bankKey = body.currency === "UGX" ? "bank_ugx" : body.currency === "USD" ? "bank_usd" : "bank_eur";
     const clearKey = `director_capital_distributions_clearing_${body.directorId}`;
+    const capitalKey = `director_capital_${body.directorId}`;
+    const refCapitalMove = await allocateNextReferenceNumber();
 
     const txRow = await prisma.$transaction(async (tx) => {
-      const dist = await tx.directorCapitalDistribution.create({
-        data: {
-          directorId: body.directorId!,
-          distributionDate: dt,
-          totalAmount: new Prisma.Decimal(body.amount),
-          currency: body.currency,
-          outstandingBalance: new Prisma.Decimal(body.amount),
-          status: "OPEN",
-          createdBy: req.user!.id
-        }
-      });
-
       const batch = await tx.directorTransactionBatch.create({
         data: {
           directorId: body.directorId!,
@@ -1544,7 +1534,6 @@ router.post("/", validateBody(postSchema), async (req, res) => {
             kind: "DIRECTORS_CAPITAL_DISTRIBUTION",
             currency: body.currency,
             amount: body.amount,
-            distributionId: dist.id,
             outstandingBalance: body.amount,
             glReference: receiptRef
           } as any,
@@ -1552,6 +1541,23 @@ router.post("/", validateBody(postSchema), async (req, res) => {
         }
       });
 
+      // Step 1: move equity from director capital → distribution clearing (tagged to director)
+      await tx.transaction.create({
+        data: {
+          ...commonData,
+          referenceNumber: refCapitalMove,
+          type: "DIRECTORS_CAPITAL_DISTRIBUTION",
+          date: dt,
+          amount: body.amount,
+          directorId: body.directorId,
+          directorTransactionBatchId: batch.id,
+          manualDebitAccountKey: capitalKey,
+          manualCreditAccountKey: clearKey,
+          description: body.description ?? `Directors’ capital distribution (capital → clearing)`
+        }
+      });
+
+      // Step 2: pay out from clearing → bank (currency-dependent)
       const trow = await tx.transaction.create({
         data: {
           ...commonData,
@@ -1563,13 +1569,21 @@ router.post("/", validateBody(postSchema), async (req, res) => {
           directorTransactionBatchId: batch.id,
           manualDebitAccountKey: clearKey,
           manualCreditAccountKey: bankKey,
-          description: body.description ?? `Directors’ capital distribution (clearing outstanding)`
+          description: body.description ?? `Directors’ capital distribution (clearing → bank)`
         }
       });
 
-      await tx.directorCapitalDistribution.update({
-        where: { id: dist.id },
-        data: { transactionBatchId: batch.id, primaryTransactionId: trow.id }
+      const dist = await tx.directorDistribution.create({
+        data: {
+          directorId: body.directorId!,
+          transactionId: trow.id,
+          distributionDate: dt,
+          totalAmount: new Prisma.Decimal(body.amount),
+          currency: body.currency,
+          outstandingBalance: new Prisma.Decimal(body.amount),
+          status: "OPEN",
+          createdBy: req.user!.id
+        }
       });
 
       const receipt = await tx.directorReceiptLegacy.create({
@@ -1585,6 +1599,7 @@ router.post("/", validateBody(postSchema), async (req, res) => {
             kind: "DIRECTORS_CAPITAL_DISTRIBUTION",
             currency: body.currency,
             amount: body.amount,
+            distributionId: dist.id,
             outstandingBalance: body.amount,
             glReference: receiptRef
           } as any
@@ -1612,7 +1627,7 @@ router.post("/", validateBody(postSchema), async (req, res) => {
         data: {
           userId: req.user!.id,
           action: "CREATE_CAPITAL_DISTRIBUTION",
-          entityType: "DirectorCapitalDistribution",
+          entityType: "DirectorDistribution",
           entityId: dist.id,
           before: Prisma.JsonNull,
           after: { directorId: body.directorId, amount: body.amount, currency: body.currency, receiptReference: receiptRef } as unknown as Prisma.InputJsonValue

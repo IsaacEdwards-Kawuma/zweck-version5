@@ -9,7 +9,7 @@ export const TX_TYPE_GROUPS = [
       { value: "CONTRIBUTION", label: "Director Capital Contribution" },
       { value: "CONTRIBUTION_ARREARS", label: "Contribution in Arrears" },
       { value: "SUPPLEMENTARY_CAPITAL_CONTRIBUTION", label: "Supplementary Capital Contribution" },
-      { value: "CAPITAL_WITHDRAWAL", label: "Capital Withdrawal / Distribution" },
+      { value: "DIRECTORS_CAPITAL_DISTRIBUTION", label: "Directors’ Capital Distribution" },
       { value: "SIDE_FUND", label: "Side fund contributions" },
       { value: "RETAINED_EARNINGS_TRANSFER", label: "Retained earnings → director capital (split)" }
     ]
@@ -101,7 +101,7 @@ export const TX_ACCOUNT_MAP = {
   CONTRIBUTION: { debit: "bank", credit: "capital", needsDirector: true },
   CONTRIBUTION_ARREARS: { debit: "bank", credit: "capital", needsDirector: true },
   SUPPLEMENTARY_CAPITAL_CONTRIBUTION: { debit: "bank", credit: "capital", needsDirector: true },
-  CAPITAL_WITHDRAWAL: { debit: "capital", credit: "bank", needsDirector: true },
+  DIRECTORS_CAPITAL_DISTRIBUTION: { debit: "capital", credit: "bank", needsDirector: true },
   SIDE_FUND: { debit: "bank", credit: "side_fund", needsDirector: true },
   MMF_DEPLOY: { debit: "mmf", credit: "bank", needsDirector: false },
   MMF_RETURN: { debit: "bank", credit: "mmf_income", needsDirector: false },
@@ -153,7 +153,7 @@ export const TX_POSTING_CATEGORY = {
   CONTRIBUTION: "OTHER",
   CONTRIBUTION_ARREARS: "OTHER",
   SUPPLEMENTARY_CAPITAL_CONTRIBUTION: "OTHER",
-  CAPITAL_WITHDRAWAL: "OTHER",
+  DIRECTORS_CAPITAL_DISTRIBUTION: "OTHER",
   SIDE_FUND: "OTHER",
   MMF_DEPLOY: "OTHER",
   MMF_RETURN: "INCOME",
