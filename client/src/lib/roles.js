@@ -34,6 +34,11 @@ export function isSecretaryRole(role) {
   return role === "SECRETARY";
 }
 
+/** Treasurer home at `/treasurer` — cash, ledger, approvals, invoicing. */
+export function isTreasurerRole(role) {
+  return role === "TREASURER";
+}
+
 /** Financial reports (`/reports`): staff roles plus company secretary (read-only reporting). */
 export function canAccessReports(role) {
   return isStaffRole(role) || isSecretaryRole(role);

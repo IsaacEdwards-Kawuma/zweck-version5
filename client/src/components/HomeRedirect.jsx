@@ -2,7 +2,7 @@ import { Navigate } from "react-router-dom";
 import Loading from "./Loading";
 import ErrorBanner from "./ErrorBanner";
 import { useMe } from "../hooks/useMe";
-import { isSecretaryRole, isUserRole } from "../lib/roles";
+import { isSecretaryRole, isTreasurerRole, isUserRole } from "../lib/roles";
 
 const authDisabled = import.meta.env.VITE_AUTH_DISABLED === "true";
 
@@ -19,6 +19,7 @@ export default function HomeRedirect() {
   const role = qMe.data?.role;
   if (isUserRole(role)) return <Navigate to="/user" replace />;
   if (isSecretaryRole(role)) return <Navigate to="/secretary" replace />;
+  if (isTreasurerRole(role)) return <Navigate to="/treasurer" replace />;
   return <Navigate to="/dashboard" replace />;
 }
 

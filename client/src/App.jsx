@@ -7,6 +7,7 @@ import RequireStaff from "./components/RequireStaff";
 import RequireReportsAccess from "./components/RequireReportsAccess";
 import RequireUserRole from "./components/RequireUserRole";
 import RequireSecretaryRole from "./components/RequireSecretaryRole";
+import RequireTreasurerRole from "./components/RequireTreasurerRole";
 import RequireAdmin from "./components/RequireAdmin";
 import HomeRedirect from "./components/HomeRedirect";
 
@@ -18,6 +19,7 @@ const UserDashboard = lazy(() => import("./pages/UserDashboard"));
 const SecretaryDashboard = lazy(() => import("./pages/SecretaryDashboard"));
 const CrmContacts = lazy(() => import("./pages/CrmContacts"));
 const SecretaryTasks = lazy(() => import("./pages/SecretaryTasks"));
+const TreasurerDashboard = lazy(() => import("./pages/TreasurerDashboard"));
 const PostTransaction = lazy(() => import("./pages/PostTransaction"));
 const Ledger = lazy(() => import("./pages/Ledger"));
 const Reconciliation = lazy(() => import("./pages/Reconciliation"));
@@ -71,6 +73,10 @@ export default function App() {
               <Route path="/secretary/tasks" element={<SecretaryTasks />} />
               <Route path="/crm" element={<CrmContacts />} />
               <Route path="/crm/:contactId" element={<CrmContacts />} />
+            </Route>
+
+            <Route element={<RequireTreasurerRole />}>
+              <Route path="/treasurer" element={<TreasurerDashboard />} />
             </Route>
 
             <Route element={<RequireReportsAccess />}>
