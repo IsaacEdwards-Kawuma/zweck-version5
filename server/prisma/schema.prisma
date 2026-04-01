@@ -77,6 +77,14 @@ model User {
    */
   inAppChatMentionsOnly    Boolean   @default(false)
   /**
+   * When true, user receives in-app notifications when assigned a project task.
+   */
+  inAppTaskAssigned        Boolean   @default(true)
+  /**
+   * When true, user receives in-app notifications when a document is added to the register.
+   */
+  inAppDocumentShared      Boolean   @default(true)
+  /**
    * Set when the user finishes (or skips) the first-run onboarding; null means show onboarding.
    */
   onboardingCompletedAt    DateTime?

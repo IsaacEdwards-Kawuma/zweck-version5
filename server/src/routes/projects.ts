@@ -4,8 +4,38 @@ import { prisma } from "../lib/prisma.js";
 import { apiError } from "../lib/http.js";
 import { requireRole } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
+import { notifyUser } from "../services/inAppNotifications.js";
 
 const router = Router();
+
+const activeUserWhere = {
+  isActive: true,
+  deletedAt: null,
+  adminBlockedAt: null
+} as const;
+
+async function notifyTaskAssigned(params: {
+  assigneeDirectorId: number;
+  projectId: number;
+  projectCode: string;
+  projectName: string;
+  taskId: number;
+  taskTitle: string;
+  actorUserId: number;
+}) {
+  const u = await prisma.user.findFirst({
+    where: { directorId: params.assigneeDirectorId, ...activeUserWhere, inAppTaskAssigned: true },
+    select: { id: true }
+  });
+  if (!u || u.id === params.actorUserId) return;
+  await notifyUser(
+    u.id,
+    "TASK_ASSIGNED",
+    `Task assigned: ${params.taskTitle}`,
+    `${params.projectCode} — ${params.projectName}`,
+    `/project/${params.projectId}`
+  );
+}
 
 const projectStatus = z.enum(["PLANNING", "ACTIVE", "ON_HOLD", "COMPLETED", "CANCELLED"]);
 const projectKind = z.enum(["GENERAL", "MMF", "YPA"]);
@@ -285,6 +315,18 @@ router.post("/:id/tasks", requireRole("ADMIN"), validateBody(createTaskSchema), 
     include: taskInclude()
   });
 
+  if (task.assigneeDirectorId != null) {
+    void notifyTaskAssigned({
+      assigneeDirectorId: task.assigneeDirectorId,
+      projectId,
+      projectCode: project.code,
+      projectName: project.name,
+      taskId: task.id,
+      taskTitle: task.title,
+      actorUserId: uid
+    });
+  }
+
   return res.status(201).json(task);
 });
 
@@ -296,7 +338,10 @@ router.put("/:projectId/tasks/:taskId", requireRole("ADMIN"), validateBody(updat
   }
   const body = req.body as z.infer<typeof updateTaskSchema>;
 
-  const existing = await prisma.projectTask.findFirst({ where: { id: taskId, projectId } });
+  const existing = await prisma.projectTask.findFirst({
+    where: { id: taskId, projectId },
+    include: { project: { select: { id: true, code: true, name: true } } }
+  });
   if (!existing) return res.status(404).json(apiError("Task not found"));
 
   if (body.assigneeDirectorId !== undefined && body.assigneeDirectorId !== null) {
@@ -325,6 +370,22 @@ router.put("/:projectId/tasks/:taskId", requireRole("ADMIN"), validateBody(updat
     data,
     include: taskInclude()
   });
+
+  const prevAssignee = existing.assigneeDirectorId ?? null;
+  const nextAssignee = task.assigneeDirectorId ?? null;
+  const assigneeChanged =
+    body.assigneeDirectorId !== undefined && nextAssignee != null && nextAssignee !== prevAssignee;
+  if (assigneeChanged && req.user?.id) {
+    void notifyTaskAssigned({
+      assigneeDirectorId: nextAssignee,
+      projectId,
+      projectCode: existing.project.code,
+      projectName: existing.project.name,
+      taskId: task.id,
+      taskTitle: task.title,
+      actorUserId: req.user.id
+    });
+  }
 
   return res.json(task);
 });

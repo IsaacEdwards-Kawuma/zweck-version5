@@ -4,6 +4,7 @@ import Protected from "./components/Protected";
 import Layout from "./components/Layout";
 import Loading from "./components/Loading";
 import RequireStaff from "./components/RequireStaff";
+import RequireReportsAccess from "./components/RequireReportsAccess";
 import RequireUserRole from "./components/RequireUserRole";
 import RequireSecretaryRole from "./components/RequireSecretaryRole";
 import RequireAdmin from "./components/RequireAdmin";
@@ -70,8 +71,11 @@ export default function App() {
               <Route path="/crm/:contactId" element={<CrmContacts />} />
             </Route>
 
-            <Route element={<RequireStaff />}>
+            <Route element={<RequireReportsAccess />}>
               <Route path="/reports" element={<Reports />} />
+            </Route>
+
+            <Route element={<RequireStaff />}>
               <Route path="/post" element={<PostTransaction />} />
               <Route path="/ledger" element={<Ledger />} />
               <Route path="/reconciliation" element={<Reconciliation />} />

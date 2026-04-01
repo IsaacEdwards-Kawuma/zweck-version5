@@ -8,6 +8,13 @@ import { validateBody } from "../middleware/validate.js";
 const router = Router();
 const db: any = prisma;
 
+const activeRecipientWhere = {
+  isActive: true,
+  deletedAt: null,
+  adminBlockedAt: null,
+  inAppDocumentShared: true
+} as const;
+
 const docSchema = z.object({
   title: z.string().min(1).max(300),
   category: z.string().max(80).optional().nullable(),
@@ -55,6 +62,30 @@ router.post("/", requireRole("ADMIN"), validateBody(docSchema), async (req, res)
       after: row as any
     }
   });
+
+  const creatorId = req.user?.id ?? null;
+  const recipients = await prisma.user.findMany({
+    where: {
+      ...(creatorId != null ? { id: { not: creatorId } } : {}),
+      ...activeRecipientWhere
+    },
+    select: { id: true }
+  });
+  if (recipients.length > 0) {
+    const bodyLine = [row.category && `Category: ${row.category}`, row.reference && `Ref: ${row.reference}`]
+      .filter(Boolean)
+      .join(" · ");
+    await prisma.notification.createMany({
+      data: recipients.map((u) => ({
+        userId: u.id,
+        type: "FILE_SHARED",
+        title: `File shared: ${row.title}`,
+        body: bodyLine || null,
+        link: "/documents"
+      }))
+    });
+  }
+
   return res.status(201).json(row);
 });
 

@@ -9,6 +9,7 @@ import {
   markNotificationRead
 } from "../api/notifications";
 import { formatRelativeTime } from "../lib/format";
+import { notificationKindLabel } from "../lib/notificationLabels";
 
 export default function NotificationBell() {
   const token = typeof window !== "undefined" ? localStorage.getItem("zweck_token") : null;
@@ -25,7 +26,7 @@ export default function NotificationBell() {
     queryKey: ["notifications", { unreadOnly }],
     queryFn: () => listNotifications({ limit: 50, unreadOnly: unreadOnly ? "true" : undefined }),
     enabled: Boolean(token),
-    refetchInterval: open ? 30_000 : 60_000
+    refetchInterval: open ? 20_000 : 30_000
   });
 
   const mRead = useMutation({
@@ -212,7 +213,14 @@ export default function NotificationBell() {
                         if (n.link) navigate(n.link);
                       }}
                     >
-                      <div className="line-clamp-2">{n.title}</div>
+                      <div className="line-clamp-2">
+                        {notificationKindLabel(n.type) ? (
+                          <span className="mr-1.5 inline-block rounded bg-slate-200/90 px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-700 dark:bg-slate-700/80 dark:text-slate-200">
+                            {notificationKindLabel(n.type)}
+                          </span>
+                        ) : null}
+                        {n.title}
+                      </div>
                       {n.body ? (
                         <div className="mt-0.5 line-clamp-2 whitespace-pre-wrap text-xs font-normal text-slate-500 dark:text-slate-400">
                           {n.body}

@@ -2,7 +2,7 @@ import { Link, NavLink } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import DirectorAvatar from "./DirectorAvatar";
 import { logout as logoutApi } from "../api/auth";
-import { hasAdminPrivileges, isSecretaryRole, isStaffRole, isUserRole } from "../lib/roles";
+import { canAccessReports, hasAdminPrivileges, isSecretaryRole, isStaffRole, isUserRole } from "../lib/roles";
 
 function buildLinks(role) {
   const staff = isStaffRole(role);
@@ -10,7 +10,7 @@ function buildLinks(role) {
   return [
     { to: dashboardTo, label: "Dashboard", icon: "dashboard" },
     ...(isSecretaryRole(role) ? [{ to: "/crm", label: "Contacts", icon: "contacts" }] : []),
-    ...(staff ? [{ to: "/reports", label: "Reports", icon: "reports" }] : []),
+    ...(canAccessReports(role) ? [{ to: "/reports", label: "Reports", icon: "reports" }] : []),
     { to: "/meetings", label: "Meetings", icon: "meetings" },
     { to: "/chat", label: "Chat", icon: "chat" },
     { to: "/documents", label: "Documents", icon: "documents" },

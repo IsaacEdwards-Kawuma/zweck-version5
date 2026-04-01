@@ -13,6 +13,7 @@ import {
   markNotificationRead
 } from "../api/notifications";
 import { fmtDate } from "../lib/format";
+import { notificationKindLabel } from "../lib/notificationLabels";
 
 function tabButtonClass(active) {
   return [
@@ -32,7 +33,7 @@ export default function Notifications() {
   const q = useQuery({
     queryKey: ["notifications", { unreadOnly }],
     queryFn: () => listNotifications({ limit: 100, unreadOnly: unreadOnly ? "true" : undefined }),
-    refetchInterval: 60_000
+    refetchInterval: 30_000
   });
 
   const unread = q.data?.unreadCount ?? 0;
@@ -181,6 +182,11 @@ function NotificationList({ title, rows, onClick, onDelete }) {
             <div className="flex items-start justify-between gap-3">
               <button type="button" className="min-w-0 flex-1 text-left" onClick={() => onClick(n)}>
                 <div className={["truncate text-sm", n.readAt ? "text-slate-800 dark:text-slate-200" : "font-semibold text-slate-900 dark:text-slate-100"].join(" ")}>
+                  {notificationKindLabel(n.type) ? (
+                    <span className="mr-2 inline-block rounded bg-slate-200/90 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-700 dark:bg-slate-700/80 dark:text-slate-200">
+                      {notificationKindLabel(n.type)}
+                    </span>
+                  ) : null}
                   {n.title}
                 </div>
                 {n.body ? (

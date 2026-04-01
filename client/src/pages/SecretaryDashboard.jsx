@@ -22,6 +22,7 @@ import { listMeetings } from "../api/meetings";
 import { listChatRooms } from "../api/chat";
 import { listNotifications } from "../api/notifications";
 import { listInternalForms } from "../api/internalForms";
+import { notificationKindLabel } from "../lib/notificationLabels";
 
 function minutesUntil(ts) {
   if (!Number.isFinite(ts)) return null;
@@ -190,7 +191,7 @@ export default function SecretaryDashboard() {
   const qNotifs = useQuery({
     queryKey: ["notifications", { unreadOnly: false }],
     queryFn: () => listNotifications({ limit: 24 }),
-    refetchInterval: 60_000
+    refetchInterval: 30_000
   });
   const qForms = useQuery({
     queryKey: ["internal-forms", { mine: true }],
@@ -516,6 +517,11 @@ export default function SecretaryDashboard() {
                       className="block rounded-lg border border-transparent px-2 py-1.5 text-sm transition hover:border-slate-200 hover:bg-slate-50 dark:hover:border-slate-600 dark:hover:bg-slate-800/80"
                     >
                       <span className={n.readAt ? "text-slate-600 dark:text-slate-300" : "font-medium text-slate-900 dark:text-white"}>
+                        {notificationKindLabel(n.type) ? (
+                          <span className="mr-1.5 inline-block rounded bg-slate-200/90 px-1 py-0.5 text-[9px] font-semibold uppercase text-slate-700 dark:bg-slate-700/80 dark:text-slate-200">
+                            {notificationKindLabel(n.type)}
+                          </span>
+                        ) : null}
                         {n.title || n.body || "Notification"}
                       </span>
                       {n.createdAt ? (

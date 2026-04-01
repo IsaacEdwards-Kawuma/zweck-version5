@@ -34,9 +34,8 @@ export type MeetingReminderJobResult = {
 };
 
 /**
- * Send one reminder email per eligible meeting when today (UTC date) equals
- * meeting.date minus reminderDays. Recipients: opted-in admins, directors, and the meeting creator (if any).
- * In-app notifications use the same audience with inAppMeetingReminders.
+ * Send one in-app reminder per eligible meeting when today (UTC date) equals
+ * meeting.date minus reminderDays. Recipients: all active users who opted in (inAppMeetingReminders).
  */
 export async function runMeetingReminderJob(): Promise<MeetingReminderJobResult> {
   const today = utcTodayYmd();
@@ -66,12 +65,10 @@ export async function runMeetingReminderJob(): Promise<MeetingReminderJobResult>
 
     const users = await prisma.user.findMany({
       where: {
-        OR: [
-          { role: "ADMIN" },
-          { role: "ADMIN_DIRECTOR" },
-          { role: "DIRECTOR" },
-          ...(meeting.createdById != null ? [{ id: meeting.createdById }] : [])
-        ]
+        isActive: true,
+        deletedAt: null,
+        adminBlockedAt: null,
+        inAppMeetingReminders: true
       },
       select: {
         id: true,
@@ -79,7 +76,7 @@ export async function runMeetingReminderJob(): Promise<MeetingReminderJobResult>
       }
     });
 
-    const inAppUsers = users.filter((u) => u.inAppMeetingReminders);
+    const inAppUsers = users;
 
     if (inAppUsers.length === 0) {
       await prisma.meetingReminderSent.create({ data: { meetingId: meeting.id } });

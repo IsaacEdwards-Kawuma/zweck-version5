@@ -26,7 +26,9 @@ router.get("/", async (req, res) => {
         emailMeetingReminders: true,
         inAppMeetingReminders: true,
         inAppChatMessages: true,
-        inAppChatMentionsOnly: true
+        inAppChatMentionsOnly: true,
+        inAppTaskAssigned: true,
+        inAppDocumentShared: true
       }
     }),
     getOrCreateAppSettings()
@@ -42,7 +44,12 @@ router.get("/", async (req, res) => {
       role: user.role,
       directorId: user.directorId,
       lastLoginAt: dbUser?.lastLoginAt ?? null,
-      emailMeetingReminders: dbUser?.emailMeetingReminders ?? true
+      emailMeetingReminders: dbUser?.emailMeetingReminders ?? true,
+      inAppMeetingReminders: dbUser?.inAppMeetingReminders ?? true,
+      inAppChatMessages: dbUser?.inAppChatMessages ?? true,
+      inAppChatMentionsOnly: dbUser?.inAppChatMentionsOnly ?? false,
+      inAppTaskAssigned: dbUser?.inAppTaskAssigned ?? true,
+      inAppDocumentShared: dbUser?.inAppDocumentShared ?? true
     },
     runtime: isAdmin
       ? {
@@ -126,6 +133,8 @@ router.patch("/notifications", async (req, res) => {
     inAppMeetingReminders?: boolean;
     inAppChatMessages?: boolean;
     inAppChatMentionsOnly?: boolean;
+    inAppTaskAssigned?: boolean;
+    inAppDocumentShared?: boolean;
   } = {};
   if ("emailMeetingReminders" in body) {
     if (typeof body.emailMeetingReminders !== "boolean") {
@@ -151,10 +160,22 @@ router.patch("/notifications", async (req, res) => {
     }
     data.inAppChatMentionsOnly = body.inAppChatMentionsOnly;
   }
+  if ("inAppTaskAssigned" in body) {
+    if (typeof body.inAppTaskAssigned !== "boolean") {
+      return res.status(400).json(apiError("inAppTaskAssigned must be a boolean"));
+    }
+    data.inAppTaskAssigned = body.inAppTaskAssigned;
+  }
+  if ("inAppDocumentShared" in body) {
+    if (typeof body.inAppDocumentShared !== "boolean") {
+      return res.status(400).json(apiError("inAppDocumentShared must be a boolean"));
+    }
+    data.inAppDocumentShared = body.inAppDocumentShared;
+  }
   if (Object.keys(data).length === 0) {
     return res.status(400).json(
       apiError(
-        "Provide emailMeetingReminders, inAppMeetingReminders, inAppChatMessages, and/or inAppChatMentionsOnly"
+        "Provide one or more of: emailMeetingReminders, inAppMeetingReminders, inAppChatMessages, inAppChatMentionsOnly, inAppTaskAssigned, inAppDocumentShared"
       )
     );
   }
@@ -165,7 +186,9 @@ router.patch("/notifications", async (req, res) => {
       emailMeetingReminders: true,
       inAppMeetingReminders: true,
       inAppChatMessages: true,
-      inAppChatMentionsOnly: true
+      inAppChatMentionsOnly: true,
+      inAppTaskAssigned: true,
+      inAppDocumentShared: true
     }
   });
   res.json(updated);

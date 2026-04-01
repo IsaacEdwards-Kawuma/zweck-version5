@@ -13,6 +13,7 @@ import { getSettings } from "../api/settings";
 import { getAboutPage } from "../api/aboutPage";
 import { clearAllNotifications, deleteNotification, listNotifications, markAllNotificationsRead, markNotificationRead } from "../api/notifications";
 import { openStoredPdfUrl } from "../lib/openPdf";
+import { notificationKindLabel } from "../lib/notificationLabels";
 
 const DOC_FAVS_KEY = "zweck_user_doc_favs_v1";
 const DASH_LAYOUT_KEY = "zweck_user_dashboard_layout_v1";
@@ -150,7 +151,7 @@ export default function UserDashboard() {
   const qNotifs = useQuery({
     queryKey: ["notifications", { unreadOnly: false }],
     queryFn: () => listNotifications({ limit: 20 }),
-    refetchInterval: 60_000
+    refetchInterval: 30_000
   });
 
   const mNotifRead = useMutation({
@@ -495,6 +496,11 @@ export default function UserDashboard() {
                     }}
                   >
                     <div className={["truncate text-sm", n.readAt ? "text-slate-700 dark:text-slate-300" : "font-semibold text-slate-900 dark:text-slate-100"].join(" ")}>
+                      {notificationKindLabel(n.type) ? (
+                        <span className="mr-1.5 inline-block rounded bg-slate-200/90 px-1 py-0.5 text-[9px] font-semibold uppercase text-slate-700 dark:bg-slate-700/80 dark:text-slate-200">
+                          {notificationKindLabel(n.type)}
+                        </span>
+                      ) : null}
                       {n.title}
                     </div>
                     {n.body ? <div className="mt-0.5 line-clamp-2 text-xs text-slate-500 dark:text-slate-400">{n.body}</div> : null}

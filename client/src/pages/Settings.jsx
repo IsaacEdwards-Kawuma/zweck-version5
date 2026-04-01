@@ -644,8 +644,8 @@ export default function Settings() {
           Notifications
         </h2>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-          Meeting reminders target administrators, directors, and whoever created the meeting. You can turn off email, in-app
-          alerts, or both.
+          Control in-app alerts (bell icon) for meetings, project tasks, documents, and chat. Meeting reminders go to all
+          active users who have in-app meeting reminders enabled; task and document alerts follow the toggles below.
         </p>
         <label className="mt-4 inline-flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/40">
           <input
@@ -674,7 +674,37 @@ export default function Settings() {
           <span>
             <span className="font-medium text-slate-900 dark:text-slate-100">In-app meeting reminders</span>
             <span className="mt-1 block text-xs text-slate-600 dark:text-slate-400">
-              Bell icon in the header when the same job runs; messages stay until you mark them read.
+              When a scheduled job runs (UTC), all opted-in users get a reminder before the meeting date.
+            </span>
+          </span>
+        </label>
+        <label className="mt-3 inline-flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/40">
+          <input
+            type="checkbox"
+            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+            checked={session.inAppTaskAssigned !== false}
+            disabled={mNotifications.isPending}
+            onChange={(e) => mNotifications.mutate({ inAppTaskAssigned: e.target.checked })}
+          />
+          <span>
+            <span className="font-medium text-slate-900 dark:text-slate-100">Task assigned</span>
+            <span className="mt-1 block text-xs text-slate-600 dark:text-slate-400">
+              When an admin assigns you a project task (linked to your director profile).
+            </span>
+          </span>
+        </label>
+        <label className="mt-3 inline-flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/40">
+          <input
+            type="checkbox"
+            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+            checked={session.inAppDocumentShared !== false}
+            disabled={mNotifications.isPending}
+            onChange={(e) => mNotifications.mutate({ inAppDocumentShared: e.target.checked })}
+          />
+          <span>
+            <span className="font-medium text-slate-900 dark:text-slate-100">File shared (documents)</span>
+            <span className="mt-1 block text-xs text-slate-600 dark:text-slate-400">
+              When a new entry is added to the documents register (other users are notified; not the uploader).
             </span>
           </span>
         </label>

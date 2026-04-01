@@ -33,3 +33,8 @@ export function isUserRole(role) {
 export function isSecretaryRole(role) {
   return role === "SECRETARY";
 }
+
+/** Financial reports (`/reports`): staff roles plus company secretary (read-only reporting). */
+export function canAccessReports(role) {
+  return isStaffRole(role) || isSecretaryRole(role);
+}
