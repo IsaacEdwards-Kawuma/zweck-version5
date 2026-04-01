@@ -634,7 +634,7 @@ router.get("/director-financial-overview", requireRole("DIRECTOR"), async (req, 
         repayments: { orderBy: { repaymentDate: "asc" } }
       }
     }),
-    prisma.directorLoanRepayment.findMany({ where: { directorId }, select: { interestAmount: true } })
+    prisma.directorLoanRepayment.findMany({ where: { loan: { directorId } }, select: { interestAmount: true } })
   ]);
 
   const totalCapitalContributions = contributionTxs.reduce((s, t) => s + Number(t.amount || 0), 0);

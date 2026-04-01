@@ -43,7 +43,15 @@ function watermarkPosted(doc: any) {
 
 type ReceiptV2Model = {
   companyName: string;
-  receipt: DirectorReceipt & { director: Pick<Director, "id" | "name" | "email" | "phone" | "address"> };
+  receipt: DirectorReceipt & {
+    director: {
+      id: number;
+      name: string;
+      email: string | null;
+      phone: string | null;
+      address: string | null;
+    };
+  };
   postedBy: string;
   /** Username / email from session for footer */
   sessionUsername: string;
