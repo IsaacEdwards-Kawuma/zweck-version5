@@ -22,7 +22,7 @@ import {
 import { listPresence } from "../api/presence";
 import { pingIntegration } from "../api/integrations";
 import { fmtDate } from "../lib/format";
-import { hasAdminPrivileges, hasDirectorPrivileges } from "../lib/roles";
+import { hasAdminPrivileges, hasDirectorPrivileges, isUserRole } from "../lib/roles";
 
 const SECTION = "ui-panel-elevated scroll-mt-24 p-5";
 const PREFS_KEY = "zweck_settings_prefs_v1";
@@ -123,6 +123,8 @@ const ADMIN_MONITORING_NAV = new Set([
   "#settings-export",
   "#settings-readiness"
 ]);
+/** Staff-oriented ZweckOS shortcuts; USER has a separate dashboard and cannot use these routes. */
+const USER_HIDDEN_NAV = new Set(["#settings-features"]);
 
 function loadPrefs() {
   try {
@@ -320,7 +322,12 @@ export default function Settings() {
   const openapiUrl = `${origin}/api/openapi.json`;
   const healthUrl = `${origin}/api/health`;
   const navQuery = sectionQuery.trim().toLowerCase();
-  const visibleNav = isAdmin ? NAV : NAV.filter((n) => !ADMIN_MONITORING_NAV.has(n.href));
+  const visibleNav = isAdmin
+    ? NAV
+    : NAV.filter(
+        (n) =>
+          !ADMIN_MONITORING_NAV.has(n.href) && (!isUserRole(session.role) || !USER_HIDDEN_NAV.has(n.href))
+      );
   const filteredNav = navQuery ? visibleNav.filter((n) => n.label.toLowerCase().includes(navQuery)) : visibleNav;
   const loginRows = qLoginEvents.data || [];
   const filteredLoginRows = loginRows.filter((r) => {
@@ -455,7 +462,9 @@ export default function Settings() {
           <>
             {isAdmin
               ? "Account summary, shortcuts, application map, and server monitoring (read-only)."
-              : "Account summary, shortcuts, and application map."}
+              : isUserRole(session.role)
+                ? "Account summary and preferences."
+                : "Account summary, shortcuts, and application map."}
             <span className="mt-2 block text-xs text-slate-500 dark:text-slate-400">
               Last updated:{" "}
               {qSettings.dataUpdatedAt ? new Date(qSettings.dataUpdatedAt).toLocaleString() : "—"} · Mode:{" "}
@@ -1712,25 +1721,29 @@ export default function Settings() {
         </section>
       ) : null}
 
-      <section id="settings-features" className={SECTION}>
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Application features</h2>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-          Quick links into ZweckOS. Financial figures are always derived from posted transactions.
-        </p>
-        <ul className="mt-4 grid gap-3 sm:grid-cols-2">
-          {APP_FEATURES.map((f) => (
-            <li key={f.to}>
-              <Link
-                to={f.to}
-                className="block rounded-lg border border-slate-100 bg-slate-50/80 px-4 py-3 transition hover:border-brand-200 hover:bg-brand-50/50"
-              >
-                <div className="font-medium text-brand-900">{f.title}</div>
-                <div className="mt-1 text-xs text-slate-600">{f.description}</div>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </section>
+      {!isUserRole(session.role) ? (
+        <section id="settings-features" className={SECTION}>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            Application features
+          </h2>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+            Quick links into ZweckOS. Financial figures are always derived from posted transactions.
+          </p>
+          <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+            {APP_FEATURES.map((f) => (
+              <li key={f.to}>
+                <Link
+                  to={f.to}
+                  className="block rounded-lg border border-slate-100 bg-slate-50/80 px-4 py-3 transition hover:border-brand-200 hover:bg-brand-50/50"
+                >
+                  <div className="font-medium text-brand-900">{f.title}</div>
+                  <div className="mt-1 text-xs text-slate-600">{f.description}</div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <section
         id="settings-security"
