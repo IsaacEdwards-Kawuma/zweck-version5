@@ -58,6 +58,10 @@ vi.mock("../src/lib/directorReceiptPdfJob.js", () => ({
   generateDirectorReceiptPdfNow: vi.fn(async () => undefined)
 }));
 
+vi.mock("../src/lib/directorReceiptPdfJobV2.js", () => ({
+  generateDirectorReceiptPdfForReferenceV2: vi.fn(async () => undefined)
+}));
+
 vi.mock("../src/services/inAppNotifications.js", () => ({
   notifyUser: vi.fn(async () => undefined)
 }));
@@ -112,6 +116,7 @@ describe("POST /api/transactions (CONTRIBUTION_ARREARS)", () => {
         directorTransactionBatch: { create: prismaMocks.batchCreate.mockResolvedValue({ id: 10 }) },
         transaction: { create: prismaMocks.txCreate.mockResolvedValue({ id: 99 }) },
         directorReceiptLegacy: { create: prismaMocks.receiptCreate.mockResolvedValue({ id: 77 }) },
+        directorReceipt: { create: vi.fn(async () => ({ id: 88 })) },
         auditLog: { create: prismaMocks.auditCreate.mockResolvedValue({ id: 1 }) },
         documentRegister: { create: prismaMocks.docCreate.mockResolvedValue({ id: 1 }) }
       };

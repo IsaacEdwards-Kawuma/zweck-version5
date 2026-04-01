@@ -782,7 +782,7 @@ export default function PostTransaction() {
                   <option value="">{qLoans.isLoading ? "Loading loans..." : "Select loan..."}</option>
                   {(qLoans.data || []).map((l) => (
                     <option key={l.id} value={l.id}>
-                      #{l.id} · {String(l.loanDate).slice(0, 10)} · Outstanding {Number(l.outstandingBalance || 0)} {l.currency}
+                      #{l.id} · {String(l.loanDate).slice(0, 10)} · Outstanding {formatMoney(Number(l.outstandingBalance || 0), l.currency)}
                     </option>
                   ))}
                 </select>

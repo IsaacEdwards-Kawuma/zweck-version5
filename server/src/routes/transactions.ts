@@ -20,6 +20,7 @@ import { notifyUser } from "../services/inAppNotifications.js";
 import { deriveBalances } from "../lib/derive.js";
 import { ymFromDateUtc } from "../lib/directorPosting.js";
 import { generateDirectorReceiptPdfNow } from "../lib/directorReceiptPdfJob.js";
+import { generateDirectorReceiptPdfForReferenceV2 } from "../lib/directorReceiptPdfJobV2.js";
 import { canViewDirectorFinancials } from "../lib/directorVisibility.js";
 
 const router = Router();
@@ -1148,6 +1149,24 @@ router.post("/", validateBody(postSchema), async (req, res) => {
         }
       });
 
+      const receiptV2 = await tx.directorReceipt.create({
+        data: {
+          referenceNumber: receiptRef,
+          transactionType: "CONTRIBUTION",
+          directorId: body.directorId!,
+          transactionId: tMain.id,
+          transactionDate: dt,
+          periodMonth: ymFromDateUtc(dt),
+          totalAmount: new Prisma.Decimal(body.amount),
+          capitalAmount: new Prisma.Decimal(mainAmount),
+          sideFundAmount: new Prisma.Decimal(sideAmount),
+          currency: body.currency,
+          glReference: receiptRef,
+          additionalData: { kind: "CONTRIBUTION" } as unknown as Prisma.InputJsonValue,
+          createdBy: req.user!.id
+        }
+      });
+
       await tx.documentRegister.create({
         data: {
           title: `Director Transaction Receipt — ${receiptRef}`,
@@ -1157,6 +1176,23 @@ router.post("/", validateBody(postSchema), async (req, res) => {
           confidentiality: "Internal",
           status: "ACTIVE",
           url: `/api/director-receipts/${receipt.id}/pdf`,
+          directorId: body.directorId,
+          transactionId: tMain.id,
+          receiptReference: receiptRef,
+          createdById: req.user!.id,
+          updatedById: req.user!.id
+        }
+      });
+
+      await tx.documentRegister.create({
+        data: {
+          title: `Director Transaction Receipt (V2) — ${receiptRef}`,
+          category: "Director Transaction Receipt",
+          reference: receiptRef,
+          owner: "Finance",
+          confidentiality: "Internal",
+          status: "ACTIVE",
+          url: `/api/director-receipts-v2/${receiptV2.id}/pdf`,
           directorId: body.directorId,
           transactionId: tMain.id,
           receiptReference: receiptRef,
@@ -1197,6 +1233,8 @@ router.post("/", validateBody(postSchema), async (req, res) => {
       .findUnique({ where: { receiptReference: receiptRef }, select: { id: true } })
       .then((r) => (r ? generateDirectorReceiptPdfNow(r.id) : undefined))
       .catch(() => {});
+
+    void generateDirectorReceiptPdfForReferenceV2(receiptRef).catch(() => {});
 
     return res.status(201).json({ id: mainTx.id, referenceNumber: receiptRef });
   }
@@ -1294,6 +1332,28 @@ router.post("/", validateBody(postSchema), async (req, res) => {
         }
       });
 
+      await tx.directorReceipt.create({
+        data: {
+          referenceNumber: receiptRef,
+          transactionType: "CONTRIBUTION_ARREARS",
+          directorId: body.directorId!,
+          transactionId: tMain.id,
+          transactionDate: dt,
+          periodMonth: ymFromDateUtc(dt),
+          totalAmount: new Prisma.Decimal(body.amount),
+          capitalAmount: new Prisma.Decimal(capitalCredited),
+          sideFundAmount: new Prisma.Decimal(sideFundDeduction),
+          currency: body.currency,
+          glReference: receiptRef,
+          additionalData: {
+            kind: "CONTRIBUTION_ARREARS",
+            months,
+            monthRange: `${body.arrearsFromMonth} to ${body.arrearsToMonth}`
+          } as unknown as Prisma.InputJsonValue,
+          createdBy: req.user!.id
+        }
+      });
+
       await tx.auditLog.create({
         data: {
           userId: req.user!.id,
@@ -1331,6 +1391,8 @@ router.post("/", validateBody(postSchema), async (req, res) => {
       .findUnique({ where: { receiptReference: receiptRef }, select: { id: true } })
       .then((r) => (r ? generateDirectorReceiptPdfNow(r.id) : undefined))
       .catch(() => {});
+
+    void generateDirectorReceiptPdfForReferenceV2(receiptRef).catch(() => {});
 
     return res.status(201).json({ id: mainTx.id, referenceNumber: receiptRef });
   }
@@ -1379,6 +1441,24 @@ router.post("/", validateBody(postSchema), async (req, res) => {
           } as any
         }
       });
+
+      const receiptV2 = await tx.directorReceipt.create({
+        data: {
+          referenceNumber: ref,
+          transactionType: "SUPPLEMENTARY_CAPITAL_CONTRIBUTION",
+          directorId: body.directorId!,
+          transactionId: trow.id,
+          transactionDate: dt,
+          periodMonth: ymFromDateUtc(dt),
+          totalAmount: new Prisma.Decimal(body.amount),
+          capitalAmount: new Prisma.Decimal(body.amount),
+          sideFundAmount: null,
+          currency: body.currency,
+          glReference: ref,
+          additionalData: { kind: "SUPPLEMENTARY_CAPITAL_CONTRIBUTION" } as unknown as Prisma.InputJsonValue,
+          createdBy: req.user!.id
+        }
+      });
       await tx.documentRegister.create({
         data: {
           title: `Director Transaction Receipt — ${ref}`,
@@ -1388,6 +1468,23 @@ router.post("/", validateBody(postSchema), async (req, res) => {
           confidentiality: "Internal",
           status: "ACTIVE",
           url: `/api/director-receipts/${receipt.id}/pdf`,
+          directorId: body.directorId,
+          transactionId: trow.id,
+          receiptReference: ref,
+          createdById: req.user!.id,
+          updatedById: req.user!.id
+        }
+      });
+
+      await tx.documentRegister.create({
+        data: {
+          title: `Director Transaction Receipt (V2) — ${ref}`,
+          category: "Director Transaction Receipt",
+          reference: ref,
+          owner: "Finance",
+          confidentiality: "Internal",
+          status: "ACTIVE",
+          url: `/api/director-receipts-v2/${receiptV2.id}/pdf`,
           directorId: body.directorId,
           transactionId: trow.id,
           receiptReference: ref,
@@ -1418,6 +1515,7 @@ router.post("/", validateBody(postSchema), async (req, res) => {
       .findUnique({ where: { receiptReference: ref }, select: { id: true } })
       .then((r) => (r ? generateDirectorReceiptPdfNow(r.id) : undefined))
       .catch(() => {});
+    void generateDirectorReceiptPdfForReferenceV2(ref).catch(() => {});
     return res.status(201).json({ id: tx.id, referenceNumber: ref });
   }
 
@@ -1977,6 +2075,7 @@ router.post("/", validateBody(postSchema), async (req, res) => {
 
     const ref = await allocateNextDirectorReceiptReference({ prefix: "CLR", date: dt });
     const bankKey = body.currency === "UGX" ? "bank_ugx" : body.currency === "USD" ? "bank_usd" : "bank_eur";
+    const loanKey = `director_loans_receivable_${directorId}`;
 
     const nextOutstanding = new Prisma.Decimal(loan.outstandingBalance).minus(new Prisma.Decimal(principal));
     const nextStatus = nextOutstanding.toNumber() <= 0 ? "FULLY_REPAID" : "PARTIALLY_REPAID";
@@ -2005,18 +2104,23 @@ router.post("/", validateBody(postSchema), async (req, res) => {
           createdBy: req.user!.id
         }
       });
-      const tPrincipal = await tx.transaction.create({
+      // Compound entry (3 rows sharing the same batch):
+      // 1) Cash received: Dr bank (total), Cr side fund (total)
+      // 2) Allocate interest: Dr side fund (interest), Cr interest income (interest)
+      // 3) Reduce receivable: Dr side fund (principal), Cr director loans receivable (principal)
+      const totalReceived = body.amount;
+      const tCash = await tx.transaction.create({
         data: {
           ...commonData,
           referenceNumber: ref,
           type: "DIRECTOR_REPAYMENT_OF_COMPANY_LOAN",
           date: dt,
-          amount: principal,
+          amount: totalReceived,
           directorId,
           directorTransactionBatchId: batch.id,
           manualDebitAccountKey: bankKey,
           manualCreditAccountKey: "side_fund",
-          description: body.description ?? `Loan repayment (principal) for loan #${loan.id}`
+          description: body.description ?? `Loan repayment received for loan #${loan.id}`
         }
       });
       if (interest > 0) {
@@ -2024,21 +2128,37 @@ router.post("/", validateBody(postSchema), async (req, res) => {
           data: {
             ...commonData,
             referenceNumber: await allocateNextReferenceNumber(),
-            type: "INTEREST_INCOME",
+            type: "DIRECTOR_REPAYMENT_OF_COMPANY_LOAN",
             date: dt,
             amount: interest,
-            directorId: null,
+            directorId,
             directorTransactionBatchId: batch.id,
-            manualDebitAccountKey: bankKey,
+            manualDebitAccountKey: "side_fund",
             manualCreditAccountKey: "income_interest",
             description: body.description ?? `Loan repayment (interest) for loan #${loan.id}`
+          }
+        });
+      }
+      if (principal > 0) {
+        await tx.transaction.create({
+          data: {
+            ...commonData,
+            referenceNumber: await allocateNextReferenceNumber(),
+            type: "DIRECTOR_REPAYMENT_OF_COMPANY_LOAN",
+            date: dt,
+            amount: principal,
+            directorId,
+            directorTransactionBatchId: batch.id,
+            manualDebitAccountKey: "side_fund",
+            manualCreditAccountKey: loanKey,
+            description: body.description ?? `Loan repayment (principal settlement) for loan #${loan.id}`
           }
         });
       }
       await tx.directorLoanRepayment.create({
         data: {
           loanId: loan.id,
-          transactionId: tPrincipal.id,
+          transactionId: tCash.id,
           repaymentDate: dt,
           totalReceived: new Prisma.Decimal(body.amount),
           principalAmount: new Prisma.Decimal(principal),
@@ -2059,7 +2179,7 @@ router.post("/", validateBody(postSchema), async (req, res) => {
         data: {
           directorId,
           transactionBatchId: batch.id,
-          primaryTransactionId: tPrincipal.id,
+          primaryTransactionId: tCash.id,
           receiptReference: ref,
           periodMonth: ymFromDateUtc(dt),
           transactionDate: dt,
@@ -2086,7 +2206,7 @@ router.post("/", validateBody(postSchema), async (req, res) => {
           status: "ACTIVE",
           url: `/api/director-receipts/${receipt.id}/pdf`,
           directorId,
-          transactionId: tPrincipal.id,
+          transactionId: tCash.id,
           receiptReference: ref,
           createdById: req.user!.id,
           updatedById: req.user!.id
@@ -2102,7 +2222,7 @@ router.post("/", validateBody(postSchema), async (req, res) => {
           after: { outstandingBalance: nextOutstanding, status: nextStatus, receiptReference: ref } as any
         }
       });
-      return { principalTxId: tPrincipal.id };
+      return { principalTxId: tCash.id };
     });
 
     await notifyUser(
