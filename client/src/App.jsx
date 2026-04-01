@@ -41,6 +41,7 @@ const DataRights = lazy(() => import("./pages/DataRights"));
 const Chat = lazy(() => import("./pages/Chat"));
 const ChatRoom = lazy(() => import("./pages/ChatRoom"));
 const Forbidden = lazy(() => import("./pages/Forbidden"));
+const Notifications = lazy(() => import("./pages/Notifications"));
 
 export default function App() {
   return (
@@ -74,6 +75,7 @@ export default function App() {
             <Route path="/forms" element={<Forms />} />
             <Route path="/chat" element={<Chat />} />
             <Route path="/chat/rooms/:roomId" element={<ChatRoom />} />
+            <Route path="/notifications" element={<Notifications />} />
             <Route element={<RequireAdmin />}>
               <Route path="/users" element={<Users />} />
               <Route path="/audit" element={<AuditLog />} />

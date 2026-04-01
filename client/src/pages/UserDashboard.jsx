@@ -348,7 +348,7 @@ export default function UserDashboard() {
             to="/meetings"
             tone={nextMeetingMins != null && nextMeetingMins <= 60 ? "brand" : "default"}
           />
-          <Kpi label="Unread notifications" value={String(notifsUnread)} to="/settings#settings-notifications" tone={notifsUnread ? "danger" : "default"} />
+          <Kpi label="Unread notifications" value={String(notifsUnread)} to="/notifications" tone={notifsUnread ? "danger" : "default"} />
         </div>
       );
     }
@@ -378,7 +378,7 @@ export default function UserDashboard() {
             <Link className="ui-btn-outline-xs" to="/settings#settings-account">
               Account
             </Link>
-            <Link className="ui-btn-outline-xs" to="/settings#settings-notifications">
+            <Link className="ui-btn-outline-xs" to="/notifications">
               Notifications
             </Link>
             {session.directorId != null ? (
