@@ -82,5 +82,21 @@ router.get("/:id/pdf", requireRole("DIRECTOR"), async (req, res) => {
   return res.send(buffer);
 });
 
+router.post("/:id/mark-viewed", requireRole("DIRECTOR"), async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) return res.status(400).json(apiError("Invalid receipt id"));
+
+  const receipt = await prisma.directorReceipt.findUnique({ where: { id }, select: { id: true, directorId: true, isViewed: true } });
+  if (!receipt) return res.status(404).json(apiError("Receipt not found"));
+
+  const viewer = { role: req.user!.role, directorId: req.user!.directorId ?? null };
+  if (!canViewDirectorFinancials(viewer, receipt.directorId)) return res.status(403).json(apiError("Forbidden"));
+
+  if (!receipt.isViewed) {
+    await prisma.directorReceipt.update({ where: { id }, data: { isViewed: true } });
+  }
+  return res.json({ ok: true });
+});
+
 export default router;
 

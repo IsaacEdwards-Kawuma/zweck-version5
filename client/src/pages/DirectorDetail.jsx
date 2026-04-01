@@ -9,7 +9,7 @@ import PrintStatementHeader from "../components/PrintStatementHeader";
 import { deleteDirectorAvatar, getDirector, uploadDirectorAvatar } from "../api/directors";
 import { listInvoices } from "../api/invoices";
 import { directorAccount } from "../api/accounts";
-import { listDirectorReceipts } from "../api/directorReceipts";
+import { listDirectorReceiptsV2, markDirectorReceiptViewedV2 } from "../api/directorReceiptsV2";
 import { eur, eurCompact, fmtDate, formatMoney, formatTxRef } from "../lib/format";
 import { TX_ACCOUNT_MAP } from "../lib/transactionTypes";
 import { downloadTransactionsCsv } from "../lib/reportsAnalytics";
@@ -39,8 +39,8 @@ export default function DirectorDetail() {
   const qTotals = useQuery({ queryKey: ["director_account", id], queryFn: () => directorAccount(id) });
   const directorIdNum = Number(id);
   const qReceipts = useQuery({
-    queryKey: ["director_receipts", directorIdNum],
-    queryFn: () => listDirectorReceipts(directorIdNum),
+    queryKey: ["director_receipts_v2", directorIdNum],
+    queryFn: () => listDirectorReceiptsV2(directorIdNum),
     enabled: Number.isFinite(directorIdNum)
   });
   const qOverview = useQuery({
@@ -157,41 +157,29 @@ export default function DirectorDetail() {
   }
 
   function receiptApiPath(id) {
-    return `/director-receipts/${id}/pdf`;
+    return `/director-receipts-v2/${id}/pdf`;
   }
 
   const receiptUnviewedCount = useMemo(() => {
     void seenVersion;
     const rows = qReceipts.data || [];
-    const seen = getSeenReceiptIds(directorIdNum);
-    return rows.filter((r) => !seen.has(String(r.id))).length;
+    return rows.filter((r) => !r.isViewed).length;
   }, [qReceipts.data, directorIdNum, seenVersion]);
 
   const markReceiptSeenAndRefresh = useCallback(
-    (receiptId) => {
-      markReceiptSeen(directorIdNum, receiptId);
-      setSeenVersion((v) => v + 1);
+    async (receiptId) => {
+      try {
+        await markDirectorReceiptViewedV2(receiptId);
+      } finally {
+        setSeenVersion((v) => v + 1);
+        qc.invalidateQueries({ queryKey: ["director_receipts_v2", directorIdNum] }).catch(() => {});
+      }
     },
-    [directorIdNum]
+    [directorIdNum, qc]
   );
 
-  function receiptTypeLabel(meta) {
-    const m = meta && typeof meta === "object" ? meta : {};
-    if (m.receiptType) return String(m.receiptType);
-    if (m.kind) return String(m.kind).replace(/_/g, " ");
-    return "—";
-  }
-
-  function receiptAmount(meta) {
-    const m = meta && typeof meta === "object" ? meta : {};
-    if (m.amount != null && !Number.isNaN(Number(m.amount))) return Number(m.amount);
-    if (m.totalReceived != null) return Number(m.totalReceived);
-    return null;
-  }
-
-  function receiptCurrency(meta) {
-    const m = meta && typeof meta === "object" ? meta : {};
-    return m.currency || "EUR";
+  function receiptTypeLabel(type) {
+    return TX_TYPE_LABELS[type] || String(type || "—").replace(/_/g, " ");
   }
 
   function formatStatusLabel(s) {
@@ -518,17 +506,15 @@ export default function DirectorDetail() {
               </thead>
               <tbody className="ui-table-divide">
                 {(qReceipts.data || []).map((r) => {
-                  const meta = r.meta;
-                  const amt = receiptAmount(meta);
                   return (
                     <tr key={r.id} className="ui-table-row-hover">
-                      <td className="px-3 py-2 font-mono text-xs text-slate-700">{r.receiptReference}</td>
-                      <td className="px-3 py-2">{receiptTypeLabel(meta)}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-slate-700">{r.referenceNumber}</td>
+                      <td className="px-3 py-2">{receiptTypeLabel(r.transactionType)}</td>
                       <td className="px-3 py-2">{r.periodMonth || "—"}</td>
                       <td className="px-3 py-2">{fmtDate(r.transactionDate)}</td>
-                      <td className="px-3 py-2">{receiptCurrency(meta)}</td>
+                      <td className="px-3 py-2">{r.currency || "EUR"}</td>
                       <td className="px-3 py-2 text-right font-medium">
-                        {amt != null ? formatMoney(amt, receiptCurrency(meta)) : "—"}
+                        {formatMoney(Number(r.totalAmount || 0), r.currency || "EUR")}
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex flex-wrap items-center gap-2">
@@ -536,7 +522,7 @@ export default function DirectorDetail() {
                             type="button"
                             className="text-xs font-medium text-slate-600 hover:underline"
                             onClick={() => {
-                              markReceiptSeenAndRefresh(r.id);
+                              void markReceiptSeenAndRefresh(r.id);
                               void openPdfInNewTab(receiptApiPath(r.id)).catch((e) =>
                                 alert(e instanceof Error ? e.message : "Could not open PDF")
                               );
@@ -548,10 +534,10 @@ export default function DirectorDetail() {
                             type="button"
                             className="rounded-lg bg-brand-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-brand-700"
                             onClick={() => {
-                              markReceiptSeenAndRefresh(r.id);
+                              void markReceiptSeenAndRefresh(r.id);
                               void downloadPdf(
                                 receiptApiPath(r.id),
-                                `director-receipt-${r.receiptReference || r.id}`
+                                `director-receipt-${r.referenceNumber || r.id}`
                               ).catch((e) => alert(e instanceof Error ? e.message : "Could not download PDF"));
                             }}
                           >
