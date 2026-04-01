@@ -36,7 +36,12 @@ model Director {
   companyLoans               CompanyLoanToDirector[]
   companyLoanRepayments      CompanyLoanToDirectorRepayment[]
   directorTransactionBatches DirectorTransactionBatch[]
-  directorReceipts           DirectorReceipt[]
+
+  directorDistributions  DirectorDistribution[]
+  directorCompanyLoansV2 DirectorCompanyLoan[]
+
+  directorReceiptsLegacy DirectorReceiptLegacy[]
+  directorReceipts       DirectorReceipt[]
 }
 
 model User {
@@ -492,6 +497,12 @@ model Transaction {
 
   directorTransactionBatchId Int?
   directorTransactionBatch   DirectorTransactionBatch? @relation(fields: [directorTransactionBatchId], references: [id], onDelete: SetNull)
+
+  directorDistributions    DirectorDistribution[]
+  directorCompanyLoansV2   DirectorCompanyLoan[]
+  directorLoanRepaymentsV2 DirectorLoanRepayment[]
+
+  directorReceiptsV2 DirectorReceipt[]
 }
 
 enum TxType {
@@ -656,7 +667,7 @@ model DirectorTransactionBatch {
 
   transactions Transaction[]
   lines        DirectorTransactionLine[]
-  receipts     DirectorReceipt[]
+  receipts     DirectorReceiptLegacy[]
 
   @@index([directorId, transactionDate])
   @@index([typeKey, periodMonth])
@@ -684,7 +695,7 @@ enum DirectorReceiptPdfStatus {
   FAILED
 }
 
-model DirectorReceipt {
+model DirectorReceiptLegacy {
   id                   Int                      @id @default(autoincrement())
   directorId           Int
   director             Director                 @relation(fields: [directorId], references: [id], onDelete: Cascade)
@@ -706,6 +717,108 @@ model DirectorReceipt {
   @@index([directorId, transactionDate])
   @@index([transactionBatchId])
   @@index([deletedAt])
+  @@map("DirectorReceiptLegacy")
+}
+
+enum DirectorDistributionStatus {
+  OPEN
+  PARTIALLY_REINSTATED
+  FULLY_REINSTATED
+}
+
+model DirectorDistribution {
+  id                 Int                      @id @default(autoincrement())
+  directorId         Int
+  director           Director                 @relation(fields: [directorId], references: [id], onDelete: Cascade)
+  transactionId      Int
+  transaction        Transaction              @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  distributionDate   DateTime
+  totalAmount        Decimal                  @db.Decimal(18, 2)
+  currency           String                   @default("EUR") @db.VarChar(3)
+  outstandingBalance Decimal                  @db.Decimal(18, 2)
+  status             DirectorDistributionStatus @default(OPEN)
+  createdAt          DateTime                 @default(now())
+  createdBy          Int
+
+  @@index([directorId, distributionDate])
+  @@index([transactionId])
+  @@index([status])
+}
+
+enum DirectorCompanyLoanStatus {
+  OPEN
+  PARTIALLY_REPAID
+  FULLY_REPAID
+}
+
+model DirectorCompanyLoan {
+  id                 Int                      @id @default(autoincrement())
+  directorId         Int
+  director           Director                 @relation(fields: [directorId], references: [id], onDelete: Cascade)
+  transactionId      Int
+  transaction        Transaction              @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  loanDate           DateTime
+  principalAmount    Decimal                  @db.Decimal(18, 2)
+  currency           String                   @default("EUR") @db.VarChar(3)
+  repaymentTerms     String                   @db.VarChar(800)
+  outstandingBalance Decimal                  @db.Decimal(18, 2)
+  totalInterestPaid  Decimal                  @default(0) @db.Decimal(18, 2)
+  status             DirectorCompanyLoanStatus @default(OPEN)
+  reason             String?                  @db.VarChar(1200)
+  createdAt          DateTime                 @default(now())
+  createdBy          Int
+
+  repayments DirectorLoanRepayment[]
+
+  @@index([directorId, loanDate])
+  @@index([transactionId])
+  @@index([status])
+}
+
+model DirectorLoanRepayment {
+  id              Int               @id @default(autoincrement())
+  loanId          Int
+  loan            DirectorCompanyLoan @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  transactionId   Int
+  transaction     Transaction       @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  repaymentDate   DateTime
+  totalReceived   Decimal           @db.Decimal(18, 2)
+  principalAmount Decimal           @db.Decimal(18, 2)
+  interestAmount  Decimal           @db.Decimal(18, 2)
+  currency        String            @default("EUR") @db.VarChar(3)
+  createdAt       DateTime          @default(now())
+  createdBy       Int
+
+  @@index([loanId, repaymentDate])
+  @@index([transactionId])
+}
+
+model DirectorReceipt {
+  id              Int      @id(map: "DirectorReceipt_new_pkey") @default(autoincrement())
+  referenceNumber String   @unique(map: "DirectorReceipt_new_referenceNumber_key") @db.VarChar(48)
+  transactionType String   @db.VarChar(32)
+  directorId      Int
+  director        Director @relation(fields: [directorId], references: [id], onDelete: Cascade)
+  transactionId   Int
+  transaction     Transaction @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  transactionDate DateTime
+  periodMonth     String   @db.VarChar(7)
+  totalAmount     Decimal  @db.Decimal(18, 2)
+  capitalAmount   Decimal? @db.Decimal(18, 2)
+  sideFundAmount  Decimal? @db.Decimal(18, 2)
+  currency        String   @default("EUR") @db.VarChar(3)
+  glReference     String?  @db.VarChar(80)
+  additionalData  Json?
+  pdfUrl          String?  @db.VarChar(500)
+  isViewed        Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  createdBy       Int
+
+  @@index([directorId, transactionDate], map: "DirectorReceipt_new_directorId_transactionDate_idx")
+  @@index([transactionId], map: "DirectorReceipt_new_transactionId_idx")
+  @@index([periodMonth], map: "DirectorReceipt_new_periodMonth_idx")
+  @@index([transactionType], map: "DirectorReceipt_new_transactionType_idx")
+  @@map("DirectorReceipt")
 }
 
 model MMFEntry {

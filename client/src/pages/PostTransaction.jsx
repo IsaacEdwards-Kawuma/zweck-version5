@@ -56,6 +56,22 @@ function mapPreviewAccount(key, currency) {
   return key;
 }
 
+function monthDiffInclusive(fromYm, toYm) {
+  const m1 = /^(\d{4})-(\d{2})$/.exec(fromYm || "");
+  const m2 = /^(\d{4})-(\d{2})$/.exec(toYm || "");
+  const fy = m1 ? Number(m1[1]) : NaN;
+  const fm = m1 ? Number(m1[2]) : NaN;
+  const ty = m2 ? Number(m2[1]) : NaN;
+  const tm = m2 ? Number(m2[2]) : NaN;
+  if (!Number.isFinite(fy) || !Number.isFinite(fm) || !Number.isFinite(ty) || !Number.isFinite(tm)) return 0;
+  if (fm < 1 || fm > 12 || tm < 1 || tm > 12) return 0;
+  return (ty - fy) * 12 + (tm - fm) + 1;
+}
+
+function sideFundPerMonth(currency) {
+  return currency === "UGX" ? 10_000 : 10;
+}
+
 export default function PostTransaction() {
   const qc = useQueryClient();
   const { me } = useOutletContext() || {};
@@ -284,6 +300,15 @@ export default function PostTransaction() {
     if (parsed.value <= 0) return "Amount must be greater than zero.";
     if (needsDirector && !directorId) return "Select director for this transaction type.";
     if (showArrearsRange && (!arrearsFromMonth || !arrearsToMonth)) return "Select arrears month range (From / To).";
+    if (showArrearsRange && arrearsFromMonth && arrearsToMonth) {
+      if (arrearsFromMonth > arrearsToMonth) return "From Month must be before or equal to To Month.";
+      const months = monthDiffInclusive(arrearsFromMonth, arrearsToMonth);
+      if (months <= 0) return "Invalid month range.";
+      const required = months * sideFundPerMonth(currency);
+      if (parsed.value < required) {
+        return `Amount must be at least ${formatMoney(required, currency)} to cover side fund deductions (${months} months × ${formatMoney(sideFundPerMonth(currency), currency)}).`;
+      }
+    }
     if (showReason && !reason.trim()) return "Reason is required for disciplinary levy.";
     if (showDistributionPicker && !distributionId) return "Select distribution to reinstate.";
     if (showCompanyLoan && (!loanDate || !repaymentTerms.trim())) return "Loan date and repayment terms are required.";
@@ -650,22 +675,24 @@ export default function PostTransaction() {
               <div>
                 <label className="text-xs font-medium text-slate-700">From Month</label>
                 <input
+                  type="month"
                   className="mt-1 w-full rounded-lg border-slate-300"
                   value={arrearsFromMonth}
                   onChange={(e) => setArrearsFromMonth(e.target.value)}
-                  placeholder="YYYY-MM"
-                  inputMode="numeric"
+                  required
                 />
+                <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Select the first month included in arrears.</p>
               </div>
               <div>
                 <label className="text-xs font-medium text-slate-700">To Month</label>
                 <input
+                  type="month"
                   className="mt-1 w-full rounded-lg border-slate-300"
                   value={arrearsToMonth}
                   onChange={(e) => setArrearsToMonth(e.target.value)}
-                  placeholder="YYYY-MM"
-                  inputMode="numeric"
+                  required
                 />
+                <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Select the last month included in arrears.</p>
               </div>
             </>
           ) : null}
@@ -941,6 +968,12 @@ export default function PostTransaction() {
               <span className="mt-2 block text-xs text-slate-600 dark:text-slate-400">
                 Capital contribution splits: remainder to director capital, {currency === "UGX" ? "10,000" : "10"} {currency} to side
                 fund (3200).
+              </span>
+            ) : null}
+            {type === "CONTRIBUTION_ARREARS" && !useManualAccounts && arrearsFromMonth && arrearsToMonth ? (
+              <span className="mt-2 block text-xs text-slate-600 dark:text-slate-400">
+                Arrears split: {monthDiffInclusive(arrearsFromMonth, arrearsToMonth)} months ×{" "}
+                {formatMoney(sideFundPerMonth(currency), currency)} to side fund (3200); remainder to director capital.
               </span>
             ) : null}
           </div>
