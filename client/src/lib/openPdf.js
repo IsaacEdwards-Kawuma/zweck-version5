@@ -127,11 +127,16 @@ export async function downloadPdf(apiPath, filenameBase = "document") {
   window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
 }
 
-/** Director receipt PDF route is behind JWT; uploads under /api/uploads are served without auth on the API. */
+/**
+ * Director receipt PDF routes are behind JWT (`GET .../pdf`).
+ * V1: `/api/director-receipts/:id/pdf`
+ * V2: `/api/director-receipts-v2/:id/pdf`
+ * Uploads under `/api/uploads/...` are static and must use a normal window open (no bearer token).
+ */
 export function needsAuthenticatedReceiptPdfBlob(storedUrl) {
   if (!storedUrl) return false;
   const s = String(storedUrl);
-  return /\/director-receipts\/[^/]+\/pdf/i.test(s);
+  return /\/director-receipts(?:-v2)?\/[^/]+\/pdf/i.test(s);
 }
 
 export async function openStoredPdfUrl(storedUrl) {
