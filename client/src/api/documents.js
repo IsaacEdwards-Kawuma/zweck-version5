@@ -23,3 +23,8 @@ export async function resolveDocumentUrl(id) {
   const { data } = await api.get(`/documents/${id}/resolve-url`);
   return data;
 }
+
+export async function getDocumentPublicLink(id) {
+  const { data } = await api.get(`/documents/${id}/public-link`);
+  return data;
+}

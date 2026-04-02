@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMe } from "../hooks/useMe";
 import Loading from "../components/Loading";
 import ErrorBanner from "../components/ErrorBanner";
-import { createDocument, deleteDocument, listDocuments, resolveDocumentUrl, updateDocument } from "../api/documents";
+import { createDocument, deleteDocument, getDocumentPublicLink, listDocuments, resolveDocumentUrl, updateDocument } from "../api/documents";
 import { hasAdminPrivileges } from "../lib/roles";
 import {
   downloadStoredPdfUrl,
@@ -27,6 +27,13 @@ async function resolveIfReceipt(row) {
   if (row.category !== "Director Transaction Receipt") return row?.url;
   const out = await resolveDocumentUrl(row.id);
   return out?.url || row?.url;
+}
+
+async function openReceiptViaPublicLink(row) {
+  const link = await getDocumentPublicLink(row.id);
+  const url = link?.url;
+  if (!url) throw new Error("Could not create link");
+  window.open(url, "_blank", "noopener,noreferrer");
 }
 
 const EMPTY_FORM = {
@@ -416,6 +423,11 @@ export default function Documents() {
                               className="ui-btn-outline-xs"
                               onClick={() => {
                                 void (async () => {
+                                  if (r.category === "Director Transaction Receipt") {
+                                    // Always use signed public link for receipts: avoids Authorization header issues in new tabs/viewers.
+                                    await openReceiptViaPublicLink(r);
+                                    return;
+                                  }
                                   const url = await resolveIfReceipt(r);
                                   await openStoredPdfUrl(url, { category: r.category });
                                 })().catch((e) => alert(pdfErrorMessage(e)));
@@ -428,6 +440,10 @@ export default function Documents() {
                               className="ui-btn-outline-xs"
                               onClick={() => {
                                 void (async () => {
+                                  if (r.category === "Director Transaction Receipt") {
+                                    await openReceiptViaPublicLink(r);
+                                    return;
+                                  }
                                   const url = await resolveIfReceipt(r);
                                   await printStoredPdfUrl(url, { category: r.category });
                                 })().catch((e) => alert(pdfErrorMessage(e)));
@@ -440,6 +456,10 @@ export default function Documents() {
                               className="ui-btn-outline-xs"
                               onClick={() => {
                                 void (async () => {
+                                  if (r.category === "Director Transaction Receipt") {
+                                    await openReceiptViaPublicLink(r);
+                                    return;
+                                  }
                                   const url = await resolveIfReceipt(r);
                                   await downloadStoredPdfUrl(url, r.reference || r.title || "receipt", {
                                     category: r.category

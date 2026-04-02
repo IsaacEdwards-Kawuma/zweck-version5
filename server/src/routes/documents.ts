@@ -1,4 +1,5 @@
 import { Router } from "express";
+import crypto from "node:crypto";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { apiError } from "../lib/http.js";
@@ -104,6 +105,86 @@ router.get("/:id/resolve-url", requireRole("DIRECTOR"), async (req, res) => {
   }
 
   return res.json({ url: resolvedUrl });
+});
+
+function docLinkSecret(): string {
+  // Use a dedicated secret if set; otherwise fall back to JWT secret (already required in prod).
+  return (process.env.DOC_LINK_SECRET || process.env.JWT_SECRET || "dev-doc-link-secret").trim();
+}
+
+function signDocLink(payload: string): string {
+  return crypto.createHmac("sha256", docLinkSecret()).update(payload).digest("hex");
+}
+
+/**
+ * Authenticated: returns a short-lived, signed URL that can be opened in a new tab without Bearer headers.
+ * This avoids proxies/browsers dropping Authorization during window.open / print viewer flows.
+ */
+router.get("/:id/public-link", requireRole("DIRECTOR"), async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) return res.status(400).json(apiError("Invalid document id"));
+  const exp = Date.now() + 10 * 60 * 1000; // 10 minutes
+  const payload = `${id}:${exp}`;
+  const sig = signDocLink(payload);
+  return res.json({ url: `/api/documents/${id}/public-pdf?exp=${exp}&sig=${sig}` });
+});
+
+/**
+ * Public: validates signature+expiry, resolves receipt to stored pdfUrl, then redirects to the stored URL.
+ * We redirect rather than stream so /api/uploads static or S3 public URL handles the bytes.
+ */
+router.get("/:id/public-pdf", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) return res.status(400).json(apiError("Invalid document id"));
+  const exp = Number(req.query.exp);
+  const sig = String(req.query.sig || "");
+  if (!Number.isFinite(exp) || !sig) return res.status(400).json(apiError("Missing exp/sig"));
+  if (Date.now() > exp) return res.status(401).json(apiError("Link expired"));
+  const expected = signDocLink(`${id}:${exp}`);
+  try {
+    if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(sig))) {
+      return res.status(401).json(apiError("Unauthorized"));
+    }
+  } catch {
+    return res.status(401).json(apiError("Unauthorized"));
+  }
+
+  const doc = await prisma.documentRegister.findUnique({ where: { id } });
+  if (!doc) return res.status(404).json(apiError("Document not found"));
+
+  // Only allow public redirects for Director Transaction Receipts (intended printable artifacts).
+  if (doc.category !== "Director Transaction Receipt") {
+    return res.status(403).json(apiError("Forbidden"));
+  }
+
+  // Reuse the resolver logic to ensure url points to stored PDF.
+  let resolvedUrl: string | null = doc.url || null;
+  const ref = String(doc.receiptReference || doc.reference || "").trim();
+  if (ref) {
+    const v2 = await prisma.directorReceipt.findUnique({ where: { referenceNumber: ref }, select: { id: true, pdfUrl: true } });
+    if (v2) {
+      if (!v2.pdfUrl) await generateDirectorReceiptPdfNowV2(v2.id);
+      const again = await prisma.directorReceipt.findUnique({ where: { referenceNumber: ref }, select: { pdfUrl: true } });
+      resolvedUrl = again?.pdfUrl || resolvedUrl;
+    } else {
+      const legacy = await prisma.directorReceiptLegacy.findUnique({ where: { receiptReference: ref }, select: { id: true, pdfUrl: true } });
+      if (legacy) {
+        if (!legacy.pdfUrl) await generateDirectorReceiptPdfNow(legacy.id);
+        const again = await prisma.directorReceiptLegacy.findUnique({ where: { receiptReference: ref }, select: { pdfUrl: true } });
+        resolvedUrl = again?.pdfUrl || resolvedUrl;
+      }
+    }
+  }
+
+  if (resolvedUrl && resolvedUrl !== doc.url) {
+    await prisma.documentRegister.update({ where: { id: doc.id }, data: { url: resolvedUrl } });
+  }
+
+  if (!resolvedUrl) return res.status(404).json(apiError("Receipt PDF not available"));
+
+  // Normalize relative stored URLs to absolute paths.
+  if (resolvedUrl.startsWith("/")) return res.redirect(resolvedUrl);
+  return res.redirect(resolvedUrl);
 });
 
 router.post("/", requireRole("ADMIN"), validateBody(docSchema), async (req, res) => {
