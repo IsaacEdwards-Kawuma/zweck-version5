@@ -17,6 +17,8 @@ export function storedUrlToApiPath(storedUrl) {
     }
     if (t.startsWith("/api")) return t.slice("/api".length) || "/";
     if (t.startsWith("/")) return t;
+    // Bare paths sometimes stored without leading slash (e.g. director-receipts-v2/12/pdf)
+    if (/^director-receipts(?:-v2)?\//i.test(t)) return `/${t.split("#")[0]}`;
     return `/${t}`;
   } catch {
     return null;
@@ -64,6 +66,44 @@ async function fetchPdfBlobDirect(apiPath) {
   return await r.blob();
 }
 
+/** Same-origin fetch with Bearer — reliable when axios + Vercel proxy behave oddly. */
+async function fetchPdfBlobSameOrigin(apiPath) {
+  const path = apiPath.startsWith("/") ? apiPath : `/${apiPath}`;
+  const token = localStorage.getItem("zweck_token");
+  const url = `${window.location.origin}/api${path}`;
+  const r = await fetch(url, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {}
+  });
+  if (!r.ok) {
+    let msg = `PDF request failed (${r.status})`;
+    try {
+      const ct = r.headers.get("content-type") || "";
+      if (ct.includes("application/json")) {
+        const j = await r.json();
+        if (j?.message) msg = String(j.message);
+      }
+    } catch {
+      /* ignore */
+    }
+    throw new Error(msg);
+  }
+  return await r.blob();
+}
+
+async function blobLooksLikeJsonError(blob) {
+  if (!blob || blob.size === 0 || blob.size > 50_000) return null;
+  try {
+    const text = await blob.slice(0, 2000).text();
+    const t = text.trim();
+    if (!t.startsWith("{")) return null;
+    const j = JSON.parse(t);
+    if (j && (j.error === true || j.message)) return String(j.message || "Request failed");
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 export async function fetchPdfBlob(apiPath) {
   let blob;
   let axiosErr;
@@ -71,16 +111,41 @@ export async function fetchPdfBlob(apiPath) {
     const res = await api.get(apiPath, { responseType: "blob" });
     blob = res.data;
   } catch (err) {
-    if (err?.response?.status === 404) axiosErr = err;
+    const st = err?.response?.status;
+    if (st === 404 || st === 401 || st === 403) axiosErr = err;
     else throw err;
   }
   if (axiosErr) {
-    const direct = await fetchPdfBlobDirect(apiPath);
-    if (direct) blob = direct;
-    else throw axiosErr;
+    try {
+      blob = await fetchPdfBlobSameOrigin(apiPath);
+    } catch {
+      try {
+        const direct = await fetchPdfBlobDirect(apiPath);
+        if (direct) blob = direct;
+        else throw axiosErr;
+      } catch {
+        throw axiosErr;
+      }
+    }
   }
   if (blob && (await blobHasPdfHeader(blob))) return blob;
-  const direct = await fetchPdfBlobDirect(apiPath);
+
+  try {
+    const so = await fetchPdfBlobSameOrigin(apiPath);
+    if (so && (await blobHasPdfHeader(so))) return so;
+  } catch {
+    /* fall through */
+  }
+
+  const jsonErr = blob ? await blobLooksLikeJsonError(blob) : null;
+  if (jsonErr) throw new Error(jsonErr);
+
+  let direct = null;
+  try {
+    direct = await fetchPdfBlobDirect(apiPath);
+  } catch {
+    direct = null;
+  }
   if (direct && (await blobHasPdfHeader(direct))) return direct;
   throw new Error(
     "Could not load PDF (response was not a PDF). Check Vercel proxy routes and RENDER_API_URL, or set VITE_API_URL for direct API fallback with CORS."
@@ -136,13 +201,42 @@ export async function downloadPdf(apiPath, filenameBase = "document") {
 export function needsAuthenticatedReceiptPdfBlob(storedUrl) {
   if (!storedUrl) return false;
   const s = String(storedUrl);
-  // Allow optional trailing slash and query/hash after `pdf`.
-  return /\/director-receipts(?:-v2)?\/[^/]+\/pdf(?:$|[/?#])/i.test(s);
+  // Allow optional trailing slash and query/hash after `pdf`; match with or without leading /api.
+  return /(?:^|\/)(?:api\/)?director-receipts(?:-v2)?\/[^/]+\/pdf(?:$|[/?#])/i.test(s);
 }
 
-export async function openStoredPdfUrl(storedUrl) {
+/** Static files under /api/uploads/... do not need JWT. */
+export function isPublicUploadDocumentUrl(storedUrl) {
+  if (!storedUrl) return false;
+  return /\/api\/uploads\//i.test(String(storedUrl)) || /\/uploads\/(?:director-receipts|internal-forms|transactions)/i.test(String(storedUrl));
+}
+
+/**
+ * Use authenticated blob fetch when URL is a JWT-protected receipt PDF, or when the register row
+ * is a Director Transaction Receipt and the URL is not a public upload file.
+ */
+export function shouldUseAuthenticatedPdfFetch(storedUrl, opts = {}) {
+  if (!storedUrl || isPublicUploadDocumentUrl(storedUrl)) return false;
+  if (needsAuthenticatedReceiptPdfBlob(storedUrl)) return true;
+  if (opts.category === "Director Transaction Receipt") {
+    const s = String(storedUrl);
+    if (/^https?:\/\//i.test(s)) {
+      try {
+        const u = new URL(s);
+        if (!/\/director-receipts(?:-v2)?\//i.test(u.pathname || "")) return false;
+      } catch {
+        return false;
+      }
+      return true;
+    }
+    return /director-receipts/i.test(s);
+  }
+  return false;
+}
+
+export async function openStoredPdfUrl(storedUrl, opts = {}) {
   if (!storedUrl) return;
-  if (needsAuthenticatedReceiptPdfBlob(storedUrl)) {
+  if (shouldUseAuthenticatedPdfFetch(storedUrl, opts)) {
     const p = storedUrlToApiPath(storedUrl);
     if (!p) return;
     await openPdfInNewTab(p);
@@ -155,9 +249,9 @@ export async function openStoredPdfUrl(storedUrl) {
   window.open(storedUrl, "_blank", "noopener,noreferrer");
 }
 
-export async function printStoredPdfUrl(storedUrl) {
+export async function printStoredPdfUrl(storedUrl, opts = {}) {
   if (!storedUrl) return;
-  if (needsAuthenticatedReceiptPdfBlob(storedUrl)) {
+  if (shouldUseAuthenticatedPdfFetch(storedUrl, opts)) {
     const p = storedUrlToApiPath(storedUrl);
     if (!p) return;
     await printPdfInNewTab(p);
@@ -178,9 +272,9 @@ export async function printStoredPdfUrl(storedUrl) {
   }, 400);
 }
 
-export async function downloadStoredPdfUrl(storedUrl, filenameBase = "document") {
+export async function downloadStoredPdfUrl(storedUrl, filenameBase = "document", opts = {}) {
   if (!storedUrl) return;
-  if (needsAuthenticatedReceiptPdfBlob(storedUrl)) {
+  if (shouldUseAuthenticatedPdfFetch(storedUrl, opts)) {
     const p = storedUrlToApiPath(storedUrl);
     if (!p) return;
     await downloadPdf(p, filenameBase);

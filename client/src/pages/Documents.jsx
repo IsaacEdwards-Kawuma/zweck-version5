@@ -408,7 +408,9 @@ export default function Documents() {
                               type="button"
                               className="ui-btn-outline-xs"
                               onClick={() =>
-                                void openStoredPdfUrl(r.url).catch((e) => alert(pdfErrorMessage(e)))
+                                void openStoredPdfUrl(r.url, { category: r.category }).catch((e) =>
+                                  alert(pdfErrorMessage(e))
+                                )
                               }
                             >
                               Open
@@ -417,7 +419,9 @@ export default function Documents() {
                               type="button"
                               className="ui-btn-outline-xs"
                               onClick={() =>
-                                void printStoredPdfUrl(r.url).catch((e) => alert(pdfErrorMessage(e)))
+                                void printStoredPdfUrl(r.url, { category: r.category }).catch((e) =>
+                                  alert(pdfErrorMessage(e))
+                                )
                               }
                             >
                               Print
@@ -426,9 +430,9 @@ export default function Documents() {
                               type="button"
                               className="ui-btn-outline-xs"
                               onClick={() =>
-                                void downloadStoredPdfUrl(r.url, r.reference || r.title || "receipt").catch((e) =>
-                                  alert(pdfErrorMessage(e))
-                                )
+                                void downloadStoredPdfUrl(r.url, r.reference || r.title || "receipt", {
+                                  category: r.category
+                                }).catch((e) => alert(pdfErrorMessage(e)))
                               }
                             >
                               Download
