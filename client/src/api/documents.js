@@ -18,3 +18,8 @@ export async function updateDocument(id, payload) {
 export async function deleteDocument(id) {
   await api.delete(`/documents/${id}`);
 }
+
+export async function resolveDocumentUrl(id) {
+  const { data } = await api.get(`/documents/${id}/resolve-url`);
+  return data;
+}

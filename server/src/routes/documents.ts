@@ -4,6 +4,8 @@ import { prisma } from "../lib/prisma.js";
 import { apiError } from "../lib/http.js";
 import { requireRole } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
+import { generateDirectorReceiptPdfNow } from "../lib/directorReceiptPdfJob.js";
+import { generateDirectorReceiptPdfNowV2 } from "../lib/directorReceiptPdfJobV2.js";
 
 const router = Router();
 const db: any = prisma;
@@ -40,6 +42,68 @@ router.get("/", requireRole("DIRECTOR"), async (req, res) => {
     orderBy: [{ pinned: "desc" }, { updatedAt: "desc" }]
   });
   return res.json(rows);
+});
+
+/**
+ * Resolve a stored register URL to an actually-openable URL.
+ * Primarily used for Director Transaction Receipts: prefer stored `pdfUrl` under `/api/uploads/...` or S3 public URL
+ * (more reliable than JWT-only `/api/director-receipts(-v2)/:id/pdf` through proxies).
+ */
+router.get("/:id/resolve-url", requireRole("DIRECTOR"), async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) return res.status(400).json(apiError("Invalid document id"));
+
+  const doc = await db.documentRegister.findUnique({ where: { id } });
+  if (!doc) return res.status(404).json(apiError("Document not found"));
+
+  // Default: return as-is.
+  let resolvedUrl: string | null = doc.url || null;
+
+  if (doc.category === "Director Transaction Receipt") {
+    const ref = String(doc.receiptReference || doc.reference || "").trim();
+    if (ref) {
+      // Prefer V2 receipt pdfUrl (DirectorReceipt table).
+      const v2 = await prisma.directorReceipt.findUnique({
+        where: { referenceNumber: ref },
+        select: { id: true, pdfUrl: true }
+      });
+      if (v2) {
+        if (!v2.pdfUrl) {
+          await generateDirectorReceiptPdfNowV2(v2.id);
+        }
+        const again = await prisma.directorReceipt.findUnique({
+          where: { referenceNumber: ref },
+          select: { pdfUrl: true }
+        });
+        resolvedUrl = again?.pdfUrl || resolvedUrl;
+      } else {
+        // Legacy receipt pdfUrl (DirectorReceiptLegacy table).
+        const legacy = await prisma.directorReceiptLegacy.findUnique({
+          where: { receiptReference: ref },
+          select: { id: true, pdfUrl: true }
+        });
+        if (legacy) {
+          if (!legacy.pdfUrl) {
+            await generateDirectorReceiptPdfNow(legacy.id);
+          }
+          const again = await prisma.directorReceiptLegacy.findUnique({
+            where: { receiptReference: ref },
+            select: { pdfUrl: true }
+          });
+          resolvedUrl = again?.pdfUrl || resolvedUrl;
+        }
+      }
+    }
+  }
+
+  if (resolvedUrl && resolvedUrl !== doc.url) {
+    await db.documentRegister.update({
+      where: { id: doc.id },
+      data: { url: resolvedUrl, updatedById: req.user?.id ?? null }
+    });
+  }
+
+  return res.json({ url: resolvedUrl });
 });
 
 router.post("/", requireRole("ADMIN"), validateBody(docSchema), async (req, res) => {

@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMe } from "../hooks/useMe";
 import Loading from "../components/Loading";
 import ErrorBanner from "../components/ErrorBanner";
-import { createDocument, deleteDocument, listDocuments, updateDocument } from "../api/documents";
+import { createDocument, deleteDocument, listDocuments, resolveDocumentUrl, updateDocument } from "../api/documents";
 import { hasAdminPrivileges } from "../lib/roles";
 import {
   downloadStoredPdfUrl,
@@ -20,6 +20,13 @@ function pdfErrorMessage(err) {
   if (typeof d === "string") return d;
   if (d && typeof d.message === "string") return d.message;
   return err?.message || "Could not open PDF";
+}
+
+async function resolveIfReceipt(row) {
+  if (!row?.id) return row?.url;
+  if (row.category !== "Director Transaction Receipt") return row?.url;
+  const out = await resolveDocumentUrl(row.id);
+  return out?.url || row?.url;
 }
 
 const EMPTY_FORM = {
@@ -407,33 +414,38 @@ export default function Documents() {
                             <button
                               type="button"
                               className="ui-btn-outline-xs"
-                              onClick={() =>
-                                void openStoredPdfUrl(r.url, { category: r.category }).catch((e) =>
-                                  alert(pdfErrorMessage(e))
-                                )
-                              }
+                              onClick={() => {
+                                void (async () => {
+                                  const url = await resolveIfReceipt(r);
+                                  await openStoredPdfUrl(url, { category: r.category });
+                                })().catch((e) => alert(pdfErrorMessage(e)));
+                              }}
                             >
                               Open
                             </button>
                             <button
                               type="button"
                               className="ui-btn-outline-xs"
-                              onClick={() =>
-                                void printStoredPdfUrl(r.url, { category: r.category }).catch((e) =>
-                                  alert(pdfErrorMessage(e))
-                                )
-                              }
+                              onClick={() => {
+                                void (async () => {
+                                  const url = await resolveIfReceipt(r);
+                                  await printStoredPdfUrl(url, { category: r.category });
+                                })().catch((e) => alert(pdfErrorMessage(e)));
+                              }}
                             >
                               Print
                             </button>
                             <button
                               type="button"
                               className="ui-btn-outline-xs"
-                              onClick={() =>
-                                void downloadStoredPdfUrl(r.url, r.reference || r.title || "receipt", {
-                                  category: r.category
-                                }).catch((e) => alert(pdfErrorMessage(e)))
-                              }
+                              onClick={() => {
+                                void (async () => {
+                                  const url = await resolveIfReceipt(r);
+                                  await downloadStoredPdfUrl(url, r.reference || r.title || "receipt", {
+                                    category: r.category
+                                  });
+                                })().catch((e) => alert(pdfErrorMessage(e)));
+                              }}
                             >
                               Download
                             </button>
