@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { SectionTitle } from "../components/PageHero";
 import MetricCard from "../components/MetricCard";
@@ -53,8 +53,91 @@ function formKindLabel(kind) {
   }
 }
 
+/** Floating coins / rings — purely decorative. */
+function TreasurerFloatingDeco() {
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl" aria-hidden>
+      <div
+        className="treasurer-deco-float treasurer-deco-float-d1 absolute left-[6%] top-[14%] h-12 w-12 rounded-full bg-gradient-to-br from-emerald-400/35 to-teal-600/25 shadow-lg shadow-emerald-600/15 ring-2 ring-white/60 dark:ring-emerald-500/20"
+      />
+      <div
+        className="treasurer-deco-float treasurer-deco-float-d2 absolute right-[10%] top-[22%] h-9 w-9 rounded-full bg-gradient-to-br from-amber-300/45 to-amber-600/30 ring-2 ring-amber-200/50 dark:ring-amber-500/25"
+      />
+      <div
+        className="treasurer-deco-float treasurer-deco-float-d3 absolute bottom-[18%] left-[18%] h-7 w-7 rounded-full bg-gradient-to-br from-sky-400/35 to-blue-600/25 ring-2 ring-sky-200/40 dark:ring-sky-500/20"
+      />
+      <svg
+        className="treasurer-deco-float treasurer-deco-float-d2 absolute -right-4 bottom-[8%] h-20 w-20 text-emerald-500/25 dark:text-emerald-400/20"
+        viewBox="0 0 64 64"
+        fill="none"
+        aria-hidden
+      >
+        <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="2" strokeDasharray="6 8" />
+        <path d="M32 12v40M20 28h24" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.6" />
+      </svg>
+    </div>
+  );
+}
+
+/** Soft wave between major sections. */
+function TreasurerSectionWave() {
+  return (
+    <div className="relative -my-1 h-10 w-full overflow-hidden text-emerald-500/25 dark:text-emerald-500/15" aria-hidden>
+      <svg
+        className="treasurer-wave-anim h-full w-full"
+        viewBox="0 0 1200 40"
+        preserveAspectRatio="none"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          fill="currentColor"
+          d="M0,20 C150,5 350,35 600,18 C850,2 1050,38 1200,22 L1200,40 L0,40 Z"
+          opacity="0.65"
+        />
+        <path
+          fill="currentColor"
+          d="M0,28 C180,12 380,36 600,24 C820,10 1020,34 1200,26 L1200,40 L0,40 Z"
+          opacity="0.35"
+        />
+      </svg>
+    </div>
+  );
+}
+
+/** Narrow finance motif for “Treasury focus” panel. */
+function TreasurerFocusSideGraphic({ className = "" }) {
+  const gid = useId().replace(/:/g, "");
+  const g = `trs-focus-grad-${gid}`;
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 120 200"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden
+    >
+      <defs>
+        <linearGradient id={g} x1="0" y1="0" x2="120" y2="200" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#10b981" stopOpacity="0.35" />
+          <stop offset="1" stopColor="#3b82f6" stopOpacity="0.12" />
+        </linearGradient>
+      </defs>
+      <rect x="24" y="16" width="72" height="96" rx="10" stroke={`url(#${g})`} strokeWidth="2" opacity="0.8" />
+      <path d="M40 44h48M40 60h36M40 76h44" stroke="#10b981" strokeWidth="2" strokeLinecap="round" opacity="0.35" />
+      <circle cx="60" cy="120" r="28" stroke="#fbbf24" strokeWidth="2" strokeDasharray="4 6" opacity="0.45" />
+      <path d="M52 120l6 6 14-16" stroke="#059669" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="36" y="152" width="48" height="8" rx="2" fill="#10b981" opacity="0.2" />
+      <rect x="44" y="164" width="32" height="6" rx="2" fill="#3b82f6" opacity="0.15" />
+    </svg>
+  );
+}
+
 /** Inline SVG — vault, trend, and liquidity (no external images). */
 function TreasurerHeroIllustration({ className = "" }) {
+  const gid = useId().replace(/:/g, "");
+  const grad = `trs-grad-${gid}`;
+  const gold = `trs-gold-${gid}`;
+  const blur = `trs-blur-${gid}`;
   return (
     <svg
       className={className}
@@ -64,22 +147,22 @@ function TreasurerHeroIllustration({ className = "" }) {
       aria-hidden
     >
       <defs>
-        <linearGradient id="trs-grad" x1="40" y1="30" x2="340" y2="200" gradientUnits="userSpaceOnUse">
+        <linearGradient id={grad} x1="40" y1="30" x2="340" y2="200" gradientUnits="userSpaceOnUse">
           <stop stopColor="#059669" stopOpacity="0.95" />
           <stop offset="0.5" stopColor="#0d9488" stopOpacity="0.85" />
           <stop offset="1" stopColor="#2563eb" stopOpacity="0.75" />
         </linearGradient>
-        <linearGradient id="trs-gold" x1="0" y1="0" x2="1" y2="1">
+        <linearGradient id={gold} x1="0" y1="0" x2="1" y2="1">
           <stop stopColor="#fbbf24" stopOpacity="0.9" />
           <stop offset="1" stopColor="#d97706" stopOpacity="0.75" />
         </linearGradient>
-        <filter id="trs-blur" x="-15%" y="-15%" width="130%" height="130%">
+        <filter id={blur} x="-15%" y="-15%" width="130%" height="130%">
           <feGaussianBlur stdDeviation="5" />
         </filter>
       </defs>
-      <ellipse cx="200" cy="228" rx="150" ry="9" fill="url(#trs-grad)" opacity="0.25" filter="url(#trs-blur)" />
+      <ellipse cx="200" cy="228" rx="150" ry="9" fill={`url(#${grad})`} opacity="0.25" filter={`url(#${blur})`} />
       <rect x="48" y="40" width="220" height="150" rx="16" fill="white" className="dark:fill-slate-800" opacity="0.96" />
-      <rect x="48" y="40" width="220" height="150" rx="16" stroke="url(#trs-grad)" strokeWidth="2" />
+      <rect x="48" y="40" width="220" height="150" rx="16" stroke={`url(#${grad})`} strokeWidth="2" />
       <path
         d="M72 168V88h32l16 24 20-24h36v80"
         stroke="currentColor"
@@ -90,14 +173,14 @@ function TreasurerHeroIllustration({ className = "" }) {
         fill="none"
         opacity="0.9"
       />
-      <path d="M88 152l28-36 24 20 32-48 28 40" stroke="url(#trs-grad)" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <path d="M88 152l28-36 24 20 32-48 28 40" stroke={`url(#${grad})`} strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
       <circle cx="88" cy="152" r="4" fill="#059669" />
       <circle cx="116" cy="116" r="4" fill="#0d9488" />
       <circle cx="140" cy="136" r="4" fill="#14b8a6" />
       <circle cx="172" cy="88" r="4" fill="#2563eb" />
       <circle cx="200" cy="128" r="4" fill="#059669" />
       <rect x="260" y="56" width="92" height="72" rx="10" fill="white" className="dark:fill-slate-900" stroke="#fbbf24" strokeWidth="2" opacity="0.95" />
-      <circle cx="292" cy="88" r="18" fill="url(#trs-gold)" opacity="0.35" />
+      <circle cx="292" cy="88" r="18" fill={`url(#${gold})`} opacity="0.35" />
       <g className="text-amber-800 dark:text-amber-200">
         <text x="284" y="94" fill="currentColor" fontSize="22" fontWeight="700" fontFamily="system-ui, sans-serif">
           €
@@ -275,6 +358,7 @@ export default function TreasurerDashboard() {
           className="pointer-events-none absolute -bottom-10 -left-10 h-40 w-40 rounded-full bg-sky-400/15 blur-2xl dark:bg-sky-500/10"
           aria-hidden
         />
+        <TreasurerFloatingDeco />
 
         <div className="relative grid gap-8 lg:grid-cols-[1fr_minmax(0,300px)] lg:items-center">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
@@ -312,12 +396,18 @@ export default function TreasurerDashboard() {
       </div>
 
       {/* Status strip */}
-      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-3 shadow-sm backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/70 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-slate-600 dark:text-slate-400">
+      <div className="relative flex flex-col gap-3 overflow-hidden rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-3 shadow-sm backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/70 sm:flex-row sm:items-center sm:justify-between">
+        <IconSparkles className="pointer-events-none absolute -left-1 bottom-0 h-24 w-24 text-emerald-500/[0.12] dark:text-emerald-400/[0.1]" aria-hidden />
+        <p className="relative z-10 flex items-start gap-2 text-sm text-slate-600 dark:text-slate-400 sm:items-center">
+          <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500/15 to-teal-500/10 text-emerald-700 dark:text-emerald-300">
+            <IconRadar className="h-4 w-4" aria-hidden />
+          </span>
+          <span>
           <span className="font-medium text-slate-800 dark:text-slate-200">Workspace overview</span>
           — use shortcuts below or the sidebar. Data refreshes automatically; you can force a sync anytime.
+          </span>
         </p>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="relative z-10 flex flex-wrap items-center gap-3">
           {lastRefreshAt ? (
             <span className="text-xs text-slate-500 dark:text-slate-400">
               Last manual sync: <span className="font-medium text-slate-700 dark:text-slate-300">{lastRefreshAt}</span>
@@ -332,7 +422,10 @@ export default function TreasurerDashboard() {
       </div>
 
       {/* Treasury focus — professional checklist */}
-      <div className="rounded-2xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50/40 to-white p-5 shadow-sm dark:border-emerald-900/35 dark:from-emerald-950/20 dark:to-slate-900/90">
+      <div className="relative overflow-hidden rounded-2xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50/40 to-white p-5 shadow-sm dark:border-emerald-900/35 dark:from-emerald-950/20 dark:to-slate-900/90">
+        <TreasurerFocusSideGraphic className="pointer-events-none absolute -bottom-2 right-0 hidden h-44 w-28 opacity-90 md:block lg:h-52 lg:w-32" />
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_30%_20%,rgba(16,185,129,0.08),transparent_55%)] dark:bg-[radial-gradient(ellipse_at_30%_20%,rgba(52,211,153,0.06),transparent_50%)]" aria-hidden />
+        <div className="relative z-10">
         <SectionTitle icon={IconRadar}>Treasury focus</SectionTitle>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
           Short reminders to keep finance operations tight and audit-ready.
@@ -353,8 +446,21 @@ export default function TreasurerDashboard() {
             );
           })}
         </ul>
+        </div>
       </div>
 
+      <TreasurerSectionWave />
+
+      <div className="treasurer-metrics-shell treasurer-dot-noise p-5 sm:p-6">
+        <div
+          className="pointer-events-none absolute -left-16 top-1/2 h-56 w-56 -translate-y-1/2 rounded-full bg-emerald-400/15 blur-3xl dark:bg-emerald-500/10"
+          aria-hidden
+        />
+        <div
+          className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-sky-400/20 blur-2xl dark:bg-sky-500/10"
+          aria-hidden
+        />
+        <div className="relative space-y-8">
       <div className="ui-stagger grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Bank (aggregated)" value={eur(bank)} icon={IconBank} />
         <MetricCard label="Total assets" value={eur(totalAssets)} sub="From portfolio view" icon={IconBuilding} />
@@ -394,9 +500,15 @@ export default function TreasurerDashboard() {
           />
         </div>
       </div>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
+        <div className="treasurer-workspace-shell lg:col-span-2">
+          <div className="relative overflow-hidden rounded-xl bg-white/90 p-4 dark:bg-slate-900/70 sm:p-5">
+            <IconChartPie className="pointer-events-none absolute -bottom-6 -right-4 h-48 w-48 text-emerald-600/[0.07] dark:text-emerald-400/[0.09]" aria-hidden />
+            <IconBank className="pointer-events-none absolute -left-4 top-4 h-28 w-28 -rotate-12 text-sky-600/[0.06] dark:text-sky-400/[0.08]" aria-hidden />
+          <div className="relative z-10">
           <SectionTitle icon={IconSparkles}>Workspace</SectionTitle>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
             Core treasury and accounting tools. Same routes as the main dashboard, grouped for speed.
@@ -417,7 +529,7 @@ export default function TreasurerDashboard() {
                 >
                   <div className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-white/40 opacity-0 blur-2xl transition-opacity duration-500 group-hover:opacity-100 dark:bg-emerald-500/10" />
                   <div className="relative flex items-start gap-3">
-                    <span className="rounded-xl bg-gradient-to-br from-emerald-600/90 to-teal-600/90 p-2.5 text-white shadow-md shadow-emerald-600/20 ring-2 ring-white/50 dark:ring-slate-800/80">
+                    <span className="treasurer-card-icon-motion rounded-xl bg-gradient-to-br from-emerald-600/90 to-teal-600/90 p-2.5 text-white shadow-md shadow-emerald-600/20 ring-2 ring-white/50 dark:ring-slate-800/80">
                       <Icon className="h-5 w-5" aria-hidden />
                     </span>
                     <div className="min-w-0 flex-1">
@@ -429,16 +541,19 @@ export default function TreasurerDashboard() {
               );
             })}
           </div>
+          </div>
+          </div>
         </div>
 
         <div className="space-y-4">
           <div
             className={[
-              "rounded-2xl border border-slate-200/80 bg-white/95 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/80",
+              "treasurer-side-panel-shell p-4",
               unread > 0 ? "treasurer-alert-live border-emerald-300/60 dark:border-emerald-700/50" : ""
             ].join(" ")}
           >
-            <div className="flex items-center justify-between gap-2">
+            <IconBolt className="pointer-events-none absolute right-3 top-3 h-24 w-24 text-amber-500/[0.08] dark:text-amber-400/[0.1]" aria-hidden />
+            <div className="relative flex items-center justify-between gap-2">
               <SectionTitle icon={IconBolt}>Alerts</SectionTitle>
               <Link to="/notifications" className="text-xs font-semibold text-emerald-700 hover:underline dark:text-emerald-300">
                 Open inbox
@@ -448,11 +563,12 @@ export default function TreasurerDashboard() {
               <span className="text-3xl font-bold tabular-nums text-slate-900 dark:text-slate-100">{unread}</span>
               <span className="text-sm font-medium text-slate-500 dark:text-slate-400">unread</span>
             </div>
-            <div className="text-xs text-slate-500 dark:text-slate-400">Notifications across ledger, forms, and billing.</div>
+            <div className="relative text-xs text-slate-500 dark:text-slate-400">Notifications across ledger, forms, and billing.</div>
           </div>
 
-          <div className="rounded-2xl border border-slate-200/80 bg-white/95 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
-            <div className="flex items-center justify-between gap-2">
+          <div className="treasurer-side-panel-shell relative p-4">
+            <IconCalendar className="pointer-events-none absolute right-2 bottom-2 h-28 w-28 text-brand-600/[0.07] dark:text-brand-400/[0.09]" aria-hidden />
+            <div className="relative flex items-center justify-between gap-2">
               <SectionTitle icon={IconCalendar}>Next meetings</SectionTitle>
               <Link to="/meetings" className="text-xs font-semibold text-emerald-700 hover:underline dark:text-emerald-300">
                 All
@@ -494,7 +610,9 @@ export default function TreasurerDashboard() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className="rounded-2xl border border-amber-200/80 bg-gradient-to-br from-amber-50/90 to-white p-5 shadow-sm dark:border-amber-900/40 dark:from-amber-950/30 dark:to-slate-900/90">
+        <div className="relative overflow-hidden rounded-2xl border border-amber-200/80 bg-gradient-to-br from-amber-50/90 to-white p-5 shadow-sm dark:border-amber-900/40 dark:from-amber-950/30 dark:to-slate-900/90">
+          <IconClipboard className="pointer-events-none absolute -right-3 -top-2 h-36 w-36 text-amber-600/[0.09] dark:text-amber-400/[0.1]" aria-hidden />
+          <div className="relative z-10">
           <div className="flex items-center justify-between gap-2">
             <SectionTitle icon={IconClipboard}>Pending approvals</SectionTitle>
             <Link to="/forms" className="text-sm font-semibold text-amber-900 hover:underline dark:text-amber-200">
@@ -531,9 +649,12 @@ export default function TreasurerDashboard() {
               ))}
             </ul>
           )}
+          </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200/80 bg-white/95 p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
+        <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
+          <IconListNumbers className="pointer-events-none absolute -bottom-4 -right-2 h-40 w-40 text-emerald-600/[0.06] dark:text-emerald-400/[0.08]" aria-hidden />
+          <div className="relative z-10">
           <div className="flex items-center justify-between gap-2">
             <SectionTitle icon={IconListNumbers}>Recent ledger activity</SectionTitle>
             <Link to="/ledger" className="text-sm font-semibold text-emerald-700 hover:underline dark:text-emerald-300">
@@ -558,6 +679,7 @@ export default function TreasurerDashboard() {
               </li>
             ))}
           </ul>
+          </div>
         </div>
       </div>
     </div>

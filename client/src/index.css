@@ -533,6 +533,82 @@ html.dark ::selection {
       animation: treasurer-overdue-ring 2.2s ease-in-out infinite;
       border-radius: 0.75rem;
     }
+
+    @keyframes treasurer-deco-drift {
+      0%,
+      100% {
+        transform: translateY(0) rotate(0deg);
+      }
+      33% {
+        transform: translateY(-7px) rotate(2.5deg);
+      }
+      66% {
+        transform: translateY(5px) rotate(-2deg);
+      }
+    }
+
+    .treasurer-deco-float {
+      animation: treasurer-deco-drift 8s ease-in-out infinite;
+    }
+
+    .treasurer-deco-float-d1 {
+      animation-delay: -2.2s;
+    }
+    .treasurer-deco-float-d2 {
+      animation-delay: -4.5s;
+    }
+    .treasurer-deco-float-d3 {
+      animation-delay: -6.1s;
+    }
+
+    .treasurer-dot-noise {
+      background-image: radial-gradient(circle at 1px 1px, rgba(16, 185, 129, 0.14) 1px, transparent 0);
+      background-size: 22px 22px;
+    }
+
+    html.dark .treasurer-dot-noise {
+      background-image: radial-gradient(circle at 1px 1px, rgba(52, 211, 153, 0.09) 1px, transparent 0);
+    }
+
+    .treasurer-metrics-shell {
+      @apply relative overflow-hidden rounded-2xl border border-emerald-300/35 bg-gradient-to-br from-white via-emerald-50/40 to-sky-50/30 shadow-sm dark:border-emerald-800/40 dark:from-slate-900 dark:via-emerald-950/25 dark:to-slate-950/90;
+    }
+
+    .treasurer-workspace-shell {
+      @apply relative overflow-hidden rounded-2xl border border-emerald-200/50 bg-gradient-to-b from-white/95 to-emerald-50/20 p-1 dark:border-emerald-900/35 dark:from-slate-900/90 dark:to-emerald-950/15;
+    }
+
+    .treasurer-side-panel-shell {
+      @apply relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 shadow-sm dark:border-slate-700 dark:bg-slate-900/80;
+    }
+
+    @keyframes treasurer-wave-shift {
+      0%,
+      100% {
+        transform: translateX(-2%);
+      }
+      50% {
+        transform: translateX(2%);
+      }
+    }
+
+    .treasurer-wave-anim {
+      animation: treasurer-wave-shift 14s ease-in-out infinite;
+    }
+
+    @keyframes treasurer-icon-tilt {
+      0%,
+      100% {
+        transform: rotate(-6deg) scale(1);
+      }
+      50% {
+        transform: rotate(6deg) scale(1.03);
+      }
+    }
+
+    .treasurer-card-icon-motion {
+      animation: treasurer-icon-tilt 6s ease-in-out infinite;
+    }
   }
 }
 
