@@ -136,7 +136,8 @@ export async function downloadPdf(apiPath, filenameBase = "document") {
 export function needsAuthenticatedReceiptPdfBlob(storedUrl) {
   if (!storedUrl) return false;
   const s = String(storedUrl);
-  return /\/director-receipts(?:-v2)?\/[^/]+\/pdf/i.test(s);
+  // Allow optional trailing slash and query/hash after `pdf`.
+  return /\/director-receipts(?:-v2)?\/[^/]+\/pdf(?:$|[/?#])/i.test(s);
 }
 
 export async function openStoredPdfUrl(storedUrl) {
