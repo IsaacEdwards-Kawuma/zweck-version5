@@ -8,6 +8,7 @@ import RequireReportsAccess from "./components/RequireReportsAccess";
 import RequireUserRole from "./components/RequireUserRole";
 import RequireSecretaryRole from "./components/RequireSecretaryRole";
 import RequireTreasurerRole from "./components/RequireTreasurerRole";
+import RequireNotTreasurer from "./components/RequireNotTreasurer";
 import RequireAdmin from "./components/RequireAdmin";
 import HomeRedirect from "./components/HomeRedirect";
 
@@ -88,9 +89,11 @@ export default function App() {
               <Route path="/ledger" element={<Ledger />} />
               <Route path="/reconciliation" element={<Reconciliation />} />
               <Route path="/accounts" element={<ChartOfAccounts />} />
-              <Route path="/directors" element={<Directors />} />
-              <Route path="/directors/:id" element={<DirectorDetail />} />
-              <Route path="/portfolio" element={<Portfolio />} />
+              <Route element={<RequireNotTreasurer />}>
+                <Route path="/directors" element={<Directors />} />
+                <Route path="/directors/:id" element={<DirectorDetail />} />
+                <Route path="/portfolio" element={<Portfolio />} />
+              </Route>
               <Route path="/projects" element={<ProjectsLayout />}>
                 <Route index element={<Projects />} />
               </Route>
@@ -99,8 +102,10 @@ export default function App() {
               <Route path="/ypa" element={<Navigate to="/projects" replace />} />
             </Route>
 
-            <Route path="/meetings" element={<Meetings />} />
-            <Route path="/documents" element={<Documents />} />
+            <Route element={<RequireNotTreasurer />}>
+              <Route path="/meetings" element={<Meetings />} />
+              <Route path="/documents" element={<Documents />} />
+            </Route>
             <Route path="/forms" element={<Forms />} />
             <Route path="/chat" element={<Chat />} />
             <Route path="/chat/rooms/:roomId" element={<ChatRoom />} />

@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import Loading from "../components/Loading";
 import { getSettings } from "../api/settings";
-import { hasAdminPrivileges, isSecretaryRole, isStaffRole, isUserRole } from "../lib/roles";
+import { hasAdminPrivileges, isSecretaryRole, isStaffRole, isTreasurerRole, isUserRole } from "../lib/roles";
 
 const TOC_STAFF = [
   { id: "start", label: "Getting started" },
@@ -12,6 +12,19 @@ const TOC_STAFF = [
   { id: "directors-portfolio", label: "Directors & portfolio" },
   { id: "projects", label: "Projects" },
   { id: "meetings-docs", label: "Meetings & documents" },
+  { id: "chat-notify", label: "Chat & notifications" },
+  { id: "reconciliation", label: "Reconciliation" },
+  { id: "settings-roles", label: "Settings & roles" },
+  { id: "tips", label: "Tips" }
+];
+
+/** Treasurer: no directors, portfolio, meetings, or documents workspaces in the UI. */
+const TOC_TREASURER = [
+  { id: "start", label: "Getting started" },
+  { id: "dashboard-reports", label: "Dashboard & reports" },
+  { id: "transactions", label: "Posting transactions" },
+  { id: "ledger-accounts", label: "Ledger & chart of accounts" },
+  { id: "projects", label: "Projects" },
   { id: "chat-notify", label: "Chat & notifications" },
   { id: "reconciliation", label: "Reconciliation" },
   { id: "settings-roles", label: "Settings & roles" },
@@ -65,10 +78,11 @@ export default function HelpGuides() {
   const qSettings = useQuery({ queryKey: ["settings"], queryFn: getSettings });
   const role = qSettings.data?.session?.role;
   const staff = isStaffRole(role);
+  const isTreasurer = isTreasurerRole(role);
   const isUser = isUserRole(role);
   const isSecretary = isSecretaryRole(role);
   const isAdmin = hasAdminPrivileges(role);
-  const toc = staff ? TOC_STAFF : isUser ? TOC_MEMBER : isSecretary ? TOC_SECRETARY : TOC_MEMBER_OTHER;
+  const toc = isTreasurer ? TOC_TREASURER : staff ? TOC_STAFF : isUser ? TOC_MEMBER : isSecretary ? TOC_SECRETARY : TOC_MEMBER_OTHER;
 
   if (qSettings.isLoading) {
     return <Loading label="Loading help…" />;
@@ -79,9 +93,11 @@ export default function HelpGuides() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight ui-page-heading">Help &amp; guides</h1>
         <p className="mt-1 text-sm ui-page-muted">
-          {staff
-            ? "Short tutorials for using ZweckOS day to day. Use the links below to jump to a topic."
-            : "Short tutorials for the areas available in your account. Use the links below to jump to a topic."}
+          {isTreasurer
+            ? "Tutorials for treasury workflows: posting, ledger, reports, invoicing, and approvals. Meetings, documents, directors, and portfolio are not available in your role."
+            : staff
+              ? "Short tutorials for using ZweckOS day to day. Use the links below to jump to a topic."
+              : "Short tutorials for the areas available in your account. Use the links below to jump to a topic."}
         </p>
       </div>
 
@@ -106,7 +122,34 @@ export default function HelpGuides() {
 
       <div className="ui-surface space-y-10 rounded-xl p-6 sm:p-8">
         <Section id="start" title="Getting started">
-          {staff ? (
+          {staff && isTreasurer ? (
+            <>
+              <p>
+                The first time you sign in, a short welcome walkthrough may appear; you can skip it or use{" "}
+                <Link className="font-medium text-brand-700 underline hover:text-brand-800 dark:text-brand-300" to="/help">
+                  Help &amp; guides
+                </Link>{" "}
+                anytime.
+              </p>
+              <p>
+                After you sign in, open your{" "}
+                <Link className="font-medium text-brand-700 underline hover:text-brand-800 dark:text-brand-300" to="/treasurer">
+                  Treasurer dashboard
+                </Link>{" "}
+                for cash, ledger, approvals, invoicing, and shortcuts. The sidebar only lists areas your role can open.
+                Use{" "}
+                <kbd className="rounded border border-slate-300 bg-slate-100 px-1 font-mono text-xs dark:border-slate-600 dark:bg-slate-800">
+                  /
+                </kbd>{" "}
+                (outside of text fields) to focus global search from anywhere.
+              </p>
+              <p>
+                Your treasurer role is limited to financial operations (posting, ledger, reconciliation, reports, invoices,
+                projects, forms, chat, and notifications). Governance areas such as the meetings calendar, company
+                documents register, directors list, and portfolio overview are not included.
+              </p>
+            </>
+          ) : staff ? (
             <>
               <p>
                 The first time you sign in, a short welcome walkthrough may appear; you can skip it or use{" "}
@@ -261,10 +304,12 @@ export default function HelpGuides() {
                   Chart of Accounts
                 </Link>{" "}
                 defines account codes and names used in reporting. Keep naming consistent so everyone reads the same
-                structure in reports and portfolios.
+                structure in reports
+                {isTreasurer ? "." : " and portfolios."}
               </p>
             </Section>
 
+            {staff && !isTreasurer ? (
             <Section id="directors-portfolio" title="Directors & portfolio">
               <p>
                 <Link className="font-medium text-brand-700 underline dark:text-brand-300" to="/directors">
@@ -281,6 +326,7 @@ export default function HelpGuides() {
                 team or board.
               </p>
             </Section>
+            ) : null}
 
             <Section id="projects" title="Projects">
               <p>
@@ -351,6 +397,7 @@ export default function HelpGuides() {
           </Section>
         )}
 
+        {!isTreasurer ? (
         <Section id="meetings-docs" title="Meetings & documents">
           <p>
             Schedule and review sessions under{" "}
@@ -369,6 +416,7 @@ export default function HelpGuides() {
               : " Your team may attach files to workflows where the product allows it."}
           </p>
         </Section>
+        ) : null}
 
         {!staff ? (
           <>
@@ -401,7 +449,7 @@ export default function HelpGuides() {
               Chat
             </Link>{" "}
             supports direct and group rooms
-            {staff ? ", including meeting- or project-linked spaces" : ""}. Use @mentions when you need someone’s
+            {staff && !isTreasurer ? ", including meeting- or project-linked spaces" : staff ? ", including project-linked spaces" : ""}. Use @mentions when you need someone’s
             attention; notification rules can be tuned under{" "}
             <Link className="font-medium text-brand-700 underline dark:text-brand-300" to="/settings#settings-notifications">
               Settings → Notifications
@@ -461,7 +509,24 @@ export default function HelpGuides() {
         </Section>
 
         <Section id="tips" title="Tips">
-          {staff ? (
+          {staff && isTreasurer ? (
+            <ul className="list-inside list-disc space-y-2">
+              <li>Narrow date ranges in reports and the ledger before exporting large CSVs.</li>
+              <li>Keep transaction descriptions clear; they appear in lists and exports.</li>
+              <li>Approve internal forms promptly so colleagues can post matching ledger entries.</li>
+              <li>
+                For compliance questions, also read{" "}
+                <Link className="font-medium text-brand-700 underline dark:text-brand-300" to="/privacy">
+                  Privacy
+                </Link>{" "}
+                and{" "}
+                <Link className="font-medium text-brand-700 underline dark:text-brand-300" to="/legal/data-rights">
+                  Data &amp; privacy rights
+                </Link>
+                .
+              </li>
+            </ul>
+          ) : staff ? (
             <ul className="list-inside list-disc space-y-2">
               <li>Narrow date ranges in reports and the ledger before exporting large CSVs.</li>
               <li>Keep transaction descriptions clear; they appear in lists and exports.</li>

@@ -22,7 +22,7 @@ import {
 import { listPresence } from "../api/presence";
 import { pingIntegration } from "../api/integrations";
 import { fmtDate } from "../lib/format";
-import { hasAdminPrivileges, hasDirectorPrivileges, isUserRole } from "../lib/roles";
+import { hasAdminPrivileges, hasDirectorPrivileges, isTreasurerRole, isUserRole } from "../lib/roles";
 
 const SECTION = "ui-panel-elevated scroll-mt-24 p-5";
 const PREFS_KEY = "zweck_settings_prefs_v1";
@@ -301,6 +301,8 @@ export default function Settings() {
   const rateLimits = s?.rateLimits || {};
   const session = s?.session || {};
   const isAdmin = hasAdminPrivileges(session.role);
+  const isTreasurer = isTreasurerRole(session.role);
+  const appFeatureItems = isTreasurer ? APP_FEATURES.filter((f) => !["/directors", "/portfolio"].includes(f.to)) : APP_FEATURES;
 
   const presenceUsersRaw = qPresence.data?.users ?? [];
   const presenceOnlineCount = presenceUsersRaw.filter((u) => u.isOnline).length;
@@ -537,10 +539,11 @@ export default function Settings() {
               onChange={(e) => savePrefs({ ...prefs, defaultLanding: e.target.value })}
             >
               <option value="/">Dashboard</option>
+              {isTreasurer ? <option value="/treasurer">Treasurer</option> : null}
               <option value="/reports">Reports</option>
               <option value="/ledger">Ledger</option>
               <option value="/projects">Projects</option>
-              <option value="/directors">Directors</option>
+              {!isTreasurer ? <option value="/directors">Directors</option> : null}
             </select>
           </label>
           <label className="text-xs font-medium text-slate-700 dark:text-slate-300">
@@ -628,7 +631,7 @@ export default function Settings() {
               </Link>
             </>
           ) : null}
-          {hasDirectorPrivileges(session.role) && session.directorId != null ? (
+          {hasDirectorPrivileges(session.role) && session.directorId != null && !isTreasurer ? (
             <Link
               to={`/directors/${session.directorId}`}
               className="rounded-full bg-accent-100 px-3 py-1 text-xs font-semibold text-accent-900 ring-1 ring-accent-200/80 hover:bg-accent-200"
@@ -644,9 +647,12 @@ export default function Settings() {
           Notifications
         </h2>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-          Control in-app alerts (bell icon) for meetings, project tasks, documents, and chat. Meeting reminders go to all
-          active users who have in-app meeting reminders enabled; task and document alerts follow the toggles below.
+          {isTreasurer
+            ? "Control in-app alerts (bell icon) for project tasks and chat. Your role does not include the meetings or documents workspaces, so those notification types are hidden."
+            : "Control in-app alerts (bell icon) for meetings, project tasks, documents, and chat. Meeting reminders go to all active users who have in-app meeting reminders enabled; task and document alerts follow the toggles below."}
         </p>
+        {!isTreasurer ? (
+          <>
         <label className="mt-4 inline-flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/40">
           <input
             type="checkbox"
@@ -678,7 +684,11 @@ export default function Settings() {
             </span>
           </span>
         </label>
-        <label className="mt-3 inline-flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/40">
+          </>
+        ) : null}
+        <label
+          className={`${isTreasurer ? "mt-4" : "mt-3"} inline-flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/40`}
+        >
           <input
             type="checkbox"
             className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
@@ -693,6 +703,7 @@ export default function Settings() {
             </span>
           </span>
         </label>
+        {!isTreasurer ? (
         <label className="mt-3 inline-flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/40">
           <input
             type="checkbox"
@@ -708,6 +719,7 @@ export default function Settings() {
             </span>
           </span>
         </label>
+        ) : null}
         <label className="mt-3 inline-flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/40">
           <input
             type="checkbox"
@@ -991,6 +1003,7 @@ export default function Settings() {
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
           OpenAPI spec and interactive Swagger UI (same origin as the app).
         </p>
+        {!isTreasurer ? (
         <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
           <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">GET /api/meetings/calendar.ics</code> serves an
           authenticated iCalendar feed (cancelled meetings omitted). Use{" "}
@@ -999,6 +1012,7 @@ export default function Settings() {
           </Link>{" "}
           in the app, or call the URL with a Bearer token from automation.
         </p>
+        ) : null}
         <div className="mt-3 flex flex-wrap gap-3 text-sm">
           <a
             className="font-medium text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
@@ -1760,7 +1774,7 @@ export default function Settings() {
             Quick links into ZweckOS. Financial figures are always derived from posted transactions.
           </p>
           <ul className="mt-4 grid gap-3 sm:grid-cols-2">
-            {APP_FEATURES.map((f) => (
+            {appFeatureItems.map((f) => (
               <li key={f.to}>
                 <Link
                   to={f.to}

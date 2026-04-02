@@ -9,7 +9,6 @@ import {
   IconBank,
   IconBolt,
   IconBuilding,
-  IconCalendar,
   IconChartPie,
   IconCheckCircle,
   IconClipboard,
@@ -17,9 +16,7 @@ import {
   IconDashboard,
   IconListNumbers,
   IconPostTx,
-  IconPortfolio,
   IconRadar,
-  IconReports,
   IconScale,
   IconSettings,
   IconSparkles,
@@ -35,7 +32,6 @@ import {
   useTransactionsList
 } from "../hooks/useDashboard";
 import { listInternalForms } from "../api/internalForms";
-import { listMeetings } from "../api/meetings";
 import { listNotifications } from "../api/notifications";
 
 function formKindLabel(kind) {
@@ -242,8 +238,8 @@ const TREASURY_FOCUS = [
     icon: IconWallet
   },
   {
-    text: "Keep portfolio and director records aligned with posted transactions.",
-    icon: IconUsers
+    text: "Ensure reporting and control accounts stay aligned with posted ledger activity.",
+    icon: IconScale
   }
 ];
 
@@ -253,30 +249,14 @@ const QUICK = [
   { to: "/reconciliation", label: "Reconciliation", desc: "Bank & control accounts", icon: IconClipboard, accent: "from-cyan-500/12 to-transparent" },
   { to: "/accounts", label: "Chart of accounts", desc: "GL structure & balances", icon: IconBuilding, accent: "from-indigo-500/12 to-transparent" },
   { to: "/reports", label: "Reports", desc: "P&L, balance sheet, exports", icon: IconChartPie, accent: "from-violet-500/12 to-transparent" },
-  { to: "/portfolio", label: "Portfolio", desc: "Assets & director equity", icon: IconPortfolio, accent: "from-amber-500/15 to-transparent" },
-  { to: "/directors", label: "Directors", desc: "Profiles & capital", icon: IconUsers, accent: "from-teal-500/12 to-transparent" },
   { to: "/invoices", label: "Invoices", desc: "AR/AP & billing", icon: IconWallet, accent: "from-fuchsia-500/12 to-transparent" },
   { to: "/projects", label: "Projects", desc: "MMF / YPA & tasks", icon: IconDashboard, accent: "from-rose-500/12 to-transparent" },
   { to: "/forms", label: "Internal forms", desc: "Approve requisitions & receipts", icon: IconClipboard, accent: "from-orange-500/15 to-transparent" },
-  { to: "/meetings", label: "Meetings", desc: "Calendar & materials", icon: IconCalendar, accent: "from-yellow-500/12 to-transparent" },
-  { to: "/documents", label: "Documents", desc: "Company register", icon: IconReports, accent: "from-green-500/12 to-transparent" },
   { to: "/chat", label: "Chat", desc: "Team messages", icon: IconUsers, accent: "from-blue-500/15 to-transparent" },
   { to: "/notifications", label: "Notifications", desc: "Alerts inbox", icon: IconBolt, accent: "from-red-500/12 to-transparent" },
+  { to: "/help", label: "Help & guides", desc: "Shortcuts and how-tos", icon: IconSparkles, accent: "from-brand-500/15 to-transparent" },
   { to: "/settings", label: "Settings", desc: "Profile & preferences", icon: IconSettings, accent: "from-slate-500/12 to-transparent" }
 ];
-
-function meetingHint(isoDate) {
-  if (!isoDate) return null;
-  const today = new Date().toISOString().slice(0, 10);
-  if (String(isoDate) === today) return "Today";
-  const t0 = new Date(`${isoDate}T12:00:00`).getTime();
-  const t1 = new Date(`${today}T12:00:00`).getTime();
-  const d = Math.round((t0 - t1) / 86400000);
-  if (!Number.isFinite(d)) return null;
-  if (d === 1) return "Tomorrow";
-  if (d > 1) return `In ${d} days`;
-  return null;
-}
 
 export default function TreasurerDashboard() {
   const [tick, setTick] = useState(0);
@@ -291,7 +271,6 @@ export default function TreasurerDashboard() {
     queryKey: ["internal-forms", { status: "PENDING", treasurer: true }],
     queryFn: () => listInternalForms({ status: "PENDING" })
   });
-  const qMeetings = useQuery({ queryKey: ["meetings"], queryFn: listMeetings });
   const qNotifs = useQuery({
     queryKey: ["notifications", "treasurer-head", tick],
     queryFn: () => listNotifications({ limit: 1, unreadOnly: "true" }),
@@ -303,15 +282,6 @@ export default function TreasurerDashboard() {
 
   const transactions = useMemo(() => qTx.data ?? [], [qTx.data]);
   const recentTx = useMemo(() => transactions.slice(0, 8), [transactions]);
-
-  const meetings = useMemo(() => (Array.isArray(qMeetings.data) ? qMeetings.data : []), [qMeetings.data]);
-  const upcomingMeetings = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    return [...meetings]
-      .filter((m) => m?.status !== "CANCELLED" && m?.date && String(m.date) >= today)
-      .sort((a, b) => String(a.date).localeCompare(String(b.date)))
-      .slice(0, 4);
-  }, [meetings]);
 
   const pendingForms = useMemo(() => {
     const rows = Array.isArray(qForms.data) ? qForms.data : [];
@@ -340,7 +310,6 @@ export default function TreasurerDashboard() {
     setTick((t) => t + 1);
     setLastRefreshAt(new Date().toLocaleString());
     qForms.refetch();
-    qMeetings.refetch();
     qNotifs.refetch();
     qInvoiceM.refetch();
   };
@@ -564,47 +533,6 @@ export default function TreasurerDashboard() {
               <span className="text-sm font-medium text-slate-500 dark:text-slate-400">unread</span>
             </div>
             <div className="relative text-xs text-slate-500 dark:text-slate-400">Notifications across ledger, forms, and billing.</div>
-          </div>
-
-          <div className="treasurer-side-panel-shell relative p-4">
-            <IconCalendar className="pointer-events-none absolute right-2 bottom-2 h-28 w-28 text-brand-600/[0.07] dark:text-brand-400/[0.09]" aria-hidden />
-            <div className="relative flex items-center justify-between gap-2">
-              <SectionTitle icon={IconCalendar}>Next meetings</SectionTitle>
-              <Link to="/meetings" className="text-xs font-semibold text-emerald-700 hover:underline dark:text-emerald-300">
-                All
-              </Link>
-            </div>
-            {qMeetings.isLoading ? (
-              <div className="mt-3 text-sm text-slate-500">Loading…</div>
-            ) : upcomingMeetings.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">No upcoming meetings on file.</p>
-            ) : (
-              <ul className="mt-3 space-y-2">
-                {upcomingMeetings.map((m, idx) => {
-                  const hint = meetingHint(m.date);
-                  return (
-                    <li
-                      key={m.id}
-                      style={{ animationDelay: `${idx * 60}ms` }}
-                      className="ui-animate-in rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-950/40"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="font-medium text-slate-900 dark:text-slate-100">{m.title || "Meeting"}</div>
-                        {hint ? (
-                          <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-200">
-                            {hint}
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="text-xs text-slate-500">
-                        {m.date}
-                        {m.time ? ` · ${m.time}` : ""}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
           </div>
         </div>
       </div>

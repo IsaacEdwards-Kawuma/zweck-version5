@@ -13,6 +13,7 @@ function buildLinks(role) {
       : isTreasurerRole(role)
         ? "/treasurer"
         : "/dashboard";
+  const treasurer = isTreasurerRole(role);
   return [
     { to: dashboardTo, label: "Dashboard", icon: "dashboard" },
     ...(isSecretaryRole(role)
@@ -22,16 +23,16 @@ function buildLinks(role) {
         ]
       : []),
     ...(canAccessReports(role) ? [{ to: "/reports", label: "Reports", icon: "reports" }] : []),
-    { to: "/meetings", label: "Meetings", icon: "meetings" },
+    ...(!treasurer ? [{ to: "/meetings", label: "Meetings", icon: "meetings" }] : []),
     { to: "/chat", label: "Chat", icon: "chat" },
-    { to: "/documents", label: "Documents", icon: "documents" },
+    ...(!treasurer ? [{ to: "/documents", label: "Documents", icon: "documents" }] : []),
     { to: "/forms", label: "Forms", icon: "forms" },
     ...(staff ? [{ to: "/post", label: "Post Transaction", icon: "post" }] : []),
     ...(staff ? [{ to: "/ledger", label: "Ledger", icon: "ledger" }] : []),
     ...(staff ? [{ to: "/reconciliation", label: "Reconciliation", icon: "reconcile" }] : []),
     ...(staff ? [{ to: "/accounts", label: "Chart of Accounts", icon: "accounts" }] : []),
-    ...(staff ? [{ to: "/directors", label: "Directors", icon: "directors" }] : []),
-    ...(staff ? [{ to: "/portfolio", label: "Portfolio", icon: "portfolio" }] : []),
+    ...(staff && !treasurer ? [{ to: "/directors", label: "Directors", icon: "directors" }] : []),
+    ...(staff && !treasurer ? [{ to: "/portfolio", label: "Portfolio", icon: "portfolio" }] : []),
     { to: "/invoices", label: "Invoices", icon: "invoices" },
     ...(staff ? [{ to: "/projects", label: "Projects", icon: "projects" }] : []),
     { to: "/help", label: "Help & guides", icon: "help" },
@@ -250,7 +251,7 @@ export default function Sidebar({ mobileOpen, onClose, me }) {
             <NavLink
               key={l.to}
               to={l.to}
-              end={l.to === "/dashboard" || l.to === "/user" || l.to === "/secretary"}
+              end={l.to === "/dashboard" || l.to === "/user" || l.to === "/secretary" || l.to === "/treasurer"}
               onClick={onClose}
               className={({ isActive }) =>
                 [
